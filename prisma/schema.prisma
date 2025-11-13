@@ -220,10 +220,16 @@ model Offer {
   productId  String   @map("product_id")
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  // Données financières de l'offre (spécifiques à cette campagne)
-  reimbursedPrice    Decimal @db.Decimal(10, 2) @map("reimbursed_price")    // Prix du produit remboursé au testeur
-  reimbursedShipping Decimal @db.Decimal(10, 2) @map("reimbursed_shipping") // Frais de livraison remboursés
-  bonus              Decimal @default(0) @db.Decimal(10, 2)                 // Bonus supplémentaire pour le testeur
+  // Remboursements (oui/non)
+  reimbursedPrice    Boolean @default(true) @map("reimbursed_price")     // Le prix du produit est-il remboursé ?
+  reimbursedShipping Boolean @default(true) @map("reimbursed_shipping")  // Les frais de livraison sont-ils remboursés ?
+
+  // Montants maximum de remboursement (optionnels)
+  maxReimbursedPrice    Decimal? @db.Decimal(10, 2) @map("max_reimbursed_price")    // Prix maximum remboursé (si null = remboursement total)
+  maxReimbursedShipping Decimal? @db.Decimal(10, 2) @map("max_reimbursed_shipping") // Livraison maximum remboursée (si null = remboursement total)
+
+  // Bonus supplémentaire pour le testeur
+  bonus              Decimal @default(0) @db.Decimal(10, 2)  // Bonus en plus des remboursements
 
   // Quantité de ce produit dans la campagne
   quantity   Int      @default(1)

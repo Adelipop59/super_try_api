@@ -142,10 +142,16 @@ model Offer {
   campaignId String   // FK vers Campaign
   productId  String   // FK vers Product
 
-  // Données financières (SPÉCIFIQUES à cette campagne)
-  reimbursedPrice    Decimal  // Prix produit remboursé
-  reimbursedShipping Decimal  // Livraison remboursée
-  bonus              Decimal  // Bonus supplémentaire
+  // Remboursements (oui/non)
+  reimbursedPrice    Boolean  // Le prix est-il remboursé ?
+  reimbursedShipping Boolean  // La livraison est-elle remboursée ?
+
+  // Montants maximum (optionnels)
+  maxReimbursedPrice    Decimal? // Prix max remboursé (null = total)
+  maxReimbursedShipping Decimal? // Livraison max remboursée (null = total)
+
+  // Bonus supplémentaire
+  bonus              Decimal  // Bonus en plus des remboursements
 
   quantity   Int      // Quantité de ce produit dans la campagne
 
@@ -155,24 +161,79 @@ model Offer {
 
 **Rôle** : Définit les conditions financières d'un produit dans une campagne
 
-**Exemple** :
+**Exemples** :
+
+#### Cas 1 : Remboursement Total + Bonus
 ```json
 {
   "id": "offer-001",
   "campaignId": "camp-789",
   "productId": "prod-123",
-  "reimbursedPrice": 49.99,    // Le testeur sera remboursé de 49.99€
-  "reimbursedShipping": 5.00,  // + 5€ de livraison
-  "bonus": 15.00,              // + 15€ de bonus
-  "quantity": 50               // 50 unités de ce produit dans la campagne
+  "reimbursedPrice": true,         // Prix remboursé
+  "maxReimbursedPrice": null,      // Pas de limite = remboursement total
+  "reimbursedShipping": true,      // Livraison remboursée
+  "maxReimbursedShipping": null,   // Pas de limite = remboursement total
+  "bonus": 15.00,                  // + 15€ de bonus
+  "quantity": 50
 }
 ```
 
-**Calcul du gain testeur** :
+**Si le testeur achète à 49.99€ + 5€ livraison** :
 ```
-Total = reimbursedPrice + reimbursedShipping + bonus
-      = 49.99 + 5.00 + 15.00
-      = 69.99€
+Remboursement prix: 49.99€ (total car maxReimbursedPrice = null)
+Remboursement shipping: 5.00€ (total car maxReimbursedShipping = null)
+Bonus: 15.00€
+──────────────
+Total gain: 69.99€
+```
+
+#### Cas 2 : Remboursement Plafonné + Bonus
+```json
+{
+  "id": "offer-002",
+  "campaignId": "camp-789",
+  "productId": "prod-123",
+  "reimbursedPrice": true,
+  "maxReimbursedPrice": 30.00,     // Max 30€ remboursés
+  "reimbursedShipping": true,
+  "maxReimbursedShipping": 3.00,   // Max 3€ remboursés
+  "bonus": 10.00,
+  "quantity": 50
+}
+```
+
+**Si le testeur achète à 49.99€ + 5€ livraison** :
+```
+Remboursement prix: 30.00€ (plafonné à maxReimbursedPrice)
+Remboursement shipping: 3.00€ (plafonné à maxReimbursedShipping)
+Bonus: 10.00€
+──────────────
+Total gain: 43.00€
+```
+
+#### Cas 3 : Bonus Uniquement (pas de remboursement)
+```json
+{
+  "id": "offer-003",
+  "campaignId": "camp-789",
+  "productId": "prod-123",
+  "reimbursedPrice": false,        // Pas de remboursement prix
+  "maxReimbursedPrice": null,
+  "reimbursedShipping": false,     // Pas de remboursement livraison
+  "maxReimbursedShipping": null,
+  "bonus": 25.00,                  // Seulement un bonus
+  "quantity": 50
+}
+```
+
+**Si le testeur achète à 49.99€ + 5€ livraison** :
+```
+Remboursement prix: 0€ (reimbursedPrice = false)
+Remboursement shipping: 0€ (reimbursedShipping = false)
+Bonus: 25.00€
+──────────────
+Total gain: 25.00€
+Le testeur garde le produit ET reçoit 25€
 ```
 
 ---
@@ -277,8 +338,10 @@ POST /api/v1/campaigns
 POST /api/v1/campaigns/{campaignId}/offers
 {
   "productId": "prod-123",
-  "reimbursedPrice": 49.99,
-  "reimbursedShipping": 5.00,
+  "reimbursedPrice": true,
+  "maxReimbursedPrice": null,      // Remboursement total
+  "reimbursedShipping": true,
+  "maxReimbursedShipping": null,   // Remboursement total
   "bonus": 15.00,
   "quantity": 50
 }
@@ -288,10 +351,10 @@ POST /api/v1/campaigns/{campaignId}/offers
 
 **Le testeur verra** :
 - Produit : Écouteurs Bluetooth XYZ
-- Prix remboursé : 49.99€
-- Livraison remboursée : 5.00€
+- Prix : Remboursement total
+- Livraison : Remboursement total
 - Bonus : 15.00€
-- **Total gain : 69.99€**
+- **Gain minimum : 15€** (+ remboursement de ses frais réels)
 
 ---
 
@@ -355,25 +418,29 @@ PATCH /api/v1/campaigns/{campaignId}
 
 Le vendeur a le même produit dans 2 campagnes :
 
-**Campagne 1 - Black Friday**
+**Campagne 1 - Black Friday (Remboursement Total + Gros Bonus)**
 ```json
 {
   "campaignId": "camp-blackfriday",
   "productId": "prod-ecouteurs",
-  "reimbursedPrice": 49.99,
-  "reimbursedShipping": 5.00,
-  "bonus": 20.00  // ⭐ Bonus augmenté pour Black Friday
+  "reimbursedPrice": true,
+  "maxReimbursedPrice": null,       // Remboursement total
+  "reimbursedShipping": true,
+  "maxReimbursedShipping": null,    // Remboursement total
+  "bonus": 20.00                    // ⭐ Bonus augmenté pour Black Friday
 }
 ```
 
-**Campagne 2 - Lancement Standard**
+**Campagne 2 - Lancement Standard (Remboursement Plafonné)**
 ```json
 {
   "campaignId": "camp-standard",
   "productId": "prod-ecouteurs",
-  "reimbursedPrice": 49.99,
-  "reimbursedShipping": 5.00,
-  "bonus": 10.00  // Bonus normal
+  "reimbursedPrice": true,
+  "maxReimbursedPrice": 40.00,      // Max 40€ remboursés
+  "reimbursedShipping": true,
+  "maxReimbursedShipping": 5.00,    // Max 5€ remboursés
+  "bonus": 10.00                    // Bonus normal
 }
 ```
 
@@ -392,20 +459,29 @@ Le vendeur veut tester 3 produits dans une même campagne :
   "offers": [
     {
       "productId": "prod-ecouteurs",
-      "reimbursedPrice": 49.99,
+      "reimbursedPrice": true,
+      "maxReimbursedPrice": null,    // Total
+      "reimbursedShipping": true,
+      "maxReimbursedShipping": null, // Total
       "bonus": 15.00,
       "quantity": 50  // 50 écouteurs
     },
     {
       "productId": "prod-casque",
-      "reimbursedPrice": 89.99,
+      "reimbursedPrice": true,
+      "maxReimbursedPrice": 80.00,   // Max 80€
+      "reimbursedShipping": true,
+      "maxReimbursedShipping": 10.00, // Max 10€
       "bonus": 25.00,
       "quantity": 30  // 30 casques
     },
     {
       "productId": "prod-enceinte",
-      "reimbursedPrice": 129.99,
-      "bonus": 30.00,
+      "reimbursedPrice": false,      // Pas de remboursement
+      "maxReimbursedPrice": null,
+      "reimbursedShipping": false,   // Pas de remboursement
+      "maxReimbursedShipping": null,
+      "bonus": 50.00,                // Bonus uniquement (garde le produit)
       "quantity": 20  // 20 enceintes
     }
   ]
@@ -491,8 +567,10 @@ Profile (PRO)
   "id": "offer-001",
   "campaignId": "camp-789",
   "productId": "prod-123",
-  "reimbursedPrice": 49.99,
-  "reimbursedShipping": 5.00,
+  "reimbursedPrice": true,
+  "maxReimbursedPrice": null,
+  "reimbursedShipping": true,
+  "maxReimbursedShipping": null,
   "bonus": 15.00,
   "quantity": 50
 }
@@ -512,16 +590,20 @@ Profile (PRO)
 Campagne : Test Écouteurs - Décembre 2024
 Produit : Écouteurs Bluetooth XYZ
 
-💰 Gain total : 69.99€
-  - Remboursement produit : 49.99€
-  - Remboursement livraison : 5.00€
-  - Bonus : 15.00€
+💰 Conditions de remboursement :
+  ✅ Prix produit : Remboursement total
+  ✅ Frais livraison : Remboursement total
+  💵 Bonus : 15.00€
 
 📅 Candidatures ouvertes :
   - Tous les lundis
   - Tous les mercredis
 
 🎯 Places disponibles : 50 / 50
+
+💡 Exemple de gain :
+Si vous achetez à 49.99€ + 5€ livraison
+→ Vous recevrez : 49.99€ + 5€ + 15€ = 69.99€
 ```
 
 ---
