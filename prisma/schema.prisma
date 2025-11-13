@@ -381,8 +381,10 @@ model Session {
   rejectionReason    String?   @db.Text @map("rejection_reason")
 
   // Purchase proof
-  purchaseProofUrl   String?   @map("purchase_proof_url")  // URL de la preuve d'achat
-  purchasedAt        DateTime? @map("purchased_at")
+  purchaseProofUrl      String?   @map("purchase_proof_url")  // URL de la preuve d'achat
+  purchasedAt           DateTime? @map("purchased_at")
+  orderNumber           String?   @map("order_number")  // Numéro de commande saisi par le testeur
+  orderNumberValidatedAt DateTime? @map("order_number_validated_at")  // Date de validation par le vendeur
 
   // Test submission
   submittedAt        DateTime? @map("submitted_at")

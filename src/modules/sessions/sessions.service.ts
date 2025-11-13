@@ -265,6 +265,7 @@ export class SessionsService {
         status: SessionStatus.IN_PROGRESS,
         purchaseProofUrl: dto.purchaseProofUrl,
         purchasedAt: new Date(),
+        orderNumber: dto.orderNumber,
         productPrice: dto.productPrice,
         shippingCost: dto.shippingCost,
       },
@@ -279,6 +280,7 @@ export class SessionsService {
       `✅ Preuve d'achat soumise pour la session ${sessionId}`,
       {
         sessionId,
+        orderNumber: dto.orderNumber,
         productPrice: dto.productPrice,
         shippingCost: dto.shippingCost,
       },

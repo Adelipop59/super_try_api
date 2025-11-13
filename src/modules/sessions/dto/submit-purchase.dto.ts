@@ -15,6 +15,14 @@ export class SubmitPurchaseDto {
   purchaseProofUrl!: string;
 
   @ApiProperty({
+    description: 'Numéro de commande de l\'achat',
+    example: 'AMZ-FR-12345-67890',
+  })
+  @IsString()
+  @IsNotEmpty()
+  orderNumber!: string;
+
+  @ApiProperty({
     description: 'Prix du produit payé',
     example: 99.99,
   })
