@@ -134,6 +134,7 @@ model Profile {
   messages                Message[]               // Messages envoyés
   notifications           Notification[]          // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
+  reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
 
   @@map("profiles")
   @@index([email])
@@ -162,7 +163,8 @@ model Product {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  offers      Offer[]  // Offres de ce produit dans différentes campagnes
+  offers      Offer[]           // Offres de ce produit dans différentes campagnes
+  reviews     CampaignReview[]  // Avis sur ce produit (via campagnes)
 
   @@map("products")
   @@index([sellerId])
@@ -197,10 +199,11 @@ model Campaign {
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  offers         Offer[]        // Offres de cette campagne
-  procedures     Procedure[]    // Procédures de cette campagne
-  distributions  Distribution[] // Calendrier de distribution
-  sessions       Session[]      // Sessions pour cette campagne
+  offers         Offer[]           // Offres de cette campagne
+  procedures     Procedure[]       // Procédures de cette campagne
+  distributions  Distribution[]    // Calendrier de distribution
+  sessions       Session[]         // Sessions pour cette campagne
+  reviews        CampaignReview[]  // Avis sur cette campagne
 
   @@map("campaigns")
   @@index([sellerId])
@@ -415,7 +418,8 @@ model Session {
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  messages           Message[] // Messages de cette session
+  messages           Message[]        // Messages de cette session
+  review             CampaignReview?  // Avis de cette session
 
   @@map("sessions")
   @@index([campaignId])
@@ -518,4 +522,45 @@ model NotificationPreference {
 
   @@map("notification_preferences")
   @@index([userId])
+}
+
+// CampaignReview table - Avis des testeurs sur les campagnes/produits
+model CampaignReview {
+  id        String   @id @default(uuid())
+
+  // Relations
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  productId  String   @map("product_id")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  testerId   String   @map("tester_id")
+  tester     Profile  @relation("TesterReviews", fields: [testerId], references: [id], onDelete: Cascade)
+
+  sessionId  String   @unique @map("session_id")
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Review content
+  rating     Int      // 1-5 stars
+  comment    String?  @db.Text
+
+  // Visibility
+  isPublic   Boolean  @default(true) @map("is_public")
+
+  // Republication proposal (pour site vendeur)
+  republishProposed Boolean  @default(false) @map("republish_proposed")
+  republishAccepted Boolean? @map("republish_accepted")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("campaign_reviews")
+  @@index([campaignId])
+  @@index([productId])
+  @@index([testerId])
+  @@index([sessionId])
+  @@index([rating])
+  @@index([isPublic])
+  @@index([createdAt])
 }
