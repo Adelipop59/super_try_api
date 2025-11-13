@@ -141,7 +141,7 @@ model Profile {
   @@index([role])
 }
 
-// Product table - Products created by PRO sellers
+// Product table - Catalogue de produits du vendeur
 model Product {
   id          String   @id @default(uuid())
 
@@ -149,26 +149,20 @@ model Product {
   sellerId    String   @map("seller_id")
   seller      Profile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  // Product information
+  // Product information (catalogue de base)
   name        String
   description String   @db.Text
   category    String?
   imageUrl    String?  @map("image_url")
 
-  // Pricing
-  price        Decimal  @db.Decimal(10, 2)  // Product price
-  shippingCost Decimal  @db.Decimal(10, 2) @map("shipping_cost")  // Delivery cost
-  reward       Decimal? @db.Decimal(10, 2)  // Optional reward for tester
-
-  // Stock and availability
-  stock       Int      @default(0)
+  // Availability
   isActive    Boolean  @default(true) @map("is_active")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  campaignProducts CampaignProduct[]  // Produits dans les campagnes
+  offers      Offer[]  // Offres de ce produit dans différentes campagnes
 
   @@map("products")
   @@index([sellerId])
@@ -203,10 +197,10 @@ model Campaign {
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  products        CampaignProduct[] // Produits inclus dans cette campagne
-  procedures      Procedure[]       // Procédures de cette campagne
-  distributions   Distribution[]    // Planning de distribution par jour
-  sessions        Session[]         // Sessions pour cette campagne
+  offers         Offer[]        // Offres de cette campagne
+  procedures     Procedure[]    // Procédures de cette campagne
+  distributions  Distribution[] // Calendrier de distribution
+  sessions       Session[]      // Sessions pour cette campagne
 
   @@map("campaigns")
   @@index([sellerId])
@@ -215,8 +209,8 @@ model Campaign {
   @@index([endDate])
 }
 
-// CampaignProduct table - Junction table for Campaign <-> Product (many-to-many)
-model CampaignProduct {
+// Offer table - Offre d'un produit dans une campagne avec toutes les données financières
+model Offer {
   id         String   @id @default(uuid())
 
   // Relations
@@ -226,13 +220,19 @@ model CampaignProduct {
   productId  String   @map("product_id")
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  // Quantity of this product in the campaign
+  // Données financières de l'offre (spécifiques à cette campagne)
+  reimbursedPrice    Decimal @db.Decimal(10, 2) @map("reimbursed_price")    // Prix du produit remboursé au testeur
+  reimbursedShipping Decimal @db.Decimal(10, 2) @map("reimbursed_shipping") // Frais de livraison remboursés
+  bonus              Decimal @default(0) @db.Decimal(10, 2)                 // Bonus supplémentaire pour le testeur
+
+  // Quantité de ce produit dans la campagne
   quantity   Int      @default(1)
 
   createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  @@unique([campaignId, productId])  // Un produit ne peut être ajouté qu'une fois par campagne
-  @@map("campaign_products")
+  @@unique([campaignId, productId])  // Un produit ne peut être dans la campagne qu'une seule fois
+  @@map("offers")
   @@index([campaignId])
   @@index([productId])
 }
@@ -320,6 +320,7 @@ model Step {
 }
 
 // Distribution table - Calendrier de distribution de la campagne
+// Définit QUAND les testeurs peuvent candidater (pas le nombre de slots, qui est dans Campaign)
 model Distribution {
   id         String   @id @default(uuid())
 
@@ -335,9 +336,6 @@ model Distribution {
 
   // Pour SPECIFIC_DATE : date spécifique dans l'année
   specificDate DateTime? @map("specific_date") // Date précise (nullable, utilisé uniquement si type = SPECIFIC_DATE)
-
-  // Nombre maximum d'unités disponibles pour ce jour
-  maxUnits   Int      @map("max_units")
 
   // Statut actif
   isActive   Boolean  @default(true) @map("is_active")
