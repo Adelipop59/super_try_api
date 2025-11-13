@@ -278,52 +278,151 @@ enum StepType {
 
 ---
 
-### Étape 6️⃣ : Configuration de la Distribution (Planning)
+### Étape 6️⃣ : Configuration de la Distribution (Calendrier)
 
 **Acteur** : Vendeur (PRO)
 
 **Modèle Prisma** : `Distribution`
 
-**Action** : Le vendeur définit combien de tests peuvent être lancés par jour de la semaine.
+**Action** : Le vendeur configure le calendrier de distribution de sa campagne.
 
 ```typescript
 model Distribution {
   id         String   @id @default(uuid())
 
-  campaignId String   // FK vers Campaign
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaignId String            // FK vers Campaign
+  campaign   Campaign          @relation(fields: [campaignId], references: [id])
 
-  dayOfWeek  Int      // 0=Dimanche, 1=Lundi, ..., 6=Samedi
-  maxUnits   Int      // Nombre maximum de tests pour ce jour
-  isActive   Boolean  // Actif ou pas
+  type       DistributionType  // RECURRING ou SPECIFIC_DATE
 
-  @@unique([campaignId, dayOfWeek]) // Un seul planning par jour et par campagne
+  // Pour RECURRING : jours récurrents
+  dayOfWeek  Int?              // 0=Dimanche, 1=Lundi, ..., 6=Samedi (nullable)
+
+  // Pour SPECIFIC_DATE : date précise
+  specificDate DateTime?       // Date spécifique (nullable)
+
+  maxUnits   Int               // Nombre maximum de tests pour ce jour
+  isActive   Boolean           // Actif ou pas
+}
+
+enum DistributionType {
+  RECURRING      // Jours récurrents (tous les lundis, mercredis, etc.)
+  SPECIFIC_DATE  // Date spécifique (3 novembre, 15 novembre, etc.)
 }
 ```
 
 **Relation** : `Campaign` **1-N** `Distribution`
-- Une campagne a 7 distributions (une par jour de la semaine)
+- Une campagne peut avoir plusieurs distributions
 - Une distribution appartient à une seule campagne
 
 **Comment ça fonctionne ?**
 
-Le vendeur définit pour **chaque jour de la semaine** combien de testeurs peuvent démarrer un test.
+Le vendeur peut configurer la distribution de **deux façons** :
 
-**Exemple de configuration** :
+#### Option 1 : Jours Récurrents (RECURRING)
+
+Le vendeur définit des **jours de la semaine récurrents**.
+
+**Exemple** : Tous les lundis, mercredis et samedis
 
 ```json
 [
-  { "campaignId": "camp-123", "dayOfWeek": 1, "maxUnits": 2, "isActive": true },  // Lundi: 2 tests max
-  { "campaignId": "camp-123", "dayOfWeek": 2, "maxUnits": 3, "isActive": true },  // Mardi: 3 tests max
-  { "campaignId": "camp-123", "dayOfWeek": 3, "maxUnits": 5, "isActive": true },  // Mercredi: 5 tests max
-  { "campaignId": "camp-123", "dayOfWeek": 4, "maxUnits": 3, "isActive": true },  // Jeudi: 3 tests max
-  { "campaignId": "camp-123", "dayOfWeek": 5, "maxUnits": 1, "isActive": true },  // Vendredi: 1 test max
-  { "campaignId": "camp-123", "dayOfWeek": 6, "maxUnits": 0, "isActive": false }, // Samedi: fermé
-  { "campaignId": "camp-123", "dayOfWeek": 0, "maxUnits": 0, "isActive": false }  // Dimanche: fermé
+  {
+    "campaignId": "camp-123",
+    "type": "RECURRING",
+    "dayOfWeek": 1,     // Tous les lundis
+    "maxUnits": 2,
+    "isActive": true
+  },
+  {
+    "campaignId": "camp-123",
+    "type": "RECURRING",
+    "dayOfWeek": 3,     // Tous les mercredis
+    "maxUnits": 5,
+    "isActive": true
+  },
+  {
+    "campaignId": "camp-123",
+    "type": "RECURRING",
+    "dayOfWeek": 6,     // Tous les samedis
+    "maxUnits": 3,
+    "isActive": true
+  }
 ]
 ```
 
-**Utilité** : Éviter de recevoir toutes les candidatures en même temps et mieux gérer le flux de travail.
+**Signification** :
+- Chaque lundi : 2 tests max
+- Chaque mercredi : 5 tests max
+- Chaque samedi : 3 tests max
+
+#### Option 2 : Dates Spécifiques (SPECIFIC_DATE)
+
+Le vendeur définit des **dates précises** dans l'année.
+
+**Exemple** : 3 novembre, 15 novembre, 28 décembre
+
+```json
+[
+  {
+    "campaignId": "camp-123",
+    "type": "SPECIFIC_DATE",
+    "specificDate": "2024-11-03T00:00:00Z",  // 3 novembre 2024
+    "maxUnits": 10,
+    "isActive": true
+  },
+  {
+    "campaignId": "camp-123",
+    "type": "SPECIFIC_DATE",
+    "specificDate": "2024-11-15T00:00:00Z",  // 15 novembre 2024
+    "maxUnits": 5,
+    "isActive": true
+  },
+  {
+    "campaignId": "camp-123",
+    "type": "SPECIFIC_DATE",
+    "specificDate": "2024-12-28T00:00:00Z",  // 28 décembre 2024
+    "maxUnits": 3,
+    "isActive": true
+  }
+]
+```
+
+**Signification** :
+- Le 3 novembre : 10 tests max
+- Le 15 novembre : 5 tests max
+- Le 28 décembre : 3 tests max
+
+#### Option 3 : Mixte (Combinaison)
+
+Le vendeur peut **combiner les deux approches**.
+
+**Exemple** : Tous les lundis + quelques dates spécifiques
+
+```json
+[
+  {
+    "campaignId": "camp-123",
+    "type": "RECURRING",
+    "dayOfWeek": 1,     // Tous les lundis
+    "maxUnits": 2,
+    "isActive": true
+  },
+  {
+    "campaignId": "camp-123",
+    "type": "SPECIFIC_DATE",
+    "specificDate": "2024-12-25T00:00:00Z",  // 25 décembre (Noël)
+    "maxUnits": 10,     // Plus de tests pour Noël
+    "isActive": true
+  }
+]
+```
+
+**Utilité** :
+- Contrôler précisément le flux de candidatures
+- Adapter le planning aux événements spéciaux
+- Gérer la charge de travail du vendeur
+- Optimiser la période de test (lancer plus de tests avant les fêtes, etc.)
 
 ---
 
@@ -823,16 +922,31 @@ Profile (USER)
 **Type** : One-to-Many
 
 **Explication** :
-- Une campagne **a plusieurs** distributions (max 7, une par jour de semaine)
+- Une campagne **a plusieurs** distributions (calendrier flexible)
 - Une distribution **appartient à** une seule campagne
 
-**Contrainte Prisma** :
-```typescript
-@@unique([campaignId, dayOfWeek]) // Un seul planning par jour et par campagne
-```
+**Deux types de distributions** :
+
+1. **RECURRING** : Jours de la semaine récurrents
+   - `dayOfWeek` est utilisé (0-6)
+   - `specificDate` est null
+   - Exemples : "Tous les lundis", "Tous les mercredis et samedis"
+
+2. **SPECIFIC_DATE** : Dates spécifiques
+   - `specificDate` est utilisé
+   - `dayOfWeek` est null
+   - Exemples : "3 novembre 2024", "15 novembre 2024", "28 décembre 2024"
+
+**Flexibilité** :
+Le vendeur peut combiner les deux types dans une même campagne :
+- Base récurrente (tous les lundis)
+- + Dates spéciales (25 décembre avec plus de slots)
 
 **Utilité** :
-Le vendeur peut contrôler le flux de tests en limitant le nombre de sessions qui peuvent démarrer chaque jour de la semaine.
+- Contrôler précisément le flux de candidatures acceptées
+- Adapter le calendrier aux événements spéciaux
+- Optimiser la charge de travail du vendeur
+- Gérer des périodes de forte/faible demande
 
 ---
 

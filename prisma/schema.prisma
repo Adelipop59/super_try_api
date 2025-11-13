@@ -97,6 +97,12 @@ enum SessionStatus {
   DISPUTED          // En litige (besoin intervention admin)
 }
 
+// Enum for distribution types
+enum DistributionType {
+  RECURRING      // Jours récurrents (tous les lundis, mercredis, etc.)
+  SPECIFIC_DATE  // Date spécifique (3 novembre, 15 novembre, etc.)
+}
+
 // Profile table - extends Supabase auth.users
 model Profile {
   id        String   @id @default(uuid())
@@ -313,7 +319,7 @@ model Step {
   @@index([order])
 }
 
-// Distribution table - Planning de distribution par jour
+// Distribution table - Calendrier de distribution de la campagne
 model Distribution {
   id         String   @id @default(uuid())
 
@@ -321,23 +327,29 @@ model Distribution {
   campaignId String   @map("campaign_id")
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  // Day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  dayOfWeek  Int      @map("day_of_week") // 0-6
+  // Type de distribution
+  type       DistributionType
 
-  // Max units available for this day
+  // Pour RECURRING : jours de la semaine récurrents (0 = Dimanche, 1 = Lundi, ..., 6 = Samedi)
+  dayOfWeek  Int?     @map("day_of_week") // 0-6 (nullable, utilisé uniquement si type = RECURRING)
+
+  // Pour SPECIFIC_DATE : date spécifique dans l'année
+  specificDate DateTime? @map("specific_date") // Date précise (nullable, utilisé uniquement si type = SPECIFIC_DATE)
+
+  // Nombre maximum d'unités disponibles pour ce jour
   maxUnits   Int      @map("max_units")
 
-  // Active status
+  // Statut actif
   isActive   Boolean  @default(true) @map("is_active")
 
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  // Un seul planning par jour et par campagne
-  @@unique([campaignId, dayOfWeek])
   @@map("distributions")
   @@index([campaignId])
+  @@index([type])
   @@index([dayOfWeek])
+  @@index([specificDate])
   @@index([isActive])
 }
 
