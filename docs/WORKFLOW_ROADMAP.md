@@ -360,131 +360,144 @@ enum TransactionType {
 
 ---
 
-## ❓ Questions de Précision
+## ✅ Réponses aux Questions de Précision
 
-### Q1 : Distribution et Date d'Achat
+### Q1 : Distribution et Date d'Achat ✅ **RÉPONDU**
 
 **Contexte** : Tu dis "l'achat va devoir se faire un autre jour".
 
-**Questions** :
-- Est-ce que `Distribution` impose aussi **la date d'achat** (en plus de la date de candidature) ?
-- Ou le testeur choisit librement dans une fenêtre après acceptation ?
-- Exemple concret :
-  - Distribution : "Lundi uniquement"
-  - Le testeur postule un lundi → accepté
-  - Doit-il acheter le même lundi ? Le lundi suivant ? N'importe quand ?
+**RÉPONSE** :
+> "C'est le vendeur lors du scheduling des tests. La date du test c'est la date d'achat mais le testeur est prévenu avant les dates de test."
+
+**Clarification** :
+- ✅ La date de `Distribution` = date du test = **date d'achat**
+- ✅ Le vendeur définit le scheduling lors de la création de la campagne
+- ✅ Le testeur est prévenu à l'avance des dates de test
+- ✅ Il doit acheter le jour défini dans la Distribution
 
 **Impact sur le design** :
-- Si date imposée → ajouter `scheduledPurchaseDate` calculée lors de l'acceptation
-- Si fenêtre libre → ajouter `purchaseDeadline` (ex: 7 jours après acceptation)
+- Ajouter `scheduledPurchaseDate` calculée lors de l'acceptation (basée sur la Distribution)
+- Ajouter validation lors de `submitPurchase` : vérifier qu'on est le bon jour
+- Créer notifications J-1 et J pour rappeler au testeur
 
 ---
 
-### Q2 : Tranche de Prix
+### Q2 : Tranche de Prix ✅ **RÉPONDU**
 
-**Questions** :
-- Format de la tranche : "45€ - 55€" ou "~50€ ±10%" ?
-- Qui définit la tranche ?
-  - Le vendeur saisit manuellement [min, max] ?
-  - Ou calcul automatique (ex: prix ±10%) ?
-- Exemple concret :
-  - Vendeur définit : "Le produit coûte entre 45€ et 55€"
-  - Testeur trouve le produit à 49,90€
-  - Il saisit 49.90 → ✅ Validation OK (dans la fourchette)
-  - Il saisit 60€ → ❌ Rejeté (hors fourchette)
+**RÉPONSE** :
+> "Oui il ne doit pas avoir une distance égale du prix nous prenons toujours une tranche des 5 au-dessus et 5 en dessous et quand le produit coûte entre 0 et 5 euros on met entre 0 et 5 il ne peut pas avoir de négatif. Le testeur voit la tranche et doit donner le prix exact pour valider la procédure et ensuite il achète le produit et il envoie le numéro de commande au vendeur."
+
+**Clarification** :
+- ✅ Formule : **[prix - 5€, prix + 5€]**
+- ✅ Exception : si prix < 5€ → **[0€, 5€]** (pas de négatif)
+- ✅ Le testeur voit **la tranche** (pas le prix exact)
+- ✅ Il doit saisir le **prix exact** qu'il trouve
+- ✅ Validation backend que le prix est dans la fourchette
+- ✅ Après validation, il achète et envoie le numéro de commande
+
+**Exemple concret** :
+```
+Produit à 50€ → Tranche affichée : [45€ - 55€]
+Produit à 3€  → Tranche affichée : [0€ - 5€]
+Produit à 100€ → Tranche affichée : [95€ - 105€]
+```
 
 **Impact sur le design** :
 ```prisma
 model Offer {
-  // Actuellement : pas de fourchette
-  // Option A : Champs dédiés
-  minExpectedPrice Decimal?
-  maxExpectedPrice Decimal?
+  // Le vendeur saisit le prix exact
+  productPrice Decimal
 
-  // Option B : Prix exact + tolérance
-  expectedPrice Decimal
-  priceTolerance Decimal? // ±5€ ou ±10%
+  // Calcul automatique des bornes (backend)
+  // minExpectedPrice = max(0, productPrice - 5)
+  // maxExpectedPrice = productPrice + 5
 }
 ```
 
+**Workflow de validation** :
+1. Testeur arrive sur la dernière étape de la procédure
+2. Frontend affiche : "Prix estimé : 45€ - 55€"
+3. Testeur saisit le prix exact trouvé : 49.90€
+4. Backend vérifie : `49.90 >= 45 && 49.90 <= 55` → ✅ OK
+5. Le testeur peut continuer et acheter
+
 ---
 
-### Q3 : Prestations Supplémentaires
+### Q3 : Prestations Supplémentaires ✅ **RÉPONDU**
 
-**Questions** :
-- Comment sont-elles créées ?
-  - Le vendeur envoie un message via chat → testeur fait → envoie fichiers ?
-  - Ou système structuré avec "bonus tasks" formels ?
-- Sont-elles rémunérées séparément ?
-  - Si oui, quel montant ? Défini par le vendeur à la demande ?
-- Peuvent-elles être refusées par le testeur ?
-- Y a-t-il une validation finale pour ces prestations ?
+**RÉPONSE** :
+> "Ça reste dans la même session et se s'exécute dans le chat. Mais les prestations sont ajoutées dans la session quoi. Et une fois clôturée définitivement par le vendeur la campagne est terminée mais il doit avoir comme un tableau de prestations dans la campaign qui peut être rempli même une fois que la session avec ce testeur est terminée."
 
-**Options de design** :
+**Clarification** :
+- ✅ Reste dans la **même session** (pas de nouvelle session)
+- ✅ S'exécute via le **chat**
+- ✅ Les prestations sont **ajoutées dynamiquement** dans la session
+- ✅ **CRITIQUE** : Même après que la session soit `COMPLETED`, on peut encore ajouter des prestations
+- ✅ Il faut un **tableau de prestations** modifiable post-clôture
 
-**Option A : Messages uniquement** (simple)
-- Pas de structure formelle
-- Vendeur demande via chat
-- Testeur envoie fichiers via attachments
-- Paiement bonus manuel
+**Impact sur le design** :
+- Nouveau modèle `BonusTask` lié à la session
+- Le statut `COMPLETED` de la session n'empêche pas l'ajout de BonusTasks
+- Chaque BonusTask a son propre cycle de vie (REQUESTED → SUBMITTED → VALIDATED)
+- Paiement via wallet pour chaque BonusTask validée
 
-**Option B : Système de Bonus Tasks** (structuré)
-```prisma
-model BonusTask {
-  id          String   @id @default(uuid())
-  sessionId   String
-  requestedBy String   // vendorId
-  type        BonusTaskType // UNBOXING_PHOTO, UGC_VIDEO, TIP
-  description String
-  reward      Decimal
-  status      BonusTaskStatus // REQUESTED, ACCEPTED, SUBMITTED, VALIDATED, REJECTED
-  createdAt   DateTime @default(now())
+**Workflow** :
+1. Session principale validée → status `COMPLETED` → testeur payé
+2. Chat reste ouvert
+3. Vendeur crée une BonusTask : "Envoie-moi 3 photos de déballage pour 10€"
+4. Testeur accepte et soumet les photos
+5. Vendeur valide → testeur reçoit 10€ supplémentaires
+6. Peut se répéter plusieurs fois
 
-  session     TestingSession @relation(...)
-}
+---
+
+### Q4 : Avis du Testeur ✅ **RÉPONDU**
+
+**RÉPONSE** :
+> "Testeur à produit il nous faut le système de notation. Donc lorsqu'il note on peut voir les notes du produit en question liées à la campagne car il peut avoir une notation en fonction de l'offre de la campagne."
+
+**Clarification** :
+- ✅ Système de notation **Testeur → Produit** nécessaire
+- ✅ **IMPORTANT** : La note est liée à la **CAMPAGNE**, pas juste au produit
+- ✅ Un même produit peut avoir différentes notes selon l'offre/campagne
+- ✅ Les notes sont visibles et consultables
+
+**Exemple** :
+```
+Produit "iPhone 15" :
+  - Campagne A (offre : remboursement complet + 50€ bonus) → Note moyenne : 4.8/5
+  - Campagne B (offre : remboursement partiel + 10€ bonus) → Note moyenne : 3.2/5
 ```
 
----
-
-### Q4 : Avis du Testeur
-
-**Questions** :
-- Y a-t-il **deux systèmes de notation** ?
-  1. Vendeur → Testeur (performance) ← **existe déjà**
-  2. Testeur → Produit (satisfaction) ← **à créer**
-
-- L'avis produit est-il :
-  - Public sur la plateforme (visible par d'autres testeurs) ?
-  - Privé (seulement visible par le vendeur) ?
-  - Optionnel ou obligatoire ?
-
-- Système automatique de proposition :
-  - Si note ≥ 3/5 → message automatique
-  - Le testeur peut accepter ou refuser
-  - Si accepté → quoi ? Copier l'avis vers le site vendeur ? Comment ?
-
-**Design attendu** :
+**Impact sur le design** :
 ```prisma
-model ProductReview {
-  id          String   @id @default(uuid())
-  productId   String
-  testerId    String
-  sessionId   String   @unique
-  rating      Int      // 1-5
-  comment     String?
-  isPublic    Boolean  @default(true)
-  publishedAt DateTime @default(now())
+model CampaignReview {
+  id         String   @id @default(uuid())
+  campaignId String   // ⚠️ Lié à la campagne, pas au produit
+  productId  String   // Référence au produit (pour agrégation)
+  testerId   String
+  sessionId  String   @unique
+  rating     Int      // 1-5
+  comment    String?
+  isPublic   Boolean  @default(true)
 
   // Proposition de republication
   republishProposed Boolean @default(false)
   republishAccepted Boolean?
-  republishUrl      String? // URL si publié sur site vendeur
 
-  product     Product        @relation(...)
-  tester      User           @relation(...)
-  session     TestingSession @relation(...)
+  createdAt  DateTime @default(now())
+
+  campaign   Campaign       @relation(...)
+  product    Product        @relation(...)
+  tester     User           @relation(...)
+  session    TestingSession @relation(...)
 }
 ```
+
+**Affichage** :
+- Sur la page produit : moyenne par campagne
+- Sur la page campagne : notes spécifiques à cette campagne/offre
+- Système automatique : si note ≥ 3/5 → proposition de publier sur site vendeur
 
 ---
 
@@ -518,15 +531,18 @@ model ProductReview {
 
 ---
 
-#### ✅ Tâche 1.2 : Avis Testeur → Produit
-**Objectif** : Créer le système d'avis produit par les testeurs
+#### ✅ Tâche 1.2 : Avis Testeur → Campagne/Produit
+**Objectif** : Créer le système d'avis lié aux campagnes (pas juste au produit)
+
+**✅ DÉBLOQUÉ** - Basé sur Q4
 
 **Modifications** :
 1. Schema Prisma :
    ```prisma
-   model ProductReview {
+   model CampaignReview {
      id                String   @id @default(uuid())
-     productId         String
+     campaignId        String   // ⚠️ Lié à la campagne (pas juste produit)
+     productId         String   // Référence pour agrégation
      testerId          String
      sessionId         String   @unique
      rating            Int      // 1-5
@@ -536,6 +552,7 @@ model ProductReview {
      republishAccepted Boolean?
      createdAt         DateTime @default(now())
 
+     campaign          Campaign       @relation(...)
      product           Product        @relation(...)
      tester            User           @relation(...)
      session           TestingSession @relation(...)
@@ -545,13 +562,18 @@ model ProductReview {
 2. Module `reviews/` :
    - Controller, Service, DTOs
    - Endpoints :
-     - `POST /reviews` : testeur crée un avis
-     - `GET /products/:id/reviews` : lister les avis
+     - `POST /campaigns/:id/reviews` : testeur crée un avis (lié à campagne)
+     - `GET /campaigns/:id/reviews` : lister les avis d'une campagne
+     - `GET /products/:id/reviews` : agrégation des avis par campagne
      - `PATCH /reviews/:id/accept-republish` : accepter la proposition
 
 3. Trigger automatique :
    - Lors de création d'avis ≥ 3/5 → créer notification
    - Message : "Votre avis est positif ! Voulez-vous le publier sur le site du vendeur ?"
+
+4. Agrégation :
+   - Calcul de la note moyenne par campagne
+   - Vue globale du produit avec breakdown par campagne
 
 **Fichiers** :
 - `prisma/schema.prisma`
@@ -563,36 +585,82 @@ model ProductReview {
 #### ✅ Tâche 1.3 : Système de Tranche de Prix
 **Objectif** : Masquer le prix exact et valider la fourchette
 
-**⚠️ BLOQUÉ PAR Q2** : Attendre clarification sur le format de la tranche
+**✅ DÉBLOQUÉ** - Basé sur Q2
 
-**Modifications** (après clarification) :
+**Spécification** :
+- Formule : **[prix - 5€, prix + 5€]**
+- Exception : si prix < 5€ → **[0€, 5€]** (pas de négatif)
+- Le testeur voit la tranche, doit saisir le prix exact trouvé
+- Validation backend avant de pouvoir continuer
+
+**Modifications** :
 1. Schema Prisma :
    ```prisma
    model Offer {
-     // ...
-     minExpectedPrice Decimal?
-     maxExpectedPrice Decimal?
+     // Pas besoin de stocker min/max, on les calcule dynamiquement
+     // à partir du prix exact
+     productPrice Decimal // Prix exact (existe déjà probablement)
    }
    ```
 
-2. DTO `submit-purchase.dto.ts` :
-   - Le testeur saisit `productPrice`
-
-3. Service `sessions.service.ts` :
-   - Validation lors de `submitPurchase` :
+2. Service `offers.service.ts` ou utilitaire :
+   - Créer fonction helper :
      ```typescript
-     if (productPrice < offer.minExpectedPrice || productPrice > offer.maxExpectedPrice) {
-       throw new BadRequestException('Prix hors de la fourchette attendue');
+     function calculatePriceRange(productPrice: Decimal): { min: Decimal; max: Decimal } {
+       const min = productPrice < 5 ? 0 : productPrice - 5;
+       const max = productPrice < 5 ? 5 : productPrice + 5;
+       return { min, max };
      }
      ```
 
-4. Frontend (hors scope API) :
+3. Service `sessions.service.ts` :
+   - Créer nouvelle méthode `validateProductPrice(sessionId, enteredPrice)` appelée avant `submitPurchase`
+   - Validation :
+     ```typescript
+     const { min, max } = calculatePriceRange(offer.productPrice);
+     if (enteredPrice < min || enteredPrice > max) {
+       throw new BadRequestException(
+         `Prix incorrect. Le prix doit être entre ${min}€ et ${max}€`
+       );
+     }
+     ```
+   - Stocker le prix validé pour l'utiliser lors du `submitPurchase`
+
+4. Nouveau champ dans TestingSession :
+   ```prisma
+   model TestingSession {
+     // ...
+     validatedProductPrice Decimal? // Prix trouvé et validé par le testeur
+     priceValidatedAt      DateTime?
+   }
+   ```
+
+5. Controller `sessions.controller.ts` :
+   - Nouveau endpoint : `PATCH /sessions/:id/validate-price`
+   - Body : `{ productPrice: number }`
+
+6. Frontend (hors scope API) :
+   - GET offer → calculer la tranche côté client avec la formule
    - Afficher "Prix estimé : 45€ - 55€" au lieu du prix exact
+   - Input pour saisir le prix trouvé
+   - Appeler `/sessions/:id/validate-price` avec le prix saisi
+
+**Workflow complet** :
+1. Testeur suit la procédure
+2. Dernière étape : validation du prix
+3. Frontend affiche : "Prix estimé : 45€ - 55€. Entrez le prix exact trouvé :"
+4. Testeur saisit : 49.90€
+5. Frontend appelle `PATCH /sessions/:id/validate-price { productPrice: 49.90 }`
+6. Backend valide : 49.90 ∈ [45, 55] → ✅ OK, stocke dans `validatedProductPrice`
+7. Testeur peut continuer et acheter le produit
+8. Lors de `submitPurchase`, on utilise `validatedProductPrice` pour le calcul du remboursement
 
 **Fichiers** :
 - `prisma/schema.prisma`
 - `src/modules/sessions/sessions.service.ts`
-- `src/modules/campaigns/dto/create-campaign.dto.ts`
+- `src/modules/sessions/sessions.controller.ts`
+- `src/modules/sessions/dto/validate-price.dto.ts` (nouveau)
+- `src/modules/offers/utils/price-range.util.ts` (nouveau helper)
 
 ---
 
@@ -742,43 +810,91 @@ model ProductReview {
 
 #### ✅ Tâche 3.1 : Date d'Achat Imposée
 
-**⚠️ BLOQUÉ PAR Q1** : Attendre clarification sur la logique
+**✅ DÉBLOQUÉ** - Basé sur Q1
 
-**Modifications** (après clarification) :
+**Spécification** :
+- La date de Distribution = date du test = **date d'achat obligatoire**
+- Le vendeur définit le scheduling lors de la création
+- Le testeur est prévenu à l'avance
+- Il DOIT acheter le jour défini dans la Distribution
+
+**Modifications** :
 1. Schema Prisma :
    ```prisma
    model TestingSession {
      // ...
-     scheduledPurchaseDate DateTime? // Date calculée lors de l'acceptation
-     purchaseDeadline      DateTime? // Date limite d'achat
+     scheduledPurchaseDate DateTime? // Date calculée lors de l'acceptation (basée sur Distribution)
    }
    ```
 
 2. Service `sessions.service.ts` :
    - Lors de `acceptSession` :
-     - Calculer `scheduledPurchaseDate` basé sur `Distribution`
-     - Calculer `purchaseDeadline` (ex: +7 jours)
+     ```typescript
+     // Récupérer la prochaine date de Distribution applicable
+     const nextDistributionDate = this.findNextDistributionDate(campaign.distributions);
+     session.scheduledPurchaseDate = nextDistributionDate;
+     ```
+
+   - Créer méthode `findNextDistributionDate(distributions)` :
+     ```typescript
+     // Si RECURRING (ex: tous les lundis) → prochain lundi
+     // Si SPECIFIC_DATE → cette date spécifique
+     ```
+
    - Lors de `submitPurchase` :
-     - Vérifier que nous sommes dans la fenêtre autorisée
+     ```typescript
+     // Vérifier qu'on est le bon jour (avec tolérance de quelques heures)
+     const today = new Date();
+     const scheduled = session.scheduledPurchaseDate;
+
+     if (!isSameDay(today, scheduled)) {
+       throw new BadRequestException(
+         `Vous devez acheter le produit le ${formatDate(scheduled)}`
+       );
+     }
+     ```
 
 3. Module `notifications/` :
-   - Créer notification J-1 : "Demain c'est le jour d'acheter !"
-   - Créer notification J : "Aujourd'hui vous devez acheter le produit"
+   - Créer job cron quotidien pour scanner les sessions
+   - J-1 avant `scheduledPurchaseDate` :
+     - Notification : "Demain c'est le jour d'acheter votre produit pour la campagne X"
+   - Le jour J à 9h :
+     - Notification : "Aujourd'hui vous devez acheter le produit pour la campagne X"
+   - Le jour J à 20h (rappel si pas fait) :
+     - Notification : "Rappel : vous devez acheter le produit aujourd'hui !"
+
+4. Endpoint info :
+   - `GET /sessions/:id` renvoie `scheduledPurchaseDate` pour que le frontend puisse afficher
+   - Frontend montre : "Achat prévu le : 15/11/2025"
+
+**Logique de Distribution** :
+- **RECURRING** (dayOfWeek = 1 pour Lundi) :
+  - Accepté le jeudi 13/11 → scheduledPurchaseDate = lundi 17/11
+  - Le testeur ne peut acheter QUE le 17/11
+- **SPECIFIC_DATE** (specificDate = 25/12/2024) :
+  - Accepté le 20/12 → scheduledPurchaseDate = 25/12
+  - Le testeur ne peut acheter QUE le 25/12
 
 **Fichiers** :
 - `prisma/schema.prisma`
 - `src/modules/sessions/sessions.service.ts`
-- `src/modules/notifications/` (scheduler)
+- `src/modules/sessions/utils/distribution.util.ts` (nouveau helper)
+- `src/modules/notifications/jobs/purchase-reminders.job.ts` (nouveau cron)
 
 ---
 
 #### ✅ Tâche 3.2 : Prestations Supplémentaires
 
-**⚠️ BLOQUÉ PAR Q3** : Attendre clarification sur le design
+**✅ DÉBLOQUÉ** - Basé sur Q3
 
-**Option recommandée** : Système de Bonus Tasks structuré
+**Spécification** :
+- Reste dans la **même session** (pas de nouvelle session)
+- S'exécute via le **chat**
+- Les prestations sont **ajoutées dynamiquement**
+- **CRITIQUE** : Même après `COMPLETED`, on peut ajouter des BonusTasks
+- Chaque BonusTask est rémunérée indépendamment via wallet
 
-**Modifications** (si Option B) :
+**Modifications** :
 1. Schema Prisma :
    ```prisma
    model BonusTask {
@@ -787,34 +903,39 @@ model ProductReview {
      type        BonusTaskType
      title       String
      description String?
-     reward      Decimal
+     reward      Decimal         // Montant payé pour cette prestation
      status      BonusTaskStatus @default(REQUESTED)
 
-     submissionUrl String? // Fichier uploadé par le testeur
-     submittedAt   DateTime?
-     validatedAt   DateTime?
+     // Soumission
+     submissionUrls String[]      // URLs des fichiers (photos, vidéos)
+     submittedAt    DateTime?
 
-     requestedBy String // vendorId
+     // Validation
+     validatedAt    DateTime?
+     rejectedAt     DateTime?
+     rejectionReason String?
+
+     requestedBy String          // vendorId
      createdAt   DateTime        @default(now())
 
      session     TestingSession  @relation(...)
    }
 
    enum BonusTaskType {
-     UNBOXING_PHOTO
-     UGC_VIDEO
-     PRODUCT_REVIEW_EXTERNAL
-     TIP
-     CUSTOM
+     UNBOXING_PHOTO   // Photos de déballage
+     UGC_VIDEO        // Vidéo UGC
+     EXTERNAL_REVIEW  // Avis sur site externe
+     TIP              // Conseil/astuce
+     CUSTOM           // Autre (à préciser)
    }
 
    enum BonusTaskStatus {
-     REQUESTED
-     ACCEPTED
-     REJECTED
-     SUBMITTED
-     VALIDATED
-     CANCELLED
+     REQUESTED   // Vendeur a créé la demande
+     ACCEPTED    // Testeur a accepté
+     REJECTED    // Testeur a refusé
+     SUBMITTED   // Testeur a soumis le travail
+     VALIDATED   // Vendeur a validé → paiement
+     CANCELLED   // Annulé par le vendeur
    }
    ```
 
@@ -822,71 +943,188 @@ model ProductReview {
    - Service, Controller, DTOs
    - Endpoints :
      - `POST /sessions/:sessionId/bonus-tasks` : vendeur crée (PRO)
+       - Peut être appelé même si session est `COMPLETED`
+       - Body : `{ type, title, description, reward }`
+     - `GET /sessions/:sessionId/bonus-tasks` : lister les bonus tasks
      - `PATCH /bonus-tasks/:id/accept` : testeur accepte (USER)
+     - `PATCH /bonus-tasks/:id/reject` : testeur refuse (USER)
      - `PATCH /bonus-tasks/:id/submit` : testeur soumet (USER)
+       - Body : `{ submissionUrls: string[] }`
      - `PATCH /bonus-tasks/:id/validate` : vendeur valide (PRO)
+       - Trigger crédit wallet automatiquement
+     - `PATCH /bonus-tasks/:id/reject-submission` : vendeur rejette (PRO)
+     - `DELETE /bonus-tasks/:id` : vendeur annule (PRO)
 
 3. Intégration wallet :
-   - Lors de `validateBonusTask` → crédit automatique
+   - Lors de `validateBonusTask` :
+     ```typescript
+     await this.walletsService.credit(
+       session.testerId,
+       bonusTask.reward,
+       `Bonus task: ${bonusTask.title}`,
+       session.id
+     );
+     bonusTask.status = BonusTaskStatus.VALIDATED;
+     bonusTask.validatedAt = new Date();
+     ```
+
+4. Intégration messages :
+   - Créer notification automatique lors de création de BonusTask :
+     - Message au testeur : "Le vendeur vous propose une prestation supplémentaire pour X€"
+   - Créer notification lors de soumission :
+     - Message au vendeur : "Le testeur a soumis la prestation X"
+
+5. Guards spéciaux :
+   - Permettre création de BonusTask même si session.status === COMPLETED
+   - Vérifier que le chat est toujours accessible
+
+**Workflow complet** :
+1. Session principale validée → `COMPLETED` → testeur payé pour le test
+2. Chat reste ouvert
+3. Vendeur est satisfait, veut plus de contenu
+4. Vendeur : `POST /sessions/:id/bonus-tasks`
+   - `{ type: "UNBOXING_PHOTO", title: "3 photos de déballage", reward: 10 }`
+5. Testeur reçoit notification dans le chat
+6. Testeur accepte : `PATCH /bonus-tasks/:id/accept`
+7. Testeur upload les photos et soumet : `PATCH /bonus-tasks/:id/submit`
+   - `{ submissionUrls: ["url1", "url2", "url3"] }`
+8. Vendeur valide : `PATCH /bonus-tasks/:id/validate`
+9. Testeur reçoit 10€ dans son wallet
+10. Peut se répéter autant de fois que nécessaire
+
+**Cas d'usage** :
+- Le testeur a fait un super test → vendeur demande vidéo UGC pour 50€
+- Le produit a eu un super avis → vendeur demande de publier sur Amazon pour 20€
+- Le vendeur veut des tips d'utilisation → propose 15€
 
 **Fichiers** :
 - `prisma/schema.prisma`
-- `src/modules/bonus-tasks/` (nouveau module)
+- `src/modules/bonus-tasks/` (nouveau module complet)
 - `src/modules/wallets/wallets.service.ts` (intégration)
+- `src/modules/notifications/notifications.service.ts` (intégration)
 
 ---
 
 ## 🏁 Résumé des Modifications
 
 ### Modèles à Créer
-1. ✅ `ProductReview` (Phase 1.2)
+1. ✅ `CampaignReview` (Phase 1.2) - **Note liée à campagne, pas juste produit**
 2. ✅ `Wallet` (Phase 2.1)
 3. ✅ `Transaction` (Phase 2.1)
 4. ✅ `Withdrawal` (Phase 2.3)
-5. 🔄 `BonusTask` (Phase 3.2 - si validé)
+5. ✅ `BonusTask` (Phase 3.2) - **VALIDÉ via Q3**
 
 ### Modèles à Modifier
 1. ✅ `TestingSession` :
    - Ajouter `orderNumber`, `orderNumberValidatedAt` (Phase 1.1)
-   - Ajouter `scheduledPurchaseDate`, `purchaseDeadline` (Phase 3.1 - si validé)
-2. ✅ `Offer` :
-   - Ajouter `minExpectedPrice`, `maxExpectedPrice` (Phase 1.3)
+   - Ajouter `validatedProductPrice`, `priceValidatedAt` (Phase 1.3) - **Nouveau workflow**
+   - Ajouter `scheduledPurchaseDate` (Phase 3.1) - **VALIDÉ via Q1**
+2. ❌ `Offer` :
+   - **PAS besoin** de stocker min/max prix - calcul dynamique via helper (Phase 1.3)
 
 ### Modules à Créer
-1. ✅ `reviews/` (Phase 1.2)
+1. ✅ `reviews/` (Phase 1.2) - **Avis liés aux campagnes**
 2. ✅ `wallets/` (Phase 2.2)
 3. ✅ `withdrawals/` (Phase 2.3)
-4. 🔄 `bonus-tasks/` (Phase 3.2 - si validé)
+4. ✅ `bonus-tasks/` (Phase 3.2) - **VALIDÉ via Q3, prestations post-session**
 
 ### Modules à Modifier
-1. ✅ `sessions/` : intégration wallet, validation prix (Phases 1, 2)
-2. ✅ `campaigns/` : gestion tranche de prix (Phase 1.3)
-3. ✅ `notifications/` : messages automatiques (Phases 1.2, 3.1)
-4. ✅ `auth/` : création wallet lors de signup (Phase 2.2)
+1. ✅ `sessions/` :
+   - Intégration wallet (Phase 2)
+   - Validation prix en 2 étapes (Phase 1.3)
+   - Calcul date d'achat obligatoire (Phase 3.1)
+   - Support bonus tasks post-COMPLETED (Phase 3.2)
+2. ✅ `notifications/` :
+   - Messages automatiques avis ≥ 3/5 (Phase 1.2)
+   - Rappels J-1 et J pour achat (Phase 3.1)
+   - Notifications bonus tasks (Phase 3.2)
+3. ✅ `auth/` : création wallet lors de signup (Phase 2.2)
+
+### Utilitaires à Créer
+1. ✅ `src/modules/sessions/utils/price-range.util.ts` - Calcul tranche [prix-5, prix+5]
+2. ✅ `src/modules/sessions/utils/distribution.util.ts` - Calcul prochaine date Distribution
+3. ✅ `src/modules/notifications/jobs/purchase-reminders.job.ts` - Cron rappels achat
 
 ---
 
 ## 📊 Estimation Globale
 
-| Phase | Durée | Priorité | Bloqueurs |
-|-------|-------|----------|-----------|
-| **Phase 1** : Corrections Critiques | 2-3 jours | 🔴 HAUTE | Q2 (tranche de prix) |
-| **Phase 2** : Infrastructure Financière | 3-5 jours | 🔴 HAUTE | Choix payment provider |
-| **Phase 3** : Fonctionnalités Avancées | 5-7 jours | 🟡 MOYENNE | Q1, Q3 |
+| Phase | Durée | Priorité | Bloqueurs | Statut |
+|-------|-------|----------|-----------|--------|
+| **Phase 1** : Corrections Critiques | 2-3 jours | 🔴 HAUTE | ~~Q2~~ ✅ Aucun | 🟢 **DÉBLOQUÉ** |
+| **Phase 2** : Infrastructure Financière | 3-5 jours | 🔴 HAUTE | Choix payment provider | 🟡 Partiel |
+| **Phase 3** : Fonctionnalités Avancées | 5-7 jours | 🟡 MOYENNE | ~~Q1, Q3~~ ✅ Aucun | 🟢 **DÉBLOQUÉ** |
 
 **Total estimé** : 10-15 jours de développement
+
+### Détail par Tâche
+
+| Tâche | Complexité | Durée estimée | Dépendances | Statut |
+|-------|------------|---------------|-------------|--------|
+| 1.1 - Numéro de commande | 🟢 Faible | 0.5 jour | Aucune | ✅ **Prêt** |
+| 1.2 - Avis campagne | 🟡 Moyenne | 1-1.5 jours | Aucune | ✅ **Prêt** |
+| 1.3 - Tranche de prix | 🟡 Moyenne | 1 jour | Aucune | ✅ **Prêt** |
+| 2.1 - Modèles Wallet | 🟢 Faible | 0.5 jour | Aucune | ✅ **Prêt** |
+| 2.2 - Module Wallets | 🟡 Moyenne | 1.5-2 jours | 2.1 | ✅ **Prêt** |
+| 2.3 - Système retraits | 🔴 Élevée | 2-3 jours | 2.2 + Provider | 🟡 Bloqué provider |
+| 3.1 - Date d'achat imposée | 🟡 Moyenne | 1.5-2 jours | Aucune | ✅ **Prêt** |
+| 3.2 - Prestations bonus | 🔴 Élevée | 2-3 jours | 2.2 (wallet) | ✅ **Prêt** |
+
+### Ordre de Développement Recommandé
+
+**Sprint 1 (3 jours)** - Fondations
+1. Tâche 1.1 : Numéro de commande (0.5j)
+2. Tâche 1.3 : Tranche de prix (1j)
+3. Tâche 1.2 : Avis campagne (1.5j)
+
+**Sprint 2 (4 jours)** - Infrastructure financière
+4. Tâche 2.1 : Modèles Wallet (0.5j)
+5. Tâche 2.2 : Module Wallets (2j)
+6. Tâche 3.1 : Date d'achat imposée (1.5j)
+
+**Sprint 3 (5 jours)** - Fonctionnalités avancées
+7. Tâche 3.2 : Prestations bonus (3j)
+8. Tâche 2.3 : Système retraits (2j) - Si provider choisi
 
 ---
 
 ## 🚀 Prochaines Étapes
 
-1. **Clarifier les questions Q1-Q4** avec les parties prenantes
-2. **Valider la priorisation** des phases
-3. **Choisir un payment provider** pour les retraits (Stripe, Mangopay, etc.)
-4. **Commencer Phase 1.1** (numéro de commande) - pas de bloqueur
-5. **Mettre en place les tests unitaires** pour chaque nouvelle fonctionnalité
+### ✅ Complet
+- [x] Clarifier les questions Q1-Q4 avec les parties prenantes → **FAIT**
+- [x] Débloquer les tâches dépendantes des réponses → **FAIT**
+
+### 🎯 Actions Immédiates
+
+1. **Choisir un payment provider** pour les retraits :
+   - Options : Stripe, Mangopay, PayPal, Lemon Way
+   - Critères : coûts, pays supportés, temps d'intégration
+   - Impact : Tâche 2.3 (retraits)
+
+2. **Valider la priorisation** :
+   - Confirmer l'ordre des sprints ci-dessus
+   - Ajuster si certaines features sont plus urgentes
+
+3. **Commencer Phase 1** :
+   - Tâche 1.1 (numéro de commande) - **Plus rapide, impact immédiat**
+   - Ou Tâche 1.3 (tranche de prix) - **Plus critique pour sécurité**
+   - Les deux peuvent être faites en parallèle si besoin
+
+4. **Mettre en place les tests unitaires** :
+   - Configurer Jest pour chaque nouveau module
+   - TDD recommandé pour validation de prix et calculs wallet
+
+5. **Prévoir les migrations Prisma** :
+   - Chaque phase nécessite des migrations
+   - Tester sur environnement de dev avant prod
 
 ---
 
 **Dernière mise à jour** : 2025-11-13
-**Statut** : 🟡 En attente de clarifications (Q1-Q4)
+**Statut** : 🟢 **DÉBLOQUÉ - Prêt à commencer le développement**
+
+**Questions résolues** :
+- ✅ Q1 : Distribution = Date d'achat obligatoire
+- ✅ Q2 : Tranche de prix = [prix - 5€, prix + 5€] (ou [0€, 5€] si prix < 5€)
+- ✅ Q3 : Prestations supplémentaires = BonusTask dans même session, post-COMPLETED
+- ✅ Q4 : Avis liés aux campagnes, pas juste aux produits
