@@ -1,0 +1,503 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enum for user roles
+enum UserRole {
+  USER    // Testeur
+  PRO     // Vendeur
+  ADMIN   // Administrateur
+}
+
+// Enum for campaign status
+enum CampaignStatus {
+  DRAFT       // Brouillon
+  ACTIVE      // Active et visible par les testeurs
+  COMPLETED   // Terminée (délai dépassé ou stock épuisé)
+  CANCELLED   // Annulée par le vendeur
+}
+
+// Enum for log levels
+enum LogLevel {
+  INFO     // 🔵 Informations générales
+  SUCCESS  // ✅ Succès d'opération
+  WARNING  // ⚠️ Avertissements
+  ERROR    // ❌ Erreurs
+  DEBUG    // 🐛 Debug technique
+}
+
+// Enum for log categories
+enum LogCategory {
+  AUTH           // Authentification
+  USER           // Gestion utilisateurs
+  PRODUCT        // Gestion produits
+  CAMPAIGN       // Gestion campagnes
+  PROCEDURE      // Procédures de test
+  SESSION        // Sessions de test
+  WALLET         // Transactions financières
+  MESSAGE        // Messagerie
+  ADMIN          // Actions admin
+  SYSTEM         // Système général
+  TEST           // Endpoints de test
+  TEST_API       // Tests automatisés de l'API
+}
+
+// Enum for test step types
+enum StepType {
+  TEXT       // Instructions texte simple
+  PHOTO      // Demander une photo
+  VIDEO      // Demander une vidéo
+  CHECKLIST  // Liste de vérification
+  RATING     // Notation (1-5 étoiles)
+}
+
+// Enum for notification types
+enum NotificationType {
+  SESSION_APPLIED         // Nouvelle candidature
+  SESSION_ACCEPTED        // Candidature acceptée
+  SESSION_REJECTED        // Candidature refusée
+  PURCHASE_SUBMITTED      // Preuve d'achat soumise
+  TEST_SUBMITTED          // Test soumis
+  TEST_VALIDATED          // Test validé
+  SESSION_CANCELLED       // Session annulée
+  DISPUTE_CREATED         // Litige créé
+  MESSAGE_RECEIVED        // Nouveau message
+  PAYMENT_RECEIVED        // Paiement reçu
+  CAMPAIGN_CREATED        // Nouvelle campagne
+  CAMPAIGN_ENDING_SOON    // Campagne se termine bientôt
+  SYSTEM_ALERT            // Alerte système
+}
+
+// Enum for notification channels
+enum NotificationChannel {
+  EMAIL      // Email
+  SMS        // SMS
+  PUSH       // Push notification
+  IN_APP     // Notification in-app
+}
+
+// Enum for testing session status
+enum SessionStatus {
+  PENDING           // En attente d'acceptation par le vendeur
+  ACCEPTED          // Acceptée par le vendeur
+  IN_PROGRESS       // Test en cours (produit acheté)
+  SUBMITTED         // Test soumis, en attente de validation
+  COMPLETED         // Test validé et payé
+  REJECTED          // Refusée par le vendeur
+  CANCELLED         // Annulée par le testeur
+  DISPUTED          // En litige (besoin intervention admin)
+}
+
+// Profile table - extends Supabase auth.users
+model Profile {
+  id        String   @id @default(uuid())
+  supabaseUserId String   @unique @map("supabase_user_id")
+  email     String   @unique
+  role      UserRole @default(USER)
+
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  phone     String?
+  avatar    String?
+
+  // Business info for PRO users
+  companyName String? @map("company_name")
+  siret       String?
+
+  // Account status
+  isActive  Boolean  @default(true) @map("is_active")
+  isVerified Boolean @default(false) @map("is_verified")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  products                Product[]               // Produits créés par ce vendeur
+  campaigns               Campaign[]              // Campagnes créées par ce vendeur
+  systemLogs              SystemLog[]             // Logs d'actions de cet utilisateur
+  sessions                Session[]               // Sessions (en tant que testeur)
+  messages                Message[]               // Messages envoyés
+  notifications           Notification[]          // Notifications reçues
+  notificationPreferences NotificationPreference? // Préférences de notification
+
+  @@map("profiles")
+  @@index([email])
+  @@index([supabaseUserId])
+  @@index([role])
+}
+
+// Product table - Products created by PRO sellers
+model Product {
+  id          String   @id @default(uuid())
+
+  // Relation with seller (PRO)
+  sellerId    String   @map("seller_id")
+  seller      Profile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Product information
+  name        String
+  description String   @db.Text
+  category    String?
+  imageUrl    String?  @map("image_url")
+
+  // Pricing
+  price        Decimal  @db.Decimal(10, 2)  // Product price
+  shippingCost Decimal  @db.Decimal(10, 2) @map("shipping_cost")  // Delivery cost
+  reward       Decimal? @db.Decimal(10, 2)  // Optional reward for tester
+
+  // Stock and availability
+  stock       Int      @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  campaignProducts CampaignProduct[]  // Produits dans les campagnes
+
+  @@map("products")
+  @@index([sellerId])
+  @@index([isActive])
+  @@index([category])
+}
+
+// Campaign table - Test campaigns created by PRO sellers
+model Campaign {
+  id             String         @id @default(uuid())
+
+  // Relation with seller (PRO)
+  sellerId       String         @map("seller_id")
+  seller         Profile        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Campaign information
+  title          String
+  description    String         @db.Text
+
+  // Campaign timing
+  startDate      DateTime       @map("start_date")
+  endDate        DateTime?      @map("end_date")  // Optional, campaign can end by stock instead
+
+  // Slot management (nombre de tests disponibles)
+  totalSlots     Int            @map("total_slots")     // Total number of test slots
+  availableSlots Int            @map("available_slots") // Remaining available slots
+
+  // Status
+  status         CampaignStatus @default(DRAFT)
+
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  products        CampaignProduct[] // Produits inclus dans cette campagne
+  procedures      Procedure[]       // Procédures de cette campagne
+  distributions   Distribution[]    // Planning de distribution par jour
+  sessions        Session[]         // Sessions pour cette campagne
+
+  @@map("campaigns")
+  @@index([sellerId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// CampaignProduct table - Junction table for Campaign <-> Product (many-to-many)
+model CampaignProduct {
+  id         String   @id @default(uuid())
+
+  // Relations
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  productId  String   @map("product_id")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Quantity of this product in the campaign
+  quantity   Int      @default(1)
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([campaignId, productId])  // Un produit ne peut être ajouté qu'une fois par campagne
+  @@map("campaign_products")
+  @@index([campaignId])
+  @@index([productId])
+}
+
+// SystemLog table - Logs système pour traçabilité et debug
+model SystemLog {
+  id         String      @id @default(uuid())
+  level      LogLevel
+  category   LogCategory
+
+  // Message
+  message    String      // Message simple pour affichage
+  details    Json?       // Données complètes (visible admin uniquement)
+
+  // User context
+  userId     String?     @map("user_id")
+  user       Profile?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Request context
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  endpoint   String?     // Route API appelée
+  method     String?     // GET, POST, etc.
+  statusCode Int?        @map("status_code")
+  duration   Int?        // Temps d'exécution en ms
+
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@map("system_logs")
+  @@index([level])
+  @@index([category])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Procedure table - Procédures définies par le vendeur
+model Procedure {
+  id          String    @id @default(uuid())
+
+  // Relation with campaign
+  campaignId  String    @map("campaign_id")
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Procedure info
+  title       String
+  description String    @db.Text
+  order       Int       // Ordre d'exécution
+  isRequired  Boolean   @default(true) @map("is_required")
+
+  // Relations
+  steps       Step[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("procedures")
+  @@index([campaignId])
+  @@index([order])
+}
+
+// Step table - Étapes détaillées d'une procédure
+model Step {
+  id              String    @id @default(uuid())
+
+  // Relation with procedure
+  procedureId     String    @map("procedure_id")
+  procedure       Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+
+  // Step info
+  title           String
+  description     String?   @db.Text
+  type            StepType  @default(TEXT)
+  order           Int
+  isRequired      Boolean   @default(true) @map("is_required")
+
+  // For CHECKLIST type
+  checklistItems  Json?     @map("checklist_items")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("steps")
+  @@index([procedureId])
+  @@index([order])
+}
+
+// Distribution table - Planning de distribution par jour
+model Distribution {
+  id         String   @id @default(uuid())
+
+  // Relation with campaign
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+  dayOfWeek  Int      @map("day_of_week") // 0-6
+
+  // Max units available for this day
+  maxUnits   Int      @map("max_units")
+
+  // Active status
+  isActive   Boolean  @default(true) @map("is_active")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Un seul planning par jour et par campagne
+  @@unique([campaignId, dayOfWeek])
+  @@map("distributions")
+  @@index([campaignId])
+  @@index([dayOfWeek])
+  @@index([isActive])
+}
+
+// Session table - Session active entre un testeur et une campagne
+model Session {
+  id         String        @id @default(uuid())
+
+  // Relations
+  campaignId String        @map("campaign_id")
+  campaign   Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  testerId   String        @map("tester_id")
+  tester     Profile       @relation(fields: [testerId], references: [id], onDelete: Cascade)
+
+  // Session status
+  status     SessionStatus @default(PENDING)
+
+  // Application (candidature du testeur)
+  applicationMessage String?  @db.Text @map("application_message")  // Message de motivation
+  appliedAt          DateTime @default(now()) @map("applied_at")
+
+  // Acceptance/Rejection by seller
+  acceptedAt         DateTime? @map("accepted_at")
+  rejectedAt         DateTime? @map("rejected_at")
+  rejectionReason    String?   @db.Text @map("rejection_reason")
+
+  // Purchase proof
+  purchaseProofUrl   String?   @map("purchase_proof_url")  // URL de la preuve d'achat
+  purchasedAt        DateTime? @map("purchased_at")
+
+  // Test submission
+  submittedAt        DateTime? @map("submitted_at")
+  submissionData     Json?     @map("submission_data")  // Données du test (photos, vidéos, réponses)
+
+  // Completion & Payment
+  completedAt        DateTime? @map("completed_at")
+  productPrice       Decimal?  @db.Decimal(10, 2) @map("product_price")  // Prix du produit au moment de l'achat
+  shippingCost       Decimal?  @db.Decimal(10, 2) @map("shipping_cost")  // Frais de livraison
+  rewardAmount       Decimal?  @db.Decimal(10, 2) @map("reward_amount")  // Montant de la récompense
+
+  // Cancellation
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancellationReason String?   @db.Text @map("cancellation_reason")
+
+  // Dispute
+  disputedAt         DateTime? @map("disputed_at")
+  disputeReason      String?   @db.Text @map("dispute_reason")
+  disputeResolvedAt  DateTime? @map("dispute_resolved_at")
+  disputeResolution  String?   @db.Text @map("dispute_resolution")
+
+  // Rating (filled by seller after completion)
+  rating             Int?      // 1-5 stars
+  ratingComment      String?   @db.Text @map("rating_comment")
+  ratedAt            DateTime? @map("rated_at")
+
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  messages           Message[] // Messages de cette session
+
+  @@map("sessions")
+  @@index([campaignId])
+  @@index([testerId])
+  @@index([status])
+  @@index([appliedAt])
+  @@index([createdAt])
+}
+
+// Message table - Messagerie entre testeur et vendeur dans une session
+model Message {
+  id          String         @id @default(uuid())
+
+  // Relation with session
+  sessionId   String  @map("session_id")
+  session     Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Sender (can be tester or seller)
+  senderId    String         @map("sender_id")
+  sender      Profile        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  // Message content
+  content     String         @db.Text
+  attachments Json?          // URLs de fichiers joints (photos, documents)
+
+  // Read status
+  isRead      Boolean        @default(false) @map("is_read")
+  readAt      DateTime?      @map("read_at")
+
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@map("messages")
+  @@index([sessionId])
+  @@index([senderId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// Notification table - Notifications envoyées aux utilisateurs
+model Notification {
+  id        String             @id @default(uuid())
+
+  // Relation with user
+  userId    String             @map("user_id")
+  user      Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Notification info
+  type      NotificationType
+  channel   NotificationChannel
+  title     String
+  message   String             @db.Text
+  data      Json?              // Données additionnelles (IDs, liens, etc.)
+
+  // Status
+  isSent    Boolean            @default(false) @map("is_sent")
+  sentAt    DateTime?          @map("sent_at")
+  isRead    Boolean            @default(false) @map("is_read")
+  readAt    DateTime?          @map("read_at")
+
+  // Error tracking
+  error     String?            @db.Text  // Message d'erreur si échec d'envoi
+  retries   Int                @default(0)  // Nombre de tentatives
+
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@map("notifications")
+  @@index([userId])
+  @@index([type])
+  @@index([channel])
+  @@index([isSent])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// NotificationPreference table - Préférences de notification par utilisateur
+model NotificationPreference {
+  id     String  @id @default(uuid())
+
+  // Relation with user (one-to-one)
+  userId String  @unique @map("user_id")
+  user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Channel preferences
+  emailEnabled Boolean @default(true) @map("email_enabled")
+  smsEnabled   Boolean @default(false) @map("sms_enabled")
+  pushEnabled  Boolean @default(true) @map("push_enabled")
+  inAppEnabled Boolean @default(true) @map("in_app_enabled")
+
+  // Notification type preferences
+  sessionNotifications  Boolean @default(true) @map("session_notifications")
+  messageNotifications  Boolean @default(true) @map("message_notifications")
+  paymentNotifications  Boolean @default(true) @map("payment_notifications")
+  campaignNotifications Boolean @default(true) @map("campaign_notifications")
+  systemNotifications   Boolean @default(true) @map("system_notifications")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
+  @@index([userId])
+}
