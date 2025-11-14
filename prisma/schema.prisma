@@ -103,6 +103,25 @@ enum DistributionType {
   SPECIFIC_DATE // Date spécifique (3 novembre, 15 novembre, etc.)
 }
 
+// Enum for bonus task types
+enum BonusTaskType {
+  UNBOXING_PHOTO // Photos de déballage
+  UGC_VIDEO // Vidéo UGC
+  EXTERNAL_REVIEW // Avis sur site externe
+  TIP // Conseil/astuce
+  CUSTOM // Autre (à préciser)
+}
+
+// Enum for bonus task status
+enum BonusTaskStatus {
+  REQUESTED // Vendeur a créé la demande
+  ACCEPTED // Testeur a accepté
+  REJECTED // Testeur a refusé
+  SUBMITTED // Testeur a soumis le travail
+  VALIDATED // Vendeur a validé → paiement
+  CANCELLED // Annulé par le vendeur
+}
+
 // Profile table - extends Supabase auth.users
 model Profile {
   id             String   @id @default(uuid())
@@ -127,14 +146,15 @@ model Profile {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  products                Product[] // Produits créés par ce vendeur
-  campaigns               Campaign[] // Campagnes créées par ce vendeur
-  systemLogs              SystemLog[] // Logs d'actions de cet utilisateur
-  sessions                Session[] // Sessions (en tant que testeur)
-  messages                Message[] // Messages envoyés
-  notifications           Notification[] // Notifications reçues
+  products                Product[]               // Produits créés par ce vendeur
+  campaigns               Campaign[]              // Campagnes créées par ce vendeur
+  systemLogs              SystemLog[]             // Logs d'actions de cet utilisateur
+  sessions                Session[]               // Sessions (en tant que testeur)
+  messages                Message[]               // Messages envoyés
+  notifications           Notification[]          // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
   reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
+  requestedBonusTasks     BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -383,6 +403,9 @@ model Session {
   rejectedAt      DateTime? @map("rejected_at")
   rejectionReason String?   @map("rejection_reason") @db.Text
 
+  // Scheduled purchase (based on Distribution - date obligatoire d'achat)
+  scheduledPurchaseDate DateTime? @map("scheduled_purchase_date") // Date à laquelle le testeur DOIT acheter le produit
+
   // Purchase proof
   purchaseProofUrl       String?   @map("purchase_proof_url") // URL de la preuve d'achat
   purchasedAt            DateTime? @map("purchased_at")
@@ -422,8 +445,9 @@ model Session {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  messages Message[] // Messages de cette session
-  review   CampaignReview? // Avis de cette session
+  messages   Message[]        // Messages de cette session
+  review     CampaignReview?  // Avis de cette session
+  bonusTasks BonusTask[]      // Prestations supplémentaires demandées par le vendeur
 
   @@index([campaignId])
   @@index([testerId])
@@ -567,4 +591,45 @@ model CampaignReview {
   @@index([isPublic])
   @@index([createdAt])
   @@map("campaign_reviews")
+}
+
+// BonusTask table - Prestations supplémentaires post-session
+// Le vendeur peut demander des prestations additionnelles même après que la session soit COMPLETED
+model BonusTask {
+  id String @id @default(uuid())
+
+  // Relation with session
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Task details
+  type        BonusTaskType
+  title       String
+  description String?       @db.Text
+  reward      Decimal       @map("reward") @db.Decimal(10, 2) // Montant payé pour cette prestation
+
+  // Status
+  status BonusTaskStatus @default(REQUESTED)
+
+  // Submission
+  submissionUrls String[] @map("submission_urls") // URLs des fichiers (photos, vidéos)
+  submittedAt    DateTime? @map("submitted_at")
+
+  // Validation
+  validatedAt     DateTime? @map("validated_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  // Creator (seller who requested the task)
+  requestedBy String   @map("requested_by") // ID du vendeur
+  requester   Profile  @relation("RequestedBonusTasks", fields: [requestedBy], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([requestedBy])
+  @@index([createdAt])
+  @@map("bonus_tasks")
 }

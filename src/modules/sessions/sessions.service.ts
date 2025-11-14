@@ -17,6 +17,7 @@ import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
 import { SessionResponseDto } from './dto/session-response.dto';
+import { calculateNextPurchaseDate, isValidPurchaseDate, formatDate } from './utils/distribution.util';
 
 // Type helper pour les réponses Prisma (permet d'accepter any pour éviter les problèmes de Decimal)
 type PrismaSessionResponse = any;
@@ -118,7 +119,11 @@ export class SessionsService {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
-        campaign: true,
+        campaign: {
+          include: {
+            distributions: true,
+          },
+        },
       },
     });
 
@@ -141,6 +146,17 @@ export class SessionsService {
       throw new BadRequestException('No slots available');
     }
 
+    // Calculer la prochaine date d'achat basée sur les distributions
+    const scheduledPurchaseDate = calculateNextPurchaseDate(
+      session.campaign.distributions,
+    );
+
+    if (!scheduledPurchaseDate) {
+      this.logger.warn(
+        `No valid distribution found for campaign ${session.campaignId}`,
+      );
+    }
+
     // Mettre à jour la session et décrémenter les slots
     const [updatedSession] = await this.prisma.$transaction([
       this.prisma.session.update({
@@ -148,6 +164,7 @@ export class SessionsService {
         data: {
           status: SessionStatus.ACCEPTED,
           acceptedAt: new Date(),
+          scheduledPurchaseDate,
         },
         include: {
           campaign: true,
@@ -369,6 +386,16 @@ export class SessionsService {
     // Vérifier que le prix du produit a été validé
     if (!session.validatedProductPrice) {
       throw new BadRequestException('You must validate the product price before submitting purchase proof');
+    }
+
+    // Vérifier que l'achat est fait au bon jour (si scheduledPurchaseDate est défini)
+    if (session.scheduledPurchaseDate) {
+      if (!isValidPurchaseDate(session.scheduledPurchaseDate)) {
+        const formattedDate = formatDate(session.scheduledPurchaseDate);
+        throw new BadRequestException(
+          `You must purchase the product on the scheduled date: ${formattedDate}`,
+        );
+      }
     }
 
     const updatedSession = await this.prisma.session.update({
