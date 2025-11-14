@@ -6,112 +6,112 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 // Enum for user roles
 enum UserRole {
-  USER    // Testeur
-  PRO     // Vendeur
-  ADMIN   // Administrateur
+  USER // Testeur
+  PRO // Vendeur
+  ADMIN // Administrateur
 }
 
 // Enum for campaign status
 enum CampaignStatus {
-  DRAFT       // Brouillon
-  ACTIVE      // Active et visible par les testeurs
-  COMPLETED   // Terminée (délai dépassé ou stock épuisé)
-  CANCELLED   // Annulée par le vendeur
+  DRAFT // Brouillon
+  ACTIVE // Active et visible par les testeurs
+  COMPLETED // Terminée (délai dépassé ou stock épuisé)
+  CANCELLED // Annulée par le vendeur
 }
 
 // Enum for log levels
 enum LogLevel {
-  INFO     // 🔵 Informations générales
-  SUCCESS  // ✅ Succès d'opération
-  WARNING  // ⚠️ Avertissements
-  ERROR    // ❌ Erreurs
-  DEBUG    // 🐛 Debug technique
+  INFO // 🔵 Informations générales
+  SUCCESS // ✅ Succès d'opération
+  WARNING // ⚠️ Avertissements
+  ERROR // ❌ Erreurs
+  DEBUG // 🐛 Debug technique
 }
 
 // Enum for log categories
 enum LogCategory {
-  AUTH           // Authentification
-  USER           // Gestion utilisateurs
-  PRODUCT        // Gestion produits
-  CAMPAIGN       // Gestion campagnes
-  PROCEDURE      // Procédures de test
-  SESSION        // Sessions de test
-  WALLET         // Transactions financières
-  MESSAGE        // Messagerie
-  ADMIN          // Actions admin
-  SYSTEM         // Système général
-  TEST           // Endpoints de test
-  TEST_API       // Tests automatisés de l'API
+  AUTH // Authentification
+  USER // Gestion utilisateurs
+  PRODUCT // Gestion produits
+  CAMPAIGN // Gestion campagnes
+  PROCEDURE // Procédures de test
+  SESSION // Sessions de test
+  WALLET // Transactions financières
+  MESSAGE // Messagerie
+  ADMIN // Actions admin
+  SYSTEM // Système général
+  TEST // Endpoints de test
+  TEST_API // Tests automatisés de l'API
 }
 
 // Enum for test step types
 enum StepType {
-  TEXT       // Instructions texte simple
-  PHOTO      // Demander une photo
-  VIDEO      // Demander une vidéo
-  CHECKLIST  // Liste de vérification
-  RATING     // Notation (1-5 étoiles)
+  TEXT // Instructions texte simple
+  PHOTO // Demander une photo
+  VIDEO // Demander une vidéo
+  CHECKLIST // Liste de vérification
+  RATING // Notation (1-5 étoiles)
 }
 
 // Enum for notification types
 enum NotificationType {
-  SESSION_APPLIED         // Nouvelle candidature
-  SESSION_ACCEPTED        // Candidature acceptée
-  SESSION_REJECTED        // Candidature refusée
-  PURCHASE_SUBMITTED      // Preuve d'achat soumise
-  TEST_SUBMITTED          // Test soumis
-  TEST_VALIDATED          // Test validé
-  SESSION_CANCELLED       // Session annulée
-  DISPUTE_CREATED         // Litige créé
-  MESSAGE_RECEIVED        // Nouveau message
-  PAYMENT_RECEIVED        // Paiement reçu
-  CAMPAIGN_CREATED        // Nouvelle campagne
-  CAMPAIGN_ENDING_SOON    // Campagne se termine bientôt
-  SYSTEM_ALERT            // Alerte système
+  SESSION_APPLIED // Nouvelle candidature
+  SESSION_ACCEPTED // Candidature acceptée
+  SESSION_REJECTED // Candidature refusée
+  PURCHASE_SUBMITTED // Preuve d'achat soumise
+  TEST_SUBMITTED // Test soumis
+  TEST_VALIDATED // Test validé
+  SESSION_CANCELLED // Session annulée
+  DISPUTE_CREATED // Litige créé
+  MESSAGE_RECEIVED // Nouveau message
+  PAYMENT_RECEIVED // Paiement reçu
+  CAMPAIGN_CREATED // Nouvelle campagne
+  CAMPAIGN_ENDING_SOON // Campagne se termine bientôt
+  SYSTEM_ALERT // Alerte système
 }
 
 // Enum for notification channels
 enum NotificationChannel {
-  EMAIL      // Email
-  SMS        // SMS
-  PUSH       // Push notification
-  IN_APP     // Notification in-app
+  EMAIL // Email
+  SMS // SMS
+  PUSH // Push notification
+  IN_APP // Notification in-app
 }
 
 // Enum for testing session status
 enum SessionStatus {
-  PENDING           // En attente d'acceptation par le vendeur
-  ACCEPTED          // Acceptée par le vendeur
-  IN_PROGRESS       // Test en cours (produit acheté)
-  SUBMITTED         // Test soumis, en attente de validation
-  COMPLETED         // Test validé et payé
-  REJECTED          // Refusée par le vendeur
-  CANCELLED         // Annulée par le testeur
-  DISPUTED          // En litige (besoin intervention admin)
+  PENDING // En attente d'acceptation par le vendeur
+  ACCEPTED // Acceptée par le vendeur
+  IN_PROGRESS // Test en cours (produit acheté)
+  SUBMITTED // Test soumis, en attente de validation
+  COMPLETED // Test validé et payé
+  REJECTED // Refusée par le vendeur
+  CANCELLED // Annulée par le testeur
+  DISPUTED // En litige (besoin intervention admin)
 }
 
 // Enum for distribution types
 enum DistributionType {
-  RECURRING      // Jours récurrents (tous les lundis, mercredis, etc.)
-  SPECIFIC_DATE  // Date spécifique (3 novembre, 15 novembre, etc.)
+  RECURRING // Jours récurrents (tous les lundis, mercredis, etc.)
+  SPECIFIC_DATE // Date spécifique (3 novembre, 15 novembre, etc.)
 }
 
 // Profile table - extends Supabase auth.users
 model Profile {
-  id        String   @id @default(uuid())
+  id             String   @id @default(uuid())
   supabaseUserId String   @unique @map("supabase_user_id")
-  email     String   @unique
-  role      UserRole @default(USER)
+  email          String   @unique
+  role           UserRole @default(USER)
 
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
+  firstName String? @map("first_name")
+  lastName  String? @map("last_name")
   phone     String?
   avatar    String?
 
@@ -120,379 +120,389 @@ model Profile {
   siret       String?
 
   // Account status
-  isActive  Boolean  @default(true) @map("is_active")
+  isActive   Boolean @default(true) @map("is_active")
   isVerified Boolean @default(false) @map("is_verified")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  products                Product[]               // Produits créés par ce vendeur
-  campaigns               Campaign[]              // Campagnes créées par ce vendeur
-  systemLogs              SystemLog[]             // Logs d'actions de cet utilisateur
-  sessions                Session[]               // Sessions (en tant que testeur)
-  messages                Message[]               // Messages envoyés
-  notifications           Notification[]          // Notifications reçues
+  products                Product[] // Produits créés par ce vendeur
+  campaigns               Campaign[] // Campagnes créées par ce vendeur
+  systemLogs              SystemLog[] // Logs d'actions de cet utilisateur
+  sessions                Session[] // Sessions (en tant que testeur)
+  messages                Message[] // Messages envoyés
+  notifications           Notification[] // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
+  reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
 
-  @@map("profiles")
   @@index([email])
   @@index([supabaseUserId])
   @@index([role])
+  @@map("profiles")
 }
 
 // Product table - Catalogue de produits du vendeur
 model Product {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with seller (PRO)
-  sellerId    String   @map("seller_id")
-  seller      Profile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId String  @map("seller_id")
+  seller   Profile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
   // Product information (catalogue de base)
   name        String
-  description String   @db.Text
+  description String  @db.Text
   category    String?
-  imageUrl    String?  @map("image_url")
+  imageUrl    String? @map("image_url")
 
   // Availability
-  isActive    Boolean  @default(true) @map("is_active")
+  isActive Boolean @default(true) @map("is_active")
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  offers      Offer[]  // Offres de ce produit dans différentes campagnes
+  offers  Offer[] // Offres de ce produit dans différentes campagnes
+  reviews CampaignReview[] // Avis sur ce produit (via campagnes)
 
-  @@map("products")
   @@index([sellerId])
   @@index([isActive])
   @@index([category])
+  @@map("products")
 }
 
 // Campaign table - Test campaigns created by PRO sellers
 model Campaign {
-  id             String         @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with seller (PRO)
-  sellerId       String         @map("seller_id")
-  seller         Profile        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId String  @map("seller_id")
+  seller   Profile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
   // Campaign information
-  title          String
-  description    String         @db.Text
+  title       String
+  description String @db.Text
 
   // Campaign timing
-  startDate      DateTime       @map("start_date")
-  endDate        DateTime?      @map("end_date")  // Optional, campaign can end by stock instead
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date") // Optional, campaign can end by stock instead
 
   // Slot management (nombre de tests disponibles)
-  totalSlots     Int            @map("total_slots")     // Total number of test slots
-  availableSlots Int            @map("available_slots") // Remaining available slots
+  totalSlots     Int @map("total_slots") // Total number of test slots
+  availableSlots Int @map("available_slots") // Remaining available slots
 
   // Status
-  status         CampaignStatus @default(DRAFT)
+  status CampaignStatus @default(DRAFT)
 
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  offers         Offer[]        // Offres de cette campagne
-  procedures     Procedure[]    // Procédures de cette campagne
-  distributions  Distribution[] // Calendrier de distribution
-  sessions       Session[]      // Sessions pour cette campagne
+  offers        Offer[] // Offres de cette campagne
+  procedures    Procedure[] // Procédures de cette campagne
+  distributions Distribution[] // Calendrier de distribution
+  sessions      Session[] // Sessions pour cette campagne
+  reviews       CampaignReview[] // Avis sur cette campagne
 
-  @@map("campaigns")
   @@index([sellerId])
   @@index([status])
   @@index([startDate])
   @@index([endDate])
+  @@map("campaigns")
 }
 
 // Offer table - Offre d'un produit dans une campagne avec toutes les données financières
 model Offer {
-  id         String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relations
   campaignId String   @map("campaign_id")
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  productId  String   @map("product_id")
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   // Remboursements (oui/non)
-  reimbursedPrice    Boolean @default(true) @map("reimbursed_price")     // Le prix du produit est-il remboursé ?
-  reimbursedShipping Boolean @default(true) @map("reimbursed_shipping")  // Les frais de livraison sont-ils remboursés ?
+  reimbursedPrice    Boolean @default(true) @map("reimbursed_price") // Le prix du produit est-il remboursé ?
+  reimbursedShipping Boolean @default(true) @map("reimbursed_shipping") // Les frais de livraison sont-ils remboursés ?
 
   // Montants maximum de remboursement (optionnels)
-  maxReimbursedPrice    Decimal? @db.Decimal(10, 2) @map("max_reimbursed_price")    // Prix maximum remboursé (si null = remboursement total)
-  maxReimbursedShipping Decimal? @db.Decimal(10, 2) @map("max_reimbursed_shipping") // Livraison maximum remboursée (si null = remboursement total)
+  maxReimbursedPrice    Decimal? @map("max_reimbursed_price") @db.Decimal(10, 2) // Prix maximum remboursé (si null = remboursement total)
+  maxReimbursedShipping Decimal? @map("max_reimbursed_shipping") @db.Decimal(10, 2) // Livraison maximum remboursée (si null = remboursement total)
 
   // Bonus supplémentaire pour le testeur
-  bonus              Decimal @default(0) @db.Decimal(10, 2)  // Bonus en plus des remboursements
+  bonus Decimal @default(0) @db.Decimal(10, 2) // Bonus en plus des remboursements
 
   // Quantité de ce produit dans la campagne
-  quantity   Int      @default(1)
+  quantity Int @default(1)
 
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([campaignId, productId])  // Un produit ne peut être dans la campagne qu'une seule fois
-  @@map("offers")
+  @@unique([campaignId, productId]) // Un produit ne peut être dans la campagne qu'une seule fois
   @@index([campaignId])
   @@index([productId])
+  @@map("offers")
 }
 
 // SystemLog table - Logs système pour traçabilité et debug
 model SystemLog {
-  id         String      @id @default(uuid())
-  level      LogLevel
-  category   LogCategory
+  id       String      @id @default(uuid())
+  level    LogLevel
+  category LogCategory
 
   // Message
-  message    String      // Message simple pour affichage
-  details    Json?       // Données complètes (visible admin uniquement)
+  message String // Message simple pour affichage
+  details Json? // Données complètes (visible admin uniquement)
 
   // User context
-  userId     String?     @map("user_id")
-  user       Profile?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?  @map("user_id")
+  user   Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Request context
-  ipAddress  String?     @map("ip_address")
-  userAgent  String?     @map("user_agent")
-  endpoint   String?     // Route API appelée
-  method     String?     // GET, POST, etc.
-  statusCode Int?        @map("status_code")
-  duration   Int?        // Temps d'exécution en ms
+  ipAddress  String? @map("ip_address")
+  userAgent  String? @map("user_agent")
+  endpoint   String? // Route API appelée
+  method     String? // GET, POST, etc.
+  statusCode Int?    @map("status_code")
+  duration   Int? // Temps d'exécution en ms
 
-  createdAt  DateTime    @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  @@map("system_logs")
   @@index([level])
   @@index([category])
   @@index([userId])
   @@index([createdAt])
+  @@map("system_logs")
 }
 
 // Procedure table - Procédures définies par le vendeur
 model Procedure {
-  id          String    @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with campaign
-  campaignId  String    @map("campaign_id")
-  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   // Procedure info
   title       String
-  description String    @db.Text
-  order       Int       // Ordre d'exécution
-  isRequired  Boolean   @default(true) @map("is_required")
+  description String  @db.Text
+  order       Int // Ordre d'exécution
+  isRequired  Boolean @default(true) @map("is_required")
 
   // Relations
-  steps       Step[]
+  steps Step[]
 
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("procedures")
   @@index([campaignId])
   @@index([order])
+  @@map("procedures")
 }
 
 // Step table - Étapes détaillées d'une procédure
 model Step {
-  id              String    @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with procedure
-  procedureId     String    @map("procedure_id")
-  procedure       Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  procedureId String    @map("procedure_id")
+  procedure   Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
 
   // Step info
-  title           String
-  description     String?   @db.Text
-  type            StepType  @default(TEXT)
-  order           Int
-  isRequired      Boolean   @default(true) @map("is_required")
+  title       String
+  description String?  @db.Text
+  type        StepType @default(TEXT)
+  order       Int
+  isRequired  Boolean  @default(true) @map("is_required")
 
   // For CHECKLIST type
-  checklistItems  Json?     @map("checklist_items")
+  checklistItems Json? @map("checklist_items")
 
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("steps")
   @@index([procedureId])
   @@index([order])
+  @@map("steps")
 }
 
 // Distribution table - Calendrier de distribution de la campagne
 // Définit QUAND les testeurs peuvent candidater (pas le nombre de slots, qui est dans Campaign)
 model Distribution {
-  id         String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with campaign
   campaignId String   @map("campaign_id")
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   // Type de distribution
-  type       DistributionType
+  type DistributionType
 
   // Pour RECURRING : jours de la semaine récurrents (0 = Dimanche, 1 = Lundi, ..., 6 = Samedi)
-  dayOfWeek  Int?     @map("day_of_week") // 0-6 (nullable, utilisé uniquement si type = RECURRING)
+  dayOfWeek Int? @map("day_of_week") // 0-6 (nullable, utilisé uniquement si type = RECURRING)
 
   // Pour SPECIFIC_DATE : date spécifique dans l'année
   specificDate DateTime? @map("specific_date") // Date précise (nullable, utilisé uniquement si type = SPECIFIC_DATE)
 
   // Statut actif
-  isActive   Boolean  @default(true) @map("is_active")
+  isActive Boolean @default(true) @map("is_active")
 
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("distributions")
   @@index([campaignId])
   @@index([type])
   @@index([dayOfWeek])
   @@index([specificDate])
   @@index([isActive])
+  @@map("distributions")
 }
 
 // Session table - Session active entre un testeur et une campagne
 model Session {
-  id         String        @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relations
-  campaignId String        @map("campaign_id")
-  campaign   Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  testerId   String        @map("tester_id")
-  tester     Profile       @relation(fields: [testerId], references: [id], onDelete: Cascade)
+  testerId String  @map("tester_id")
+  tester   Profile @relation(fields: [testerId], references: [id], onDelete: Cascade)
 
   // Session status
-  status     SessionStatus @default(PENDING)
+  status SessionStatus @default(PENDING)
 
   // Application (candidature du testeur)
-  applicationMessage String?  @db.Text @map("application_message")  // Message de motivation
+  applicationMessage String?  @map("application_message") @db.Text // Message de motivation
   appliedAt          DateTime @default(now()) @map("applied_at")
 
   // Acceptance/Rejection by seller
-  acceptedAt         DateTime? @map("accepted_at")
-  rejectedAt         DateTime? @map("rejected_at")
-  rejectionReason    String?   @db.Text @map("rejection_reason")
+  acceptedAt      DateTime? @map("accepted_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
 
   // Purchase proof
-  purchaseProofUrl   String?   @map("purchase_proof_url")  // URL de la preuve d'achat
-  purchasedAt        DateTime? @map("purchased_at")
+  purchaseProofUrl       String?   @map("purchase_proof_url") // URL de la preuve d'achat
+  purchasedAt            DateTime? @map("purchased_at")
+  orderNumber            String?   @map("order_number") // Numéro de commande saisi par le testeur
+  orderNumberValidatedAt DateTime? @map("order_number_validated_at") // Date de validation par le vendeur
+
+  // Price validation (range check before purchase)
+  validatedProductPrice  Decimal?  @map("validated_product_price") @db.Decimal(10, 2) // Prix trouvé et validé par le testeur
+  priceValidatedAt       DateTime? @map("price_validated_at") // Date de validation du prix
 
   // Test submission
-  submittedAt        DateTime? @map("submitted_at")
-  submissionData     Json?     @map("submission_data")  // Données du test (photos, vidéos, réponses)
+  submittedAt    DateTime? @map("submitted_at")
+  submissionData Json?     @map("submission_data") // Données du test (photos, vidéos, réponses)
 
   // Completion & Payment
-  completedAt        DateTime? @map("completed_at")
-  productPrice       Decimal?  @db.Decimal(10, 2) @map("product_price")  // Prix du produit au moment de l'achat
-  shippingCost       Decimal?  @db.Decimal(10, 2) @map("shipping_cost")  // Frais de livraison
-  rewardAmount       Decimal?  @db.Decimal(10, 2) @map("reward_amount")  // Montant de la récompense
+  completedAt  DateTime? @map("completed_at")
+  productPrice Decimal?  @map("product_price") @db.Decimal(10, 2) // Prix du produit au moment de l'achat
+  shippingCost Decimal?  @map("shipping_cost") @db.Decimal(10, 2) // Frais de livraison
+  rewardAmount Decimal?  @map("reward_amount") @db.Decimal(10, 2) // Montant de la récompense
 
   // Cancellation
   cancelledAt        DateTime? @map("cancelled_at")
-  cancellationReason String?   @db.Text @map("cancellation_reason")
+  cancellationReason String?   @map("cancellation_reason") @db.Text
 
   // Dispute
-  disputedAt         DateTime? @map("disputed_at")
-  disputeReason      String?   @db.Text @map("dispute_reason")
-  disputeResolvedAt  DateTime? @map("dispute_resolved_at")
-  disputeResolution  String?   @db.Text @map("dispute_resolution")
+  disputedAt        DateTime? @map("disputed_at")
+  disputeReason     String?   @map("dispute_reason") @db.Text
+  disputeResolvedAt DateTime? @map("dispute_resolved_at")
+  disputeResolution String?   @map("dispute_resolution") @db.Text
 
   // Rating (filled by seller after completion)
-  rating             Int?      // 1-5 stars
-  ratingComment      String?   @db.Text @map("rating_comment")
-  ratedAt            DateTime? @map("rated_at")
+  rating        Int? // 1-5 stars
+  ratingComment String?   @map("rating_comment") @db.Text
+  ratedAt       DateTime? @map("rated_at")
 
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  messages           Message[] // Messages de cette session
+  messages Message[] // Messages de cette session
+  review   CampaignReview? // Avis de cette session
 
-  @@map("sessions")
   @@index([campaignId])
   @@index([testerId])
   @@index([status])
   @@index([appliedAt])
   @@index([createdAt])
+  @@map("sessions")
 }
 
 // Message table - Messagerie entre testeur et vendeur dans une session
 model Message {
-  id          String         @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with session
-  sessionId   String  @map("session_id")
-  session     Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   // Sender (can be tester or seller)
-  senderId    String         @map("sender_id")
-  sender      Profile        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderId String  @map("sender_id")
+  sender   Profile @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   // Message content
-  content     String         @db.Text
-  attachments Json?          // URLs de fichiers joints (photos, documents)
+  content     String @db.Text
+  attachments Json? // URLs de fichiers joints (photos, documents)
 
   // Read status
-  isRead      Boolean        @default(false) @map("is_read")
-  readAt      DateTime?      @map("read_at")
+  isRead Boolean   @default(false) @map("is_read")
+  readAt DateTime? @map("read_at")
 
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("messages")
   @@index([sessionId])
   @@index([senderId])
   @@index([isRead])
   @@index([createdAt])
+  @@map("messages")
 }
 
 // Notification table - Notifications envoyées aux utilisateurs
 model Notification {
-  id        String             @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with user
-  userId    String             @map("user_id")
-  user      Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String  @map("user_id")
+  user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Notification info
-  type      NotificationType
-  channel   NotificationChannel
-  title     String
-  message   String             @db.Text
-  data      Json?              // Données additionnelles (IDs, liens, etc.)
+  type    NotificationType
+  channel NotificationChannel
+  title   String
+  message String              @db.Text
+  data    Json? // Données additionnelles (IDs, liens, etc.)
 
   // Status
-  isSent    Boolean            @default(false) @map("is_sent")
-  sentAt    DateTime?          @map("sent_at")
-  isRead    Boolean            @default(false) @map("is_read")
-  readAt    DateTime?          @map("read_at")
+  isSent Boolean   @default(false) @map("is_sent")
+  sentAt DateTime? @map("sent_at")
+  isRead Boolean   @default(false) @map("is_read")
+  readAt DateTime? @map("read_at")
 
   // Error tracking
-  error     String?            @db.Text  // Message d'erreur si échec d'envoi
-  retries   Int                @default(0)  // Nombre de tentatives
+  error   String? @db.Text // Message d'erreur si échec d'envoi
+  retries Int     @default(0) // Nombre de tentatives
 
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("notifications")
   @@index([userId])
   @@index([type])
   @@index([channel])
   @@index([isSent])
   @@index([isRead])
   @@index([createdAt])
+  @@map("notifications")
 }
 
 // NotificationPreference table - Préférences de notification par utilisateur
 model NotificationPreference {
-  id     String  @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation with user (one-to-one)
   userId String  @unique @map("user_id")
@@ -514,6 +524,47 @@ model NotificationPreference {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("notification_preferences")
   @@index([userId])
+  @@map("notification_preferences")
+}
+
+// CampaignReview table - Avis des testeurs sur les campagnes/produits
+model CampaignReview {
+  id String @id @default(uuid())
+
+  // Relations
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  testerId String  @map("tester_id")
+  tester   Profile @relation("TesterReviews", fields: [testerId], references: [id], onDelete: Cascade)
+
+  sessionId String  @unique @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Review content
+  rating  Int // 1-5 stars
+  comment String? @db.Text
+
+  // Visibility
+  isPublic Boolean @default(true) @map("is_public")
+
+  // Republication proposal (pour site vendeur)
+  republishProposed Boolean  @default(false) @map("republish_proposed")
+  republishAccepted Boolean? @map("republish_accepted")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([campaignId])
+  @@index([productId])
+  @@index([testerId])
+  @@index([sessionId])
+  @@index([rating])
+  @@index([isPublic])
+  @@index([createdAt])
+  @@map("campaign_reviews")
 }

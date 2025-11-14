@@ -74,10 +74,15 @@ export class CampaignsService {
         endDate,
         availableSlots: campaignData.totalSlots,
         sellerId,
-        products: {
+        offers: {
           create: products.map((p) => ({
             productId: p.productId,
             quantity: p.quantity,
+            reimbursedPrice: p.reimbursedPrice ?? true,
+            reimbursedShipping: p.reimbursedShipping ?? true,
+            maxReimbursedPrice: p.maxReimbursedPrice,
+            maxReimbursedShipping: p.maxReimbursedShipping,
+            bonus: p.bonus ?? 0,
           })),
         },
       },
@@ -89,7 +94,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -139,7 +144,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -176,7 +181,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -205,7 +210,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -292,7 +297,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -315,7 +320,7 @@ export class CampaignsService {
     const campaign = await this.prismaService.campaign.findUnique({
       where: { id },
       include: {
-        products: true,
+        offers: true,
       },
     });
 
@@ -359,7 +364,7 @@ export class CampaignsService {
     }
 
     // Check for duplicates
-    const existingProductIds = campaign.products.map((cp) => cp.productId);
+    const existingProductIds = campaign.offers.map((offer) => offer.productId);
     const duplicates = productIds.filter((id) =>
       existingProductIds.includes(id),
     );
@@ -370,11 +375,16 @@ export class CampaignsService {
     }
 
     // Add products to campaign
-    await this.prismaService.campaignProduct.createMany({
+    await this.prismaService.offer.createMany({
       data: addProductsDto.products.map((p) => ({
         campaignId: id,
         productId: p.productId,
         quantity: p.quantity,
+        reimbursedPrice: p.reimbursedPrice ?? true,
+        reimbursedShipping: p.reimbursedShipping ?? true,
+        maxReimbursedPrice: p.maxReimbursedPrice,
+        maxReimbursedShipping: p.maxReimbursedShipping,
+        bonus: p.bonus ?? 0,
       })),
     });
 
@@ -412,7 +422,7 @@ export class CampaignsService {
       );
     }
 
-    await this.prismaService.campaignProduct.deleteMany({
+    await this.prismaService.offer.deleteMany({
       where: {
         campaignId,
         productId,
@@ -434,7 +444,7 @@ export class CampaignsService {
     const campaign = await this.prismaService.campaign.findUnique({
       where: { id },
       include: {
-        products: true,
+        offers: true,
       },
     });
 
@@ -449,8 +459,8 @@ export class CampaignsService {
     // Validate status transitions
     this.validateStatusTransition(campaign.status, newStatus);
 
-    // Check if campaign has products before activating
-    if (newStatus === CampaignStatus.ACTIVE && campaign.products.length === 0) {
+    // Check if campaign has offers before activating
+    if (newStatus === CampaignStatus.ACTIVE && campaign.offers.length === 0) {
       throw new BadRequestException(
         'Cannot activate campaign without products',
       );
@@ -467,7 +477,7 @@ export class CampaignsService {
             companyName: true,
           },
         },
-        products: {
+        offers: {
           include: {
             product: true,
           },
@@ -554,22 +564,23 @@ export class CampaignsService {
       totalSlots: campaign.totalSlots,
       availableSlots: campaign.availableSlots,
       status: campaign.status,
-      products: campaign.products.map((cp: any) => ({
-        id: cp.id,
-        productId: cp.productId,
-        quantity: cp.quantity,
-        createdAt: cp.createdAt,
+      products: campaign.offers.map((offer: any) => ({
+        id: offer.id,
+        productId: offer.productId,
+        quantity: offer.quantity,
+        reimbursedPrice: offer.reimbursedPrice,
+        reimbursedShipping: offer.reimbursedShipping,
+        maxReimbursedPrice: offer.maxReimbursedPrice?.toString(),
+        maxReimbursedShipping: offer.maxReimbursedShipping?.toString(),
+        bonus: offer.bonus.toString(),
+        createdAt: offer.createdAt,
         product: {
-          id: cp.product.id,
-          name: cp.product.name,
-          description: cp.product.description,
-          category: cp.product.category,
-          imageUrl: cp.product.imageUrl,
-          price: cp.product.price.toString(),
-          shippingCost: cp.product.shippingCost.toString(),
-          reward: cp.product.reward?.toString(),
-          stock: cp.product.stock,
-          isActive: cp.product.isActive,
+          id: offer.product.id,
+          name: offer.product.name,
+          description: offer.product.description,
+          category: offer.product.category,
+          imageUrl: offer.product.imageUrl,
+          isActive: offer.product.isActive,
         },
       })),
       createdAt: campaign.createdAt,

@@ -577,7 +577,7 @@ export class ApiTesterService {
           where: { campaignId: this.context.campaignId },
         });
 
-        await this.prismaService.campaignProduct.deleteMany({
+        await this.prismaService.offer.deleteMany({
           where: { campaignId: this.context.campaignId },
         });
 

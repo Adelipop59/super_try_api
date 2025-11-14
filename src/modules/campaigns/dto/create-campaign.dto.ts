@@ -11,11 +11,13 @@ import {
   IsArray,
   ValidateNested,
   ArrayMinSize,
+  IsBoolean,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
- * DTO pour ajouter un produit à une campagne
+ * DTO pour ajouter un produit à une campagne (Offer)
  */
 export class CampaignProductDto {
   @ApiProperty({
@@ -34,6 +36,54 @@ export class CampaignProductDto {
   @IsInt()
   @Min(1)
   quantity!: number;
+
+  @ApiProperty({
+    description: 'Le prix du produit est-il remboursé ?',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  reimbursedPrice?: boolean;
+
+  @ApiProperty({
+    description: 'Les frais de livraison sont-ils remboursés ?',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  reimbursedShipping?: boolean;
+
+  @ApiProperty({
+    description: 'Prix maximum remboursé (si null = remboursement total)',
+    example: 99.99,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  maxReimbursedPrice?: number;
+
+  @ApiProperty({
+    description: 'Livraison maximum remboursée (si null = remboursement total)',
+    example: 9.99,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  maxReimbursedShipping?: number;
+
+  @ApiProperty({
+    description: 'Bonus supplémentaire pour le testeur',
+    example: 10.00,
+    default: 0,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  bonus?: number;
 }
 
 /**

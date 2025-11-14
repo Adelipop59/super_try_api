@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
@@ -10,7 +9,7 @@ import { LogsService } from '../logs/logs.service';
 import { CreateDistributionDto } from './dto/create-distribution.dto';
 import { UpdateDistributionDto } from './dto/update-distribution.dto';
 import { DistributionResponseDto } from './dto/distribution-response.dto';
-import { LogCategory } from '@prisma/client';
+import { LogCategory, DistributionType } from '@prisma/client';
 
 @Injectable()
 export class DistributionsService {
@@ -30,9 +29,9 @@ export class DistributionsService {
   ) {}
 
   /**
-   * Créer ou mettre à jour une distribution pour un jour
+   * Créer une distribution
    */
-  async upsert(
+  async create(
     campaignId: string,
     sellerId: string,
     createDistributionDto: CreateDistributionDto,
@@ -52,38 +51,28 @@ export class DistributionsService {
       );
     }
 
-    // Valider dayOfWeek
-    if (
-      createDistributionDto.dayOfWeek < 0 ||
-      createDistributionDto.dayOfWeek > 6
-    ) {
-      throw new BadRequestException('dayOfWeek must be between 0 and 6');
-    }
+    // Validation selon le type
+    this.validateDistributionDto(createDistributionDto);
 
-    // Upsert distribution
-    const distribution = await this.prismaService.distribution.upsert({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek: createDistributionDto.dayOfWeek,
-        },
-      },
-      create: {
-        ...createDistributionDto,
+    // Créer la distribution
+    const distribution = await this.prismaService.distribution.create({
+      data: {
         campaignId,
-      },
-      update: {
-        maxUnits: createDistributionDto.maxUnits,
-        isActive:
-          createDistributionDto.isActive !== undefined
-            ? createDistributionDto.isActive
-            : undefined,
+        type: createDistributionDto.type,
+        dayOfWeek: createDistributionDto.dayOfWeek ?? null,
+        specificDate: createDistributionDto.specificDate ?? null,
+        isActive: createDistributionDto.isActive ?? true,
       },
     });
 
+    const logMessage =
+      distribution.type === DistributionType.RECURRING
+        ? `✅ [CAMPAIGN] Distribution récurrente créée pour ${this.dayNames[distribution.dayOfWeek!]}`
+        : `✅ [CAMPAIGN] Distribution créée pour le ${distribution.specificDate?.toLocaleDateString('fr-FR')}`;
+
     await this.logsService.logSuccess(
       LogCategory.CAMPAIGN,
-      `✅ [CAMPAIGN] Distribution configurée pour ${this.dayNames[distribution.dayOfWeek]}: ${distribution.maxUnits} unités`,
+      logMessage,
       { distributionId: distribution.id, campaignId },
       sellerId,
     );
@@ -97,32 +86,22 @@ export class DistributionsService {
   async findAll(campaignId: string): Promise<DistributionResponseDto[]> {
     const distributions = await this.prismaService.distribution.findMany({
       where: { campaignId },
-      orderBy: { dayOfWeek: 'asc' },
+      orderBy: [{ type: 'asc' }, { dayOfWeek: 'asc' }, { specificDate: 'asc' }],
     });
 
     return distributions.map((d) => this.formatResponse(d));
   }
 
   /**
-   * Détails d'une distribution pour un jour spécifique
+   * Détails d'une distribution par ID
    */
-  async findOne(
-    campaignId: string,
-    dayOfWeek: number,
-  ): Promise<DistributionResponseDto> {
+  async findOne(id: string): Promise<DistributionResponseDto> {
     const distribution = await this.prismaService.distribution.findUnique({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek,
-        },
-      },
+      where: { id },
     });
 
     if (!distribution) {
-      throw new NotFoundException(
-        `Distribution not found for day ${dayOfWeek}`,
-      );
+      throw new NotFoundException(`Distribution with ID ${id} not found`);
     }
 
     return this.formatResponse(distribution);
@@ -132,28 +111,20 @@ export class DistributionsService {
    * Mettre à jour une distribution
    */
   async update(
-    campaignId: string,
-    dayOfWeek: number,
+    id: string,
     sellerId: string,
     updateDistributionDto: UpdateDistributionDto,
     isAdmin: boolean = false,
   ): Promise<DistributionResponseDto> {
     const distribution = await this.prismaService.distribution.findUnique({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek,
-        },
-      },
+      where: { id },
       include: {
         campaign: true,
       },
     });
 
     if (!distribution) {
-      throw new NotFoundException(
-        `Distribution not found for day ${dayOfWeek}`,
-      );
+      throw new NotFoundException(`Distribution with ID ${id} not found`);
     }
 
     if (!isAdmin && distribution.campaign.sellerId !== sellerId) {
@@ -162,22 +133,25 @@ export class DistributionsService {
       );
     }
 
+    // Validation si le type change
+    if (updateDistributionDto.type) {
+      this.validateDistributionDto(updateDistributionDto as CreateDistributionDto);
+    }
+
     const updated = await this.prismaService.distribution.update({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek,
-        },
-      },
+      where: { id },
       data: {
-        ...updateDistributionDto,
+        type: updateDistributionDto.type,
+        dayOfWeek: updateDistributionDto.dayOfWeek ?? undefined,
+        specificDate: updateDistributionDto.specificDate ?? undefined,
+        isActive: updateDistributionDto.isActive,
       },
     });
 
     await this.logsService.logSuccess(
       LogCategory.CAMPAIGN,
-      `✅ [CAMPAIGN] Distribution modifiée pour ${this.dayNames[dayOfWeek]}`,
-      { distributionId: updated.id, campaignId },
+      `✅ [CAMPAIGN] Distribution modifiée`,
+      { distributionId: updated.id, campaignId: distribution.campaignId },
       sellerId,
     );
 
@@ -185,30 +159,22 @@ export class DistributionsService {
   }
 
   /**
-   * Supprimer une distribution (désactiver)
+   * Supprimer une distribution
    */
   async remove(
-    campaignId: string,
-    dayOfWeek: number,
+    id: string,
     sellerId: string,
     isAdmin: boolean = false,
   ): Promise<{ message: string }> {
     const distribution = await this.prismaService.distribution.findUnique({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek,
-        },
-      },
+      where: { id },
       include: {
         campaign: true,
       },
     });
 
     if (!distribution) {
-      throw new NotFoundException(
-        `Distribution not found for day ${dayOfWeek}`,
-      );
+      throw new NotFoundException(`Distribution with ID ${id} not found`);
     }
 
     if (!isAdmin && distribution.campaign.sellerId !== sellerId) {
@@ -218,18 +184,13 @@ export class DistributionsService {
     }
 
     await this.prismaService.distribution.delete({
-      where: {
-        campaignId_dayOfWeek: {
-          campaignId,
-          dayOfWeek,
-        },
-      },
+      where: { id },
     });
 
     await this.logsService.logWarning(
       LogCategory.CAMPAIGN,
-      `⚠️ [CAMPAIGN] Distribution supprimée pour ${this.dayNames[dayOfWeek]}`,
-      { distributionId: distribution.id, campaignId },
+      `⚠️ [CAMPAIGN] Distribution supprimée`,
+      { distributionId: distribution.id, campaignId: distribution.campaignId },
       sellerId,
     );
 
@@ -237,12 +198,12 @@ export class DistributionsService {
   }
 
   /**
-   * Configurer toute la semaine en une fois
+   * Configurer plusieurs distributions en une fois
    */
-  async configureWeek(
+  async createMany(
     campaignId: string,
     sellerId: string,
-    weekConfig: CreateDistributionDto[],
+    distributions: CreateDistributionDto[],
   ): Promise<DistributionResponseDto[]> {
     // Vérifier que la campagne existe et appartient au vendeur
     const campaign = await this.prismaService.campaign.findUnique({
@@ -259,30 +220,19 @@ export class DistributionsService {
       );
     }
 
-    // Valider qu'il n'y a pas de doublons de jours
-    const days = weekConfig.map((c) => c.dayOfWeek);
-    const uniqueDays = new Set(days);
-    if (days.length !== uniqueDays.size) {
-      throw new BadRequestException('Duplicate dayOfWeek values in request');
-    }
+    // Valider toutes les distributions
+    distributions.forEach((dto) => this.validateDistributionDto(dto));
 
-    // Créer/mettre à jour toutes les distributions
+    // Créer toutes les distributions
     const results = await Promise.all(
-      weekConfig.map((config) =>
-        this.prismaService.distribution.upsert({
-          where: {
-            campaignId_dayOfWeek: {
-              campaignId,
-              dayOfWeek: config.dayOfWeek,
-            },
-          },
-          create: {
-            ...config,
+      distributions.map((dto) =>
+        this.prismaService.distribution.create({
+          data: {
             campaignId,
-          },
-          update: {
-            maxUnits: config.maxUnits,
-            isActive: config.isActive !== undefined ? config.isActive : true,
+            type: dto.type,
+            dayOfWeek: dto.dayOfWeek ?? null,
+            specificDate: dto.specificDate ?? null,
+            isActive: dto.isActive ?? true,
           },
         }),
       ),
@@ -290,12 +240,48 @@ export class DistributionsService {
 
     await this.logsService.logSuccess(
       LogCategory.CAMPAIGN,
-      `✅ [CAMPAIGN] Planning hebdomadaire configuré (${results.length} jours)`,
-      { campaignId, days: results.map((r) => r.dayOfWeek) },
+      `✅ [CAMPAIGN] ${results.length} distribution(s) créée(s)`,
+      { campaignId, count: results.length },
       sellerId,
     );
 
     return results.map((r) => this.formatResponse(r));
+  }
+
+  /**
+   * Valider un DTO de distribution selon son type
+   */
+  private validateDistributionDto(dto: CreateDistributionDto): void {
+    if (dto.type === DistributionType.RECURRING) {
+      // Pour RECURRING, dayOfWeek est requis
+      if (dto.dayOfWeek === undefined || dto.dayOfWeek === null) {
+        throw new BadRequestException(
+          'dayOfWeek is required for RECURRING distributions',
+        );
+      }
+      if (dto.dayOfWeek < 0 || dto.dayOfWeek > 6) {
+        throw new BadRequestException('dayOfWeek must be between 0 and 6');
+      }
+      // specificDate ne doit pas être fourni
+      if (dto.specificDate) {
+        throw new BadRequestException(
+          'specificDate should not be provided for RECURRING distributions',
+        );
+      }
+    } else if (dto.type === DistributionType.SPECIFIC_DATE) {
+      // Pour SPECIFIC_DATE, specificDate est requis
+      if (!dto.specificDate) {
+        throw new BadRequestException(
+          'specificDate is required for SPECIFIC_DATE distributions',
+        );
+      }
+      // dayOfWeek ne doit pas être fourni
+      if (dto.dayOfWeek !== undefined && dto.dayOfWeek !== null) {
+        throw new BadRequestException(
+          'dayOfWeek should not be provided for SPECIFIC_DATE distributions',
+        );
+      }
+    }
   }
 
   /**
@@ -305,9 +291,13 @@ export class DistributionsService {
     return {
       id: distribution.id,
       campaignId: distribution.campaignId,
+      type: distribution.type,
       dayOfWeek: distribution.dayOfWeek,
-      dayName: this.dayNames[distribution.dayOfWeek],
-      maxUnits: distribution.maxUnits,
+      dayName:
+        distribution.dayOfWeek !== null
+          ? this.dayNames[distribution.dayOfWeek]
+          : null,
+      specificDate: distribution.specificDate,
       isActive: distribution.isActive,
       createdAt: distribution.createdAt,
       updatedAt: distribution.updatedAt,

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { DistributionType } from '@prisma/client';
 
 export class DistributionResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -8,19 +9,32 @@ export class DistributionResponseDto {
   campaignId!: string;
 
   @ApiProperty({
-    example: 1,
-    description: '0 = Dimanche, 1 = Lundi, ..., 6 = Samedi',
+    enum: DistributionType,
+    example: DistributionType.RECURRING,
+    description: 'Type de distribution (RECURRING ou SPECIFIC_DATE)',
   })
-  dayOfWeek!: number;
+  type!: DistributionType;
+
+  @ApiProperty({
+    example: 1,
+    description: '0 = Dimanche, 1 = Lundi, ..., 6 = Samedi (null si SPECIFIC_DATE)',
+    nullable: true,
+  })
+  dayOfWeek?: number | null;
 
   @ApiProperty({
     example: 'Lundi',
-    description: 'Nom du jour en français',
+    description: 'Nom du jour en français (null si SPECIFIC_DATE)',
+    nullable: true,
   })
-  dayName!: string;
+  dayName?: string | null;
 
-  @ApiProperty({ example: 5 })
-  maxUnits!: number;
+  @ApiProperty({
+    example: '2025-11-15T00:00:00.000Z',
+    description: 'Date spécifique (null si RECURRING)',
+    nullable: true,
+  })
+  specificDate?: Date | null;
 
   @ApiProperty({ example: true })
   isActive!: boolean;
