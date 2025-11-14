@@ -233,6 +233,113 @@ export class SessionsService {
   }
 
   /**
+   * 3.5. Valider le prix du produit trouvé par le testeur (USER testeur uniquement)
+   * Le testeur doit entrer le prix exact qu'il a trouvé pour vérifier qu'il est sur le bon produit.
+   * On lui donne seulement une tranche de prix [prix - 5€, prix + 5€] (ou [0€, 5€] si prix < 5€)
+   */
+  async validateProductPrice(
+    sessionId: string,
+    userId: string,
+    productPrice: number,
+  ): Promise<PrismaSessionResponse> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: {
+          include: {
+            offers: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Vérifier que c'est bien le testeur
+    if (session.testerId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Vérifier que la session est ACCEPTED
+    if (session.status !== SessionStatus.ACCEPTED) {
+      throw new BadRequestException('Session must be ACCEPTED to validate product price');
+    }
+
+    // Vérifier qu'il n'a pas déjà validé le prix
+    if (session.validatedProductPrice) {
+      throw new BadRequestException('Product price already validated');
+    }
+
+    // Obtenir le premier produit/offre de la campagne
+    const offer = session.campaign.offers[0];
+    if (!offer) {
+      throw new BadRequestException('No product found for this campaign');
+    }
+
+    // Calculer la tranche de prix acceptable
+    // Règle : [prix - 5€, prix + 5€] sauf si prix < 5€ alors [0€, 5€]
+    const expectedPrice = Number(offer.bonus) || 0; // TODO: Utiliser le vrai prix du produit quand disponible
+    let minPrice: number;
+    let maxPrice: number;
+
+    if (expectedPrice < 5) {
+      minPrice = 0;
+      maxPrice = 5;
+    } else {
+      minPrice = expectedPrice - 5;
+      maxPrice = expectedPrice + 5;
+    }
+
+    // Vérifier que le prix saisi est dans la tranche acceptable
+    if (productPrice < minPrice || productPrice > maxPrice) {
+      await this.logsService.logWarning(
+        LogCategory.SESSION,
+        `❌ Prix invalide pour session ${sessionId}: ${productPrice}€ (attendu: ${minPrice}€ - ${maxPrice}€)`,
+        {
+          sessionId,
+          enteredPrice: productPrice,
+          expectedRange: { min: minPrice, max: maxPrice },
+        },
+      );
+
+      throw new BadRequestException(
+        `Prix incorrect. Le prix du produit doit être entre ${minPrice.toFixed(2)}€ et ${maxPrice.toFixed(2)}€`,
+      );
+    }
+
+    // Valider et stocker le prix
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        validatedProductPrice: productPrice,
+        priceValidatedAt: new Date(),
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    await this.logsService.logSuccess(
+      LogCategory.SESSION,
+      `✅ Prix validé pour la session ${sessionId}: ${productPrice}€`,
+      {
+        sessionId,
+        validatedPrice: productPrice,
+        priceRange: { min: minPrice, max: maxPrice },
+      },
+    );
+
+    return updatedSession;
+  }
+
+  /**
    * 4. Soumettre la preuve d'achat (USER testeur uniquement)
    */
   async submitPurchaseProof(
@@ -257,6 +364,11 @@ export class SessionsService {
     // Vérifier que la session est ACCEPTED
     if (session.status !== SessionStatus.ACCEPTED) {
       throw new BadRequestException('Session must be ACCEPTED to submit purchase proof');
+    }
+
+    // Vérifier que le prix du produit a été validé
+    if (!session.validatedProductPrice) {
+      throw new BadRequestException('You must validate the product price before submitting purchase proof');
     }
 
     const updatedSession = await this.prisma.session.update({

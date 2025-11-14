@@ -389,6 +389,10 @@ model Session {
   orderNumber            String?   @map("order_number") // Numéro de commande saisi par le testeur
   orderNumberValidatedAt DateTime? @map("order_number_validated_at") // Date de validation par le vendeur
 
+  // Price validation (range check before purchase)
+  validatedProductPrice  Decimal?  @map("validated_product_price") @db.Decimal(10, 2) // Prix trouvé et validé par le testeur
+  priceValidatedAt       DateTime? @map("price_validated_at") // Date de validation du prix
+
   // Test submission
   submittedAt    DateTime? @map("submitted_at")
   submissionData Json?     @map("submission_data") // Données du test (photos, vidéos, réponses)

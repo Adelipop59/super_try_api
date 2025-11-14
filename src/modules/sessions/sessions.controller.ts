@@ -26,6 +26,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
 import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
+import { ValidateProductPriceDto } from './dto/validate-product-price.dto';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ValidateTestDto } from './dto/validate-test.dto';
 import { CancelSessionDto } from './dto/cancel-session.dto';
@@ -133,6 +134,39 @@ export class SessionsController {
       user.id,
       rejectSessionDto,
       isAdmin,
+    );
+  }
+
+  /**
+   * 3.5. Valider le prix du produit trouvé (USER testeur uniquement)
+   */
+  @Patch(':id/validate-price')
+  @Roles('USER')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Valider le prix du produit trouvé (USER)',
+    description:
+      'Le testeur doit entrer le prix exact qu\'il a trouvé pour le produit. Le système vérifie que le prix est dans la fourchette attendue [prix - 5€, prix + 5€] (ou [0€, 5€] si prix < 5€). Cette étape est obligatoire avant de pouvoir acheter le produit.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Prix validé avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Prix hors de la fourchette acceptable' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async validateProductPrice(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() validatePriceDto: ValidateProductPriceDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.validateProductPrice(
+      id,
+      user.id,
+      validatePriceDto.productPrice,
     );
   }
 
