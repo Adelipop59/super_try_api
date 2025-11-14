@@ -11,6 +11,12 @@ class SellerInfo {
   companyName?: string;
 }
 
+/**
+ * DTO for product response.
+ * Note: Financial details (price, shipping, rewards) are not part of the product catalog.
+ * They are defined per campaign via the Offer model, allowing the same product
+ * to be used in multiple campaigns with different pricing structures.
+ */
 export class ProductResponseDto {
   @ApiProperty({ description: 'Identifiant unique du produit', example: '123e4567-e89b-12d3-a456-426614174000' })
   id!: string;
@@ -28,22 +34,10 @@ export class ProductResponseDto {
   description!: string;
 
   @ApiProperty({ description: 'Catégorie', required: false, example: 'Électronique' })
-  category?: string;
+  category?: string | null;
 
   @ApiProperty({ description: 'URL de l\'image', required: false })
-  imageUrl?: string;
-
-  @ApiProperty({ description: 'Prix du produit', example: 1299.99 })
-  price!: string;
-
-  @ApiProperty({ description: 'Frais de livraison', example: 5.99 })
-  shippingCost!: string;
-
-  @ApiProperty({ description: 'Récompense pour testeur', required: false, example: 50.00 })
-  reward?: string;
-
-  @ApiProperty({ description: 'Stock disponible', example: 100 })
-  stock!: number;
+  imageUrl?: string | null;
 
   @ApiProperty({ description: 'Produit actif', example: true })
   isActive!: boolean;

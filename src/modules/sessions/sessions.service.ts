@@ -355,7 +355,7 @@ export class SessionsService {
       include: {
         campaign: {
           include: {
-            products: {
+            offers: {
               include: {
                 product: true,
               },
@@ -379,12 +379,12 @@ export class SessionsService {
       throw new BadRequestException('Session must be SUBMITTED to validate');
     }
 
-    // Calculer le montant de la récompense
-    // (Prendre le reward du premier produit de la campagne)
+    // Calculer le montant de la récompense (bonus)
+    // (Prendre le bonus de la première offre de la campagne)
     let rewardAmount = 0;
-    if (session.campaign.products.length > 0) {
-      const firstProduct = session.campaign.products[0].product;
-      rewardAmount = firstProduct.reward ? Number(firstProduct.reward) : 0;
+    if (session.campaign.offers.length > 0) {
+      const firstOffer = session.campaign.offers[0];
+      rewardAmount = firstOffer.bonus ? Number(firstOffer.bonus) : 0;
     }
 
     const updatedSession = await this.prisma.session.update({
@@ -635,7 +635,7 @@ export class SessionsService {
                 companyName: true,
               },
             },
-            products: {
+            offers: {
               include: {
                 product: true,
               },

@@ -1,7 +1,11 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, MinLength, MaxLength, IsUrl } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 
+/**
+ * DTO for creating a product in the catalog.
+ * Note: Financial details (price, shipping, rewards) are defined per campaign via the Offer model.
+ * Products are just catalog items that can be used in multiple campaigns with different pricing.
+ */
 export class CreateProductDto {
   @ApiProperty({
     description: 'Nom du produit',
@@ -42,46 +46,4 @@ export class CreateProductDto {
   @IsUrl()
   @IsOptional()
   imageUrl?: string;
-
-  @ApiProperty({
-    description: 'Prix du produit en euros',
-    example: 1299.99,
-    minimum: 0.01
-  })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Type(() => Number)
-  @Min(0.01)
-  price!: number;
-
-  @ApiProperty({
-    description: 'Frais de livraison en euros',
-    example: 5.99,
-    minimum: 0
-  })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Type(() => Number)
-  @Min(0)
-  shippingCost!: number;
-
-  @ApiProperty({
-    description: 'Récompense optionnelle pour le testeur en euros',
-    example: 50.00,
-    required: false,
-    minimum: 0
-  })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Type(() => Number)
-  @Min(0)
-  @IsOptional()
-  reward?: number;
-
-  @ApiProperty({
-    description: 'Quantité en stock',
-    example: 100,
-    minimum: 0
-  })
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  stock!: number;
 }

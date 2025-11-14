@@ -1,7 +1,12 @@
-import { IsOptional, IsString, IsBoolean, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
+/**
+ * DTO for filtering products in the catalog.
+ * Note: Price filters are not available for products since pricing is campaign-specific.
+ * To filter by price, query campaigns and their offers instead.
+ */
 export class ProductFilterDto {
   @ApiProperty({
     description: 'Filtrer par ID du vendeur',
@@ -30,28 +35,4 @@ export class ProductFilterDto {
   @Type(() => Boolean)
   @IsOptional()
   isActive?: boolean;
-
-  @ApiProperty({
-    description: 'Prix minimum',
-    required: false,
-    example: 0,
-    minimum: 0
-  })
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  @IsOptional()
-  minPrice?: number;
-
-  @ApiProperty({
-    description: 'Prix maximum',
-    required: false,
-    example: 1000,
-    minimum: 0
-  })
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  @IsOptional()
-  maxPrice?: number;
 }

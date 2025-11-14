@@ -61,8 +61,6 @@ export class ProductsController {
   })
   @ApiQuery({ name: 'sellerId', required: false, description: 'Filtrer par vendeur' })
   @ApiQuery({ name: 'category', required: false, description: 'Filtrer par catégorie' })
-  @ApiQuery({ name: 'minPrice', required: false, description: 'Prix minimum' })
-  @ApiQuery({ name: 'maxPrice', required: false, description: 'Prix maximum' })
   @ApiResponse({ status: 200, description: 'Liste des produits', type: [ProductResponseDto] })
   findAll(@Query() filters: ProductFilterDto): Promise<ProductResponseDto[]> {
     return this.productsService.findAllActive(filters);
@@ -78,8 +76,6 @@ export class ProductsController {
   @ApiQuery({ name: 'sellerId', required: false, description: 'Filtrer par vendeur' })
   @ApiQuery({ name: 'category', required: false, description: 'Filtrer par catégorie' })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filtrer par statut actif' })
-  @ApiQuery({ name: 'minPrice', required: false, description: 'Prix minimum' })
-  @ApiQuery({ name: 'maxPrice', required: false, description: 'Prix maximum' })
   @ApiResponse({ status: 200, description: 'Liste de tous les produits', type: [ProductResponseDto] })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle admin requis' })

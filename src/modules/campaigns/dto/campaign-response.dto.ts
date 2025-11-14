@@ -16,7 +16,9 @@ export class CampaignSellerDto {
 }
 
 /**
- * DTO pour les produits inclus dans la campagne
+ * DTO pour les offres (produits + pricing) incluses dans la campagne.
+ * Les informations financières proviennent du modèle Offer, pas du produit.
+ * Cela permet au même produit d'être utilisé dans plusieurs campagnes avec des prix différents.
  */
 export class CampaignProductResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -34,10 +36,6 @@ export class CampaignProductResponseDto {
       description: 'Latest iPhone model',
       category: 'Electronics',
       imageUrl: 'https://example.com/iphone.jpg',
-      price: '1299.99',
-      shippingCost: '5.99',
-      reward: '50.00',
-      stock: 100,
       isActive: true,
     },
   })
@@ -47,15 +45,26 @@ export class CampaignProductResponseDto {
     description: string;
     category: string | null;
     imageUrl: string | null;
-    price: string;
-    shippingCost: string;
-    reward: string | null;
-    stock: number;
     isActive: boolean;
   };
 
   @ApiProperty({ example: 10 })
   quantity!: number;
+
+  @ApiProperty({ example: true, description: 'Le prix du produit est-il remboursé ?' })
+  reimbursedPrice!: boolean;
+
+  @ApiProperty({ example: true, description: 'Les frais de livraison sont-ils remboursés ?' })
+  reimbursedShipping!: boolean;
+
+  @ApiProperty({ example: '99.99', required: false, description: 'Prix maximum remboursé' })
+  maxReimbursedPrice?: string | null;
+
+  @ApiProperty({ example: '9.99', required: false, description: 'Livraison maximum remboursée' })
+  maxReimbursedShipping?: string | null;
+
+  @ApiProperty({ example: '10.00', description: 'Bonus supplémentaire pour le testeur' })
+  bonus!: string;
 
   @ApiProperty({ example: '2025-01-15T10:00:00.000Z' })
   createdAt!: Date;
