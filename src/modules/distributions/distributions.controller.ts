@@ -7,7 +7,6 @@ import {
   Param,
   Delete,
   UseGuards,
-  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -35,14 +34,14 @@ export class DistributionsController {
   constructor(private readonly distributionsService: DistributionsService) {}
 
   /**
-   * Créer ou mettre à jour une distribution pour un jour
+   * Créer une distribution
    */
   @Post()
   @Roles('PRO', 'ADMIN')
   @ApiOperation({
-    summary: 'Créer ou mettre à jour une distribution',
+    summary: 'Créer une distribution',
     description:
-      'Permet au vendeur de configurer la distribution pour un jour de la semaine. Si la distribution existe déjà, elle sera mise à jour.',
+      'Permet au vendeur de créer une distribution (RECURRING pour jours récurrents, SPECIFIC_DATE pour date spécifique).',
   })
   @ApiParam({
     name: 'campaignId',
@@ -51,7 +50,7 @@ export class DistributionsController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Distribution créée/mise à jour avec succès',
+    description: 'Distribution créée avec succès',
     type: DistributionResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
@@ -61,12 +60,12 @@ export class DistributionsController {
       'Vous ne pouvez configurer que les distributions de vos propres campagnes',
   })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
-  async upsert(
+  async create(
     @Param('campaignId') campaignId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() createDistributionDto: CreateDistributionDto,
   ): Promise<DistributionResponseDto> {
-    return this.distributionsService.upsert(
+    return this.distributionsService.create(
       campaignId,
       user.id,
       createDistributionDto,
@@ -74,14 +73,14 @@ export class DistributionsController {
   }
 
   /**
-   * Configurer toute la semaine
+   * Créer plusieurs distributions
    */
-  @Post('week')
+  @Post('batch')
   @Roles('PRO', 'ADMIN')
   @ApiOperation({
-    summary: 'Configurer la semaine complète',
+    summary: 'Créer plusieurs distributions',
     description:
-      'Permet de configurer toutes les distributions de la semaine en une seule requête.',
+      'Permet de créer plusieurs distributions en une seule requête.',
   })
   @ApiParam({
     name: 'campaignId',
@@ -90,7 +89,7 @@ export class DistributionsController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Planning hebdomadaire configuré avec succès',
+    description: 'Distributions créées avec succès',
     type: [DistributionResponseDto],
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
@@ -100,15 +99,15 @@ export class DistributionsController {
       'Vous ne pouvez configurer que les distributions de vos propres campagnes',
   })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
-  async configureWeek(
+  async createMany(
     @Param('campaignId') campaignId: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() weekConfig: CreateDistributionDto[],
+    @Body() distributions: CreateDistributionDto[],
   ): Promise<DistributionResponseDto[]> {
-    return this.distributionsService.configureWeek(
+    return this.distributionsService.createMany(
       campaignId,
       user.id,
-      weekConfig,
+      distributions,
     );
   }
 
@@ -118,9 +117,9 @@ export class DistributionsController {
   @Get()
   @Public()
   @ApiOperation({
-    summary: 'Lister les distributions d\'une campagne',
+    summary: "Lister les distributions d'une campagne",
     description:
-      'Récupère toutes les distributions configurées pour une campagne, triées par jour de la semaine. Accessible publiquement.',
+      'Récupère toutes les distributions configurées pour une campagne. Accessible publiquement.',
   })
   @ApiParam({
     name: 'campaignId',
@@ -139,14 +138,13 @@ export class DistributionsController {
   }
 
   /**
-   * Détails d'une distribution pour un jour spécifique
+   * Détails d'une distribution
    */
-  @Get(':dayOfWeek')
+  @Get(':id')
   @Public()
   @ApiOperation({
-    summary: 'Récupérer une distribution par jour',
-    description:
-      'Récupère la distribution pour un jour spécifique (0 = Dimanche, 1 = Lundi, ..., 6 = Samedi). Accessible publiquement.',
+    summary: "Récupérer une distribution par ID",
+    description: 'Récupère les détails d\'une distribution. Accessible publiquement.',
   })
   @ApiParam({
     name: 'campaignId',
@@ -154,9 +152,9 @@ export class DistributionsController {
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiParam({
-    name: 'dayOfWeek',
-    description: 'Jour de la semaine (0-6)',
-    example: 1,
+    name: 'id',
+    description: 'ID de la distribution',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: 200,
@@ -164,22 +162,19 @@ export class DistributionsController {
     type: DistributionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Distribution non trouvée' })
-  async findOne(
-    @Param('campaignId') campaignId: string,
-    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
-  ): Promise<DistributionResponseDto> {
-    return this.distributionsService.findOne(campaignId, dayOfWeek);
+  async findOne(@Param('id') id: string): Promise<DistributionResponseDto> {
+    return this.distributionsService.findOne(id);
   }
 
   /**
    * Mettre à jour une distribution
    */
-  @Patch(':dayOfWeek')
+  @Patch(':id')
   @Roles('PRO', 'ADMIN')
   @ApiOperation({
     summary: 'Mettre à jour une distribution',
     description:
-      'Permet au vendeur de modifier une distribution existante. Les admins peuvent modifier n\'importe quelle distribution.',
+      "Permet au vendeur de modifier une distribution existante. Les admins peuvent modifier n'importe quelle distribution.",
   })
   @ApiParam({
     name: 'campaignId',
@@ -187,9 +182,9 @@ export class DistributionsController {
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiParam({
-    name: 'dayOfWeek',
-    description: 'Jour de la semaine (0-6)',
-    example: 1,
+    name: 'id',
+    description: 'ID de la distribution',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: 200,
@@ -203,15 +198,13 @@ export class DistributionsController {
   })
   @ApiResponse({ status: 404, description: 'Distribution non trouvée' })
   async update(
-    @Param('campaignId') campaignId: string,
-    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
+    @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() updateDistributionDto: UpdateDistributionDto,
   ): Promise<DistributionResponseDto> {
     const isAdmin = user.role === 'ADMIN';
     return this.distributionsService.update(
-      campaignId,
-      dayOfWeek,
+      id,
       user.id,
       updateDistributionDto,
       isAdmin,
@@ -221,12 +214,12 @@ export class DistributionsController {
   /**
    * Supprimer une distribution
    */
-  @Delete(':dayOfWeek')
+  @Delete(':id')
   @Roles('PRO', 'ADMIN')
   @ApiOperation({
     summary: 'Supprimer une distribution',
     description:
-      'Permet au vendeur de supprimer une distribution. Les admins peuvent supprimer n\'importe quelle distribution.',
+      "Permet au vendeur de supprimer une distribution. Les admins peuvent supprimer n'importe quelle distribution.",
   })
   @ApiParam({
     name: 'campaignId',
@@ -234,9 +227,9 @@ export class DistributionsController {
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiParam({
-    name: 'dayOfWeek',
-    description: 'Jour de la semaine (0-6)',
-    example: 1,
+    name: 'id',
+    description: 'ID de la distribution',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: 200,
@@ -257,16 +250,10 @@ export class DistributionsController {
   })
   @ApiResponse({ status: 404, description: 'Distribution non trouvée' })
   async remove(
-    @Param('campaignId') campaignId: string,
-    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
+    @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ message: string }> {
     const isAdmin = user.role === 'ADMIN';
-    return this.distributionsService.remove(
-      campaignId,
-      dayOfWeek,
-      user.id,
-      isAdmin,
-    );
+    return this.distributionsService.remove(id, user.id, isAdmin);
   }
 }

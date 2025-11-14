@@ -8,7 +8,7 @@ import {
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
-import { LogCategory, StepType } from '@prisma/client';
+import { LogCategory, StepType, DistributionType } from '@prisma/client';
 import { ApiTesterService } from './api-tester.service';
 import { ApiTesterV2Service } from './api-tester-v2.service';
 
@@ -246,85 +246,50 @@ export class TestingController {
   })
   async createSampleWeek(@Body() body: { campaignId: string }) {
     const distributions = await Promise.all([
-      // Lundi - 5 unités
-      this.prismaService.distribution.upsert({
-        where: {
-          campaignId_dayOfWeek: {
-            campaignId: body.campaignId,
-            dayOfWeek: 1,
-          },
-        },
-        create: {
+      // Lundi
+      this.prismaService.distribution.create({
+        data: {
           campaignId: body.campaignId,
+          type: DistributionType.RECURRING,
           dayOfWeek: 1,
-          maxUnits: 5,
           isActive: true,
         },
-        update: { maxUnits: 5, isActive: true },
       }),
-      // Mardi - 3 unités
-      this.prismaService.distribution.upsert({
-        where: {
-          campaignId_dayOfWeek: {
-            campaignId: body.campaignId,
-            dayOfWeek: 2,
-          },
-        },
-        create: {
+      // Mardi
+      this.prismaService.distribution.create({
+        data: {
           campaignId: body.campaignId,
+          type: DistributionType.RECURRING,
           dayOfWeek: 2,
-          maxUnits: 3,
           isActive: true,
         },
-        update: { maxUnits: 3, isActive: true },
       }),
-      // Mercredi - 7 unités
-      this.prismaService.distribution.upsert({
-        where: {
-          campaignId_dayOfWeek: {
-            campaignId: body.campaignId,
-            dayOfWeek: 3,
-          },
-        },
-        create: {
+      // Mercredi
+      this.prismaService.distribution.create({
+        data: {
           campaignId: body.campaignId,
+          type: DistributionType.RECURRING,
           dayOfWeek: 3,
-          maxUnits: 7,
           isActive: true,
         },
-        update: { maxUnits: 7, isActive: true },
       }),
-      // Jeudi - 4 unités
-      this.prismaService.distribution.upsert({
-        where: {
-          campaignId_dayOfWeek: {
-            campaignId: body.campaignId,
-            dayOfWeek: 4,
-          },
-        },
-        create: {
+      // Jeudi
+      this.prismaService.distribution.create({
+        data: {
           campaignId: body.campaignId,
+          type: DistributionType.RECURRING,
           dayOfWeek: 4,
-          maxUnits: 4,
           isActive: true,
         },
-        update: { maxUnits: 4, isActive: true },
       }),
-      // Vendredi - 6 unités
-      this.prismaService.distribution.upsert({
-        where: {
-          campaignId_dayOfWeek: {
-            campaignId: body.campaignId,
-            dayOfWeek: 5,
-          },
-        },
-        create: {
+      // Vendredi
+      this.prismaService.distribution.create({
+        data: {
           campaignId: body.campaignId,
+          type: DistributionType.RECURRING,
           dayOfWeek: 5,
-          maxUnits: 6,
           isActive: true,
         },
-        update: { maxUnits: 6, isActive: true },
       }),
     ]);
 
@@ -763,40 +728,40 @@ export class TestingController {
         this.prismaService.distribution.create({
           data: {
             campaignId: campaign.id,
+            type: DistributionType.RECURRING,
             dayOfWeek: 1, // Lundi
-            maxUnits: 5,
             isActive: true,
           },
         }),
         this.prismaService.distribution.create({
           data: {
             campaignId: campaign.id,
+            type: DistributionType.RECURRING,
             dayOfWeek: 2, // Mardi
-            maxUnits: 3,
             isActive: true,
           },
         }),
         this.prismaService.distribution.create({
           data: {
             campaignId: campaign.id,
+            type: DistributionType.RECURRING,
             dayOfWeek: 3, // Mercredi
-            maxUnits: 7,
             isActive: true,
           },
         }),
         this.prismaService.distribution.create({
           data: {
             campaignId: campaign.id,
+            type: DistributionType.RECURRING,
             dayOfWeek: 4, // Jeudi
-            maxUnits: 4,
             isActive: true,
           },
         }),
         this.prismaService.distribution.create({
           data: {
             campaignId: campaign.id,
+            type: DistributionType.RECURRING,
             dayOfWeek: 5, // Vendredi
-            maxUnits: 6,
             isActive: true,
           },
         }),
@@ -845,8 +810,9 @@ export class TestingController {
           distributions: {
             count: distributions.length,
             days: distributions.map((d) => ({
+              id: d.id,
               day: d.dayOfWeek,
-              maxUnits: d.maxUnits,
+              type: d.type,
             })),
           },
         },
