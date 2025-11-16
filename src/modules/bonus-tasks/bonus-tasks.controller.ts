@@ -9,12 +9,14 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { BonusTasksService } from './bonus-tasks.service';
 import { CreateBonusTaskDto } from './dto/create-bonus-task.dto';
 import { SubmitBonusTaskDto } from './dto/submit-bonus-task.dto';
 import { RejectBonusTaskDto } from './dto/reject-bonus-task.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 
+@ApiTags('bonus_tasks')
 @Controller()
 @UseGuards(SupabaseAuthGuard)
 export class BonusTasksController {

@@ -59,15 +59,17 @@ async function bootstrap() {
     .addTag('users', 'Gestion des utilisateurs et profils')
     .addTag('products', 'Gestion des produits')
     .addTag('campaigns', 'Gestion des campagnes de test')
-    .addTag('logs', 'Logs système (ADMIN uniquement)')
-    .addTag('test_procedures', 'Procédures de test pour les campagnes')
-    .addTag('test_steps', 'Étapes détaillées des procédures de test')
+    .addTag('procedures', 'Procédures de test pour les campagnes')
+    .addTag('steps', 'Étapes détaillées des procédures de test')
     .addTag('distributions', 'Planning de distribution des tests par jour')
-    .addTag('test_api', 'Endpoints de test pour créer/supprimer des données fictives (DEV)')
-    .addTag('testing_sessions', 'Sessions de test actives')
+    .addTag('sessions', 'Sessions de test actives')
+    .addTag('reviews', 'Évaluations et avis sur les sessions')
+    .addTag('bonus_tasks', 'Prestations supplémentaires post-session')
     .addTag('messages', 'Messagerie entre vendeurs et testeurs')
     .addTag('notifications', 'Notifications utilisateurs')
+    .addTag('logs', 'Logs système (ADMIN uniquement)')
     .addTag('admin', 'Panel d\'administration')
+    .addTag('test_api', 'Endpoints de test pour créer/supprimer des données fictives (DEV)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

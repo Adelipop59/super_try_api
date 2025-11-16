@@ -17,7 +17,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
-@ApiTags('Reviews')
+@ApiTags('reviews')
 @Controller('reviews')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @ApiBearerAuth()
