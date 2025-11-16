@@ -284,6 +284,26 @@ export class LogsService {
   }
 
   /**
+   * Obtenir un log par son ID avec tous les détails
+   */
+  async findOne(id: string) {
+    return this.prisma.systemLog.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Obtenir les statistiques des logs
    */
   async getStats(options?: { dateFrom?: Date; dateTo?: Date }) {
@@ -336,8 +356,27 @@ export class LogsService {
       LIMIT 7
     `;
 
+    // Récupérer les erreurs récentes
+    const recentErrors = await this.prisma.systemLog.findMany({
+      where: {
+        ...where,
+        level: LogLevel.ERROR,
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 10,
+    });
+
     return {
-      total,
+      totalLogs: total,
       byLevel: statsByLevel.reduce(
         (acc, item) => {
           acc[item.level] = Number(item._count._all);
@@ -352,9 +391,12 @@ export class LogsService {
         },
         {} as Record<string, number>,
       ),
-      dailyStats: dailyStats.map((stat) => ({
-        date: stat.date,
-        count: Number(stat.count),
+      recentErrors: recentErrors.map((error) => ({
+        id: error.id,
+        message: error.message,
+        category: error.category,
+        userEmail: error.user?.email,
+        createdAt: error.createdAt,
       })),
     };
   }
