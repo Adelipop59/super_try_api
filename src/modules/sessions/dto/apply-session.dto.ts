@@ -14,7 +14,8 @@ export class ApplySessionDto {
 
   @ApiProperty({
     description: 'Message de motivation du testeur (optionnel)',
-    example: 'Je suis très intéressé par ce test car j\'utilise déjà des produits similaires.',
+    example:
+      "Je suis très intéressé par ce test car j'utilise déjà des produits similaires.",
     required: false,
     maxLength: 1000,
   })

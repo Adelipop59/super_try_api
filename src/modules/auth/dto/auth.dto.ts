@@ -1,4 +1,11 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsEnum,
+  IsOptional,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum UserRole {
@@ -13,13 +20,22 @@ export class SignupDto {
   @IsNotEmpty()
   email!: string;
 
-  @ApiProperty({ description: 'Mot de passe (min 6 caractères)', example: 'password123', minLength: 6 })
+  @ApiProperty({
+    description: 'Mot de passe (min 6 caractères)',
+    example: 'password123',
+    minLength: 6,
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
   password!: string;
 
-  @ApiProperty({ description: 'Rôle de l\'utilisateur', enum: UserRole, required: false, default: UserRole.USER })
+  @ApiProperty({
+    description: "Rôle de l'utilisateur",
+    enum: UserRole,
+    required: false,
+    default: UserRole.USER,
+  })
   @IsEnum(UserRole)
   @IsOptional()
   role?: UserRole;
@@ -34,17 +50,29 @@ export class SignupDto {
   @IsOptional()
   lastName?: string;
 
-  @ApiProperty({ description: 'Numéro de téléphone', required: false, example: '+33612345678' })
+  @ApiProperty({
+    description: 'Numéro de téléphone',
+    required: false,
+    example: '+33612345678',
+  })
   @IsString()
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({ description: 'Nom de l\'entreprise (pour les PRO)', required: false, example: 'ACME Corp' })
+  @ApiProperty({
+    description: "Nom de l'entreprise (pour les PRO)",
+    required: false,
+    example: 'ACME Corp',
+  })
   @IsString()
   @IsOptional()
   companyName?: string;
 
-  @ApiProperty({ description: 'Numéro SIRET (pour les PRO)', required: false, example: '12345678901234' })
+  @ApiProperty({
+    description: 'Numéro SIRET (pour les PRO)',
+    required: false,
+    example: '12345678901234',
+  })
   @IsString()
   @IsOptional()
   siret?: string;
@@ -81,7 +109,7 @@ class ProfileInAuthResponse {
   @ApiProperty({ description: 'Téléphone', required: false })
   phone?: string;
 
-  @ApiProperty({ description: 'Nom de l\'entreprise', required: false })
+  @ApiProperty({ description: "Nom de l'entreprise", required: false })
   companyName?: string;
 
   @ApiProperty({ description: 'SIRET', required: false })
@@ -101,7 +129,10 @@ class ProfileInAuthResponse {
 }
 
 export class AuthResponseDto {
-  @ApiProperty({ description: 'Token JWT d\'accès', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @ApiProperty({
+    description: "Token JWT d'accès",
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   access_token!: string;
 
   @ApiProperty({ description: 'Token de rafraîchissement' })
@@ -113,12 +144,18 @@ export class AuthResponseDto {
   @ApiProperty({ description: 'Durée de validité en secondes', example: 3600 })
   expires_in!: number;
 
-  @ApiProperty({ description: 'Profil utilisateur', type: ProfileInAuthResponse })
+  @ApiProperty({
+    description: 'Profil utilisateur',
+    type: ProfileInAuthResponse,
+  })
   profile!: ProfileInAuthResponse;
 }
 
 export class RefreshTokenDto {
-  @ApiProperty({ description: 'Token de rafraîchissement', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @ApiProperty({
+    description: 'Token de rafraîchissement',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   @IsString()
   @IsNotEmpty()
   refresh_token!: string;
@@ -132,12 +169,19 @@ export class ForgotPasswordDto {
 }
 
 export class ResetPasswordDto {
-  @ApiProperty({ description: 'Token de réinitialisation', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @ApiProperty({
+    description: 'Token de réinitialisation',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   @IsString()
   @IsNotEmpty()
   token!: string;
 
-  @ApiProperty({ description: 'Nouveau mot de passe (min 6 caractères)', example: 'newPassword123', minLength: 6 })
+  @ApiProperty({
+    description: 'Nouveau mot de passe (min 6 caractères)',
+    example: 'newPassword123',
+    minLength: 6,
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
@@ -145,12 +189,19 @@ export class ResetPasswordDto {
 }
 
 export class ChangePasswordDto {
-  @ApiProperty({ description: 'Ancien mot de passe', example: 'oldPassword123' })
+  @ApiProperty({
+    description: 'Ancien mot de passe',
+    example: 'oldPassword123',
+  })
   @IsString()
   @IsNotEmpty()
   oldPassword!: string;
 
-  @ApiProperty({ description: 'Nouveau mot de passe (min 6 caractères)', example: 'newPassword123', minLength: 6 })
+  @ApiProperty({
+    description: 'Nouveau mot de passe (min 6 caractères)',
+    example: 'newPassword123',
+    minLength: 6,
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
@@ -158,24 +209,36 @@ export class ChangePasswordDto {
 }
 
 export class UpdateEmailDto {
-  @ApiProperty({ description: 'Nouvelle adresse email', example: 'newemail@example.com' })
+  @ApiProperty({
+    description: 'Nouvelle adresse email',
+    example: 'newemail@example.com',
+  })
   @IsEmail()
   @IsNotEmpty()
   email!: string;
 
-  @ApiProperty({ description: 'Mot de passe actuel pour confirmation', example: 'password123' })
+  @ApiProperty({
+    description: 'Mot de passe actuel pour confirmation',
+    example: 'password123',
+  })
   @IsString()
   @IsNotEmpty()
   password!: string;
 }
 
 export class MessageResponseDto {
-  @ApiProperty({ description: 'Message de réponse', example: 'Opération réussie' })
+  @ApiProperty({
+    description: 'Message de réponse',
+    example: 'Opération réussie',
+  })
   message!: string;
 }
 
 export class RefreshTokenResponseDto {
-  @ApiProperty({ description: 'Nouveau token JWT d\'accès', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @ApiProperty({
+    description: "Nouveau token JWT d'accès",
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   access_token!: string;
 
   @ApiProperty({ description: 'Type de token', example: 'bearer' })
@@ -186,9 +249,16 @@ export class RefreshTokenResponseDto {
 }
 
 export class OAuthUrlResponseDto {
-  @ApiProperty({ description: 'URL de redirection OAuth', example: 'https://accounts.google.com/o/oauth2/v2/auth?...' })
+  @ApiProperty({
+    description: 'URL de redirection OAuth',
+    example: 'https://accounts.google.com/o/oauth2/v2/auth?...',
+  })
   url!: string;
 
-  @ApiProperty({ description: 'Provider OAuth', example: 'google', enum: ['google', 'github'] })
+  @ApiProperty({
+    description: 'Provider OAuth',
+    example: 'google',
+    enum: ['google', 'github'],
+  })
   provider!: string;
 }

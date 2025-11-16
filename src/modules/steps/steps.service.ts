@@ -45,7 +45,8 @@ export class StepsService {
     // Valider checklistItems si type CHECKLIST
     if (
       createStepDto.type === StepType.CHECKLIST &&
-      (!createStepDto.checklistItems || createStepDto.checklistItems.length === 0)
+      (!createStepDto.checklistItems ||
+        createStepDto.checklistItems.length === 0)
     ) {
       throw new BadRequestException(
         'checklistItems is required for CHECKLIST type',

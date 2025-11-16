@@ -109,13 +109,8 @@ export class CampaignsService {
    * Find all campaigns with filters
    */
   async findAll(filters: CampaignFilterDto): Promise<CampaignResponseDto[]> {
-    const {
-      sellerId,
-      status,
-      startDateFrom,
-      startDateTo,
-      hasAvailableSlots,
-    } = filters;
+    const { sellerId, status, startDateFrom, startDateTo, hasAvailableSlots } =
+      filters;
 
     const where: any = {};
 
@@ -530,10 +525,7 @@ export class CampaignsService {
     newStatus: CampaignStatus,
   ): void {
     const validTransitions: Record<CampaignStatus, CampaignStatus[]> = {
-      [CampaignStatus.DRAFT]: [
-        CampaignStatus.ACTIVE,
-        CampaignStatus.CANCELLED,
-      ],
+      [CampaignStatus.DRAFT]: [CampaignStatus.ACTIVE, CampaignStatus.CANCELLED],
       [CampaignStatus.ACTIVE]: [
         CampaignStatus.COMPLETED,
         CampaignStatus.CANCELLED,

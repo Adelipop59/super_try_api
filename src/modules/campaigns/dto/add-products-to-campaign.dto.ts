@@ -1,9 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  ValidateNested,
-  ArrayMinSize,
-} from 'class-validator';
+import { IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CampaignProductDto } from './create-campaign.dto';
 

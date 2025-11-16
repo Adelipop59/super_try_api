@@ -73,7 +73,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can accept this task');
+      throw new ForbiddenException(
+        'Only the session tester can accept this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.REQUESTED) {
@@ -106,7 +108,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can reject this task');
+      throw new ForbiddenException(
+        'Only the session tester can reject this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.REQUESTED) {
@@ -143,7 +147,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can submit this task');
+      throw new ForbiddenException(
+        'Only the session tester can submit this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.ACCEPTED) {
@@ -161,7 +167,9 @@ export class BonusTasksService {
       },
     });
 
-    this.logger.log(`Bonus task ${bonusTaskId} submitted by tester ${testerId}`);
+    this.logger.log(
+      `Bonus task ${bonusTaskId} submitted by tester ${testerId}`,
+    );
 
     return updatedTask;
   }
@@ -206,7 +214,9 @@ export class BonusTasksService {
       `TODO: Credit wallet for tester ${bonusTask.session.testerId} with amount ${bonusTask.reward}`,
     );
 
-    this.logger.log(`Bonus task ${bonusTaskId} validated by seller ${sellerId}`);
+    this.logger.log(
+      `Bonus task ${bonusTaskId} validated by seller ${sellerId}`,
+    );
 
     return updatedTask;
   }
@@ -288,7 +298,9 @@ export class BonusTasksService {
       data: { status: BonusTaskStatus.CANCELLED },
     });
 
-    this.logger.log(`Bonus task ${bonusTaskId} cancelled by seller ${sellerId}`);
+    this.logger.log(
+      `Bonus task ${bonusTaskId} cancelled by seller ${sellerId}`,
+    );
 
     return updatedTask;
   }

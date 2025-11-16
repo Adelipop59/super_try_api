@@ -8,7 +8,7 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'ID de la notification' })
   id!: string;
 
-  @ApiProperty({ description: 'ID de l\'utilisateur' })
+  @ApiProperty({ description: "ID de l'utilisateur" })
   userId!: string;
 
   @ApiProperty({
@@ -39,7 +39,7 @@ export class NotificationResponseDto {
   isSent!: boolean;
 
   @ApiProperty({
-    description: 'Date d\'envoi',
+    description: "Date d'envoi",
     required: false,
   })
   sentAt?: Date | null;
@@ -54,7 +54,7 @@ export class NotificationResponseDto {
   readAt?: Date | null;
 
   @ApiProperty({
-    description: 'Message d\'erreur',
+    description: "Message d'erreur",
     required: false,
   })
   error?: string | null;

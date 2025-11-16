@@ -27,9 +27,15 @@ import {
   BroadcastResponseDto,
   BroadcastTargetFilter,
 } from './dto/broadcast-notification.dto';
-import { BulkDeleteDto, BulkOperationResponseDto } from './dto/bulk-operation.dto';
+import {
+  BulkDeleteDto,
+  BulkOperationResponseDto,
+} from './dto/bulk-operation.dto';
 import { UserActivityLogDto, ActivityLogItemDto } from './dto/activity-log.dto';
-import { DisputeFiltersDto, DisputeDetailsDto } from './dto/dispute-filters.dto';
+import {
+  DisputeFiltersDto,
+  DisputeDetailsDto,
+} from './dto/dispute-filters.dto';
 
 @Injectable()
 export class AdminService {
@@ -105,9 +111,13 @@ export class AdminService {
     ] = await Promise.all([
       this.prisma.campaign.count(),
       this.prisma.campaign.count({ where: { status: CampaignStatus.ACTIVE } }),
-      this.prisma.campaign.count({ where: { status: CampaignStatus.COMPLETED } }),
+      this.prisma.campaign.count({
+        where: { status: CampaignStatus.COMPLETED },
+      }),
       this.prisma.campaign.count({ where: { status: CampaignStatus.DRAFT } }),
-      this.prisma.campaign.count({ where: { status: CampaignStatus.CANCELLED } }),
+      this.prisma.campaign.count({
+        where: { status: CampaignStatus.CANCELLED },
+      }),
       this.prisma.campaign.count({
         where: {
           createdAt: {
@@ -127,12 +137,15 @@ export class AdminService {
     ] = await Promise.all([
       this.prisma.session.count(),
       this.prisma.session.count({ where: { status: SessionStatus.PENDING } }),
-      this.prisma.session.count({ where: { status: SessionStatus.IN_PROGRESS } }),
+      this.prisma.session.count({
+        where: { status: SessionStatus.IN_PROGRESS },
+      }),
       this.prisma.session.count({ where: { status: SessionStatus.COMPLETED } }),
       this.prisma.session.count({ where: { status: SessionStatus.DISPUTED } }),
     ]);
 
-    const completionRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
+    const completionRate =
+      totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
 
     // Calculer la durée moyenne des sessions complétées
     const sessionsWithDuration = await this.prisma.session.findMany({
@@ -163,23 +176,24 @@ export class AdminService {
     ]);
 
     // Statistiques messages
-    const [totalMessages, messagesLast24h, messagesLast7days] = await Promise.all([
-      this.prisma.message.count(),
-      this.prisma.message.count({
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    const [totalMessages, messagesLast24h, messagesLast7days] =
+      await Promise.all([
+        this.prisma.message.count(),
+        this.prisma.message.count({
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            },
           },
-        },
-      }),
-      this.prisma.message.count({
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        }),
+        this.prisma.message.count({
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
 
     // Statistiques notifications
     const [totalNotifications, failedNotifications, notificationsLast24h] =
@@ -197,7 +211,8 @@ export class AdminService {
 
     const successRate =
       totalNotifications + failedNotifications > 0
-        ? (totalNotifications / (totalNotifications + failedNotifications)) * 100
+        ? (totalNotifications / (totalNotifications + failedNotifications)) *
+          100
         : 100;
 
     // Santé de la plateforme (basée sur les logs)
@@ -350,7 +365,10 @@ export class AdminService {
   /**
    * Suspendre un utilisateur (via désactivation)
    */
-  async suspendUser(userId: string, dto: SuspendUserDto): Promise<SuspensionResponseDto> {
+  async suspendUser(
+    userId: string,
+    dto: SuspendUserDto,
+  ): Promise<SuspensionResponseDto> {
     const user = await this.prisma.profile.findUnique({
       where: { id: userId },
     });
@@ -475,7 +493,9 @@ export class AdminService {
   /**
    * Obtenir toutes les sessions en litige
    */
-  async getDisputedSessions(filters?: DisputeFiltersDto): Promise<DisputeDetailsDto[]> {
+  async getDisputedSessions(
+    filters?: DisputeFiltersDto,
+  ): Promise<DisputeDetailsDto[]> {
     const where: Prisma.SessionWhereInput = {
       status: SessionStatus.DISPUTED,
     };
@@ -613,7 +633,10 @@ export class AdminService {
   /**
    * Résoudre un litige
    */
-  async resolveDispute(sessionId: string, dto: ResolveDisputeDto): Promise<any> {
+  async resolveDispute(
+    sessionId: string,
+    dto: ResolveDisputeDto,
+  ): Promise<any> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
@@ -733,7 +756,7 @@ export class AdminService {
     dto: BroadcastNotificationDto,
   ): Promise<BroadcastResponseDto> {
     // Déterminer les utilisateurs cibles
-    let targetWhere: Prisma.ProfileWhereInput = {};
+    const targetWhere: Prisma.ProfileWhereInput = {};
 
     switch (dto.targetFilter) {
       case BroadcastTargetFilter.USERS_ONLY:
@@ -869,7 +892,9 @@ export class AdminService {
   /**
    * Suppression en masse de messages
    */
-  async bulkDeleteMessages(dto: BulkDeleteDto): Promise<BulkOperationResponseDto> {
+  async bulkDeleteMessages(
+    dto: BulkDeleteDto,
+  ): Promise<BulkOperationResponseDto> {
     const successIds: string[] = [];
     const failures: Array<{ id: string; reason: string }> = [];
 
@@ -971,7 +996,9 @@ export class AdminService {
   /**
    * Suppression définitive d'une campagne
    */
-  async deleteCampaignPermanent(campaignId: string): Promise<{ message: string }> {
+  async deleteCampaignPermanent(
+    campaignId: string,
+  ): Promise<{ message: string }> {
     const campaign = await this.prisma.campaign.findUnique({
       where: { id: campaignId },
     });
@@ -1007,7 +1034,9 @@ export class AdminService {
   /**
    * Suppression définitive d'un produit
    */
-  async deleteProductPermanent(productId: string): Promise<{ message: string }> {
+  async deleteProductPermanent(
+    productId: string,
+  ): Promise<{ message: string }> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });

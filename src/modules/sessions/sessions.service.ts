@@ -17,7 +17,11 @@ import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
 import { SessionResponseDto } from './dto/session-response.dto';
-import { calculateNextPurchaseDate, isValidPurchaseDate, formatDate } from './utils/distribution.util';
+import {
+  calculateNextPurchaseDate,
+  isValidPurchaseDate,
+  formatDate,
+} from './utils/distribution.util';
 
 // Type helper pour les réponses Prisma (permet d'accepter any pour éviter les problèmes de Decimal)
 type PrismaSessionResponse = any;
@@ -65,7 +69,9 @@ export class SessionsService {
     });
 
     if (existingApplication) {
-      throw new BadRequestException('You have already applied to this campaign');
+      throw new BadRequestException(
+        'You have already applied to this campaign',
+      );
     }
 
     // Créer la session
@@ -285,7 +291,9 @@ export class SessionsService {
 
     // Vérifier que la session est ACCEPTED
     if (session.status !== SessionStatus.ACCEPTED) {
-      throw new BadRequestException('Session must be ACCEPTED to validate product price');
+      throw new BadRequestException(
+        'Session must be ACCEPTED to validate product price',
+      );
     }
 
     // Vérifier qu'il n'a pas déjà validé le prix
@@ -380,12 +388,16 @@ export class SessionsService {
 
     // Vérifier que la session est ACCEPTED
     if (session.status !== SessionStatus.ACCEPTED) {
-      throw new BadRequestException('Session must be ACCEPTED to submit purchase proof');
+      throw new BadRequestException(
+        'Session must be ACCEPTED to submit purchase proof',
+      );
     }
 
     // Vérifier que le prix du produit a été validé
     if (!session.validatedProductPrice) {
-      throw new BadRequestException('You must validate the product price before submitting purchase proof');
+      throw new BadRequestException(
+        'You must validate the product price before submitting purchase proof',
+      );
     }
 
     // Vérifier que l'achat est fait au bon jour (si scheduledPurchaseDate est défini)
@@ -452,7 +464,9 @@ export class SessionsService {
 
     // Vérifier que la session est IN_PROGRESS
     if (session.status !== SessionStatus.IN_PROGRESS) {
-      throw new BadRequestException('Session must be IN_PROGRESS to submit test');
+      throw new BadRequestException(
+        'Session must be IN_PROGRESS to submit test',
+      );
     }
 
     const updatedSession = await this.prisma.session.update({
@@ -588,7 +602,9 @@ export class SessionsService {
     }
 
     // Si la session était ACCEPTED, rendre le slot disponible
-    const shouldRestoreSlot = session.status === SessionStatus.ACCEPTED || session.status === SessionStatus.IN_PROGRESS;
+    const shouldRestoreSlot =
+      session.status === SessionStatus.ACCEPTED ||
+      session.status === SessionStatus.IN_PROGRESS;
 
     const operations: any[] = [
       this.prisma.session.update({

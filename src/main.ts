@@ -68,8 +68,11 @@ async function bootstrap() {
     .addTag('messages', 'Messagerie entre vendeurs et testeurs')
     .addTag('notifications', 'Notifications utilisateurs')
     .addTag('logs', 'Logs système (ADMIN uniquement)')
-    .addTag('admin', 'Panel d\'administration')
-    .addTag('test_api', 'Endpoints de test pour créer/supprimer des données fictives (DEV)')
+    .addTag('admin', "Panel d'administration")
+    .addTag(
+      'test_api',
+      'Endpoints de test pour créer/supprimer des données fictives (DEV)',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -89,4 +92,7 @@ async function bootstrap() {
   logger.log(`Environment: ${configService.get('nodeEnv')}`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start application:', error);
+  process.exit(1);
+});

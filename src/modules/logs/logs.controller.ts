@@ -51,8 +51,23 @@ export class LogsController {
             type: 'object',
             properties: {
               id: { type: 'string' },
-              level: { type: 'string', enum: ['SUCCESS', 'INFO', 'WARNING', 'ERROR', 'DEBUG'] },
-              category: { type: 'string', enum: ['AUTH', 'CAMPAIGN', 'SESSION', 'PRODUCT', 'USER', 'PAYMENT', 'SYSTEM', 'TEST_API'] },
+              level: {
+                type: 'string',
+                enum: ['SUCCESS', 'INFO', 'WARNING', 'ERROR', 'DEBUG'],
+              },
+              category: {
+                type: 'string',
+                enum: [
+                  'AUTH',
+                  'CAMPAIGN',
+                  'SESSION',
+                  'PRODUCT',
+                  'USER',
+                  'PAYMENT',
+                  'SYSTEM',
+                  'TEST_API',
+                ],
+              },
               message: { type: 'string' },
               details: { type: 'object', nullable: true },
               userId: { type: 'string', nullable: true },
@@ -87,7 +102,16 @@ export class LogsController {
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Accès refusé - ADMIN uniquement' })
   async findAll(@Query() filters: LogFilterDto) {
-    const { level, category, userId, startDate, endDate, search, page = 1, limit = 50 } = filters;
+    const {
+      level,
+      category,
+      userId,
+      startDate,
+      endDate,
+      search,
+      page = 1,
+      limit = 50,
+    } = filters;
 
     const offset = (page - 1) * limit;
 
@@ -187,7 +211,7 @@ export class LogsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Récupérer un log par son ID (ADMIN uniquement)',
-    description: 'Récupère les détails complets d\'un log système spécifique.',
+    description: "Récupère les détails complets d'un log système spécifique.",
   })
   @ApiParam({
     name: 'id',

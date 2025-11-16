@@ -39,7 +39,14 @@ export class LogsService {
     userId?: string,
     context?: RequestContext,
   ): Promise<void> {
-    await this.createLog(LogLevel.SUCCESS, category, message, data, userId, context);
+    await this.createLog(
+      LogLevel.SUCCESS,
+      category,
+      message,
+      data,
+      userId,
+      context,
+    );
   }
 
   /**
@@ -57,7 +64,14 @@ export class LogsService {
     userId?: string,
     context?: RequestContext,
   ): Promise<void> {
-    await this.createLog(LogLevel.INFO, category, message, data, userId, context);
+    await this.createLog(
+      LogLevel.INFO,
+      category,
+      message,
+      data,
+      userId,
+      context,
+    );
   }
 
   /**
@@ -75,7 +89,14 @@ export class LogsService {
     userId?: string,
     context?: RequestContext,
   ): Promise<void> {
-    await this.createLog(LogLevel.WARNING, category, message, data, userId, context);
+    await this.createLog(
+      LogLevel.WARNING,
+      category,
+      message,
+      data,
+      userId,
+      context,
+    );
   }
 
   /**
@@ -94,15 +115,23 @@ export class LogsService {
     context?: RequestContext,
   ): Promise<void> {
     // Extraire les informations de l'erreur si c'est un objet Error
-    const errorData = error instanceof Error
-      ? {
-          errorName: error.name,
-          errorMessage: error.message,
-          stack: error.stack,
-        }
-      : error;
+    const errorData =
+      error instanceof Error
+        ? {
+            errorName: error.name,
+            errorMessage: error.message,
+            stack: error.stack,
+          }
+        : error;
 
-    await this.createLog(LogLevel.ERROR, category, message, errorData, userId, context);
+    await this.createLog(
+      LogLevel.ERROR,
+      category,
+      message,
+      errorData,
+      userId,
+      context,
+    );
   }
 
   /**
@@ -120,7 +149,14 @@ export class LogsService {
     userId?: string,
     context?: RequestContext,
   ): Promise<void> {
-    await this.createLog(LogLevel.DEBUG, category, message, data, userId, context);
+    await this.createLog(
+      LogLevel.DEBUG,
+      category,
+      message,
+      data,
+      userId,
+      context,
+    );
   }
 
   /**

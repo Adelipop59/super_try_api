@@ -56,7 +56,8 @@ export class StepsController {
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({
     status: 403,
-    description: "Vous ne pouvez créer des étapes que pour vos propres procédures",
+    description:
+      'Vous ne pouvez créer des étapes que pour vos propres procédures',
   })
   @ApiResponse({ status: 404, description: 'Procédure non trouvée' })
   async create(
@@ -73,9 +74,9 @@ export class StepsController {
   @Get('procedures/:procedureId/steps')
   @Public()
   @ApiOperation({
-    summary: 'Lister les étapes d\'une procédure',
+    summary: "Lister les étapes d'une procédure",
     description:
-      'Récupère toutes les étapes d\'une procédure, triées par ordre d\'exécution. Accessible publiquement.',
+      "Récupère toutes les étapes d'une procédure, triées par ordre d'exécution. Accessible publiquement.",
   })
   @ApiParam({
     name: 'procedureId',
@@ -99,18 +100,18 @@ export class StepsController {
   @Get('steps/:id')
   @Public()
   @ApiOperation({
-    summary: 'Récupérer les détails d\'une étape',
+    summary: "Récupérer les détails d'une étape",
     description:
-      'Récupère les informations détaillées d\'une étape spécifique. Accessible publiquement.',
+      "Récupère les informations détaillées d'une étape spécifique. Accessible publiquement.",
   })
   @ApiParam({
     name: 'id',
-    description: 'ID de l\'étape',
+    description: "ID de l'étape",
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: 200,
-    description: 'Détails de l\'étape',
+    description: "Détails de l'étape",
     type: StepResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Étape non trouvée' })
@@ -126,11 +127,11 @@ export class StepsController {
   @ApiOperation({
     summary: 'Mettre à jour une étape',
     description:
-      'Permet au vendeur de modifier une étape existante. Les admins peuvent modifier n\'importe quelle étape.',
+      "Permet au vendeur de modifier une étape existante. Les admins peuvent modifier n'importe quelle étape.",
   })
   @ApiParam({
     name: 'id',
-    description: 'ID de l\'étape à modifier',
+    description: "ID de l'étape à modifier",
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
@@ -141,7 +142,7 @@ export class StepsController {
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({
     status: 403,
-    description: "Vous ne pouvez modifier que vos propres étapes",
+    description: 'Vous ne pouvez modifier que vos propres étapes',
   })
   @ApiResponse({ status: 404, description: 'Étape non trouvée' })
   async update(
@@ -161,11 +162,11 @@ export class StepsController {
   @ApiOperation({
     summary: 'Supprimer une étape',
     description:
-      'Permet au vendeur de supprimer une étape. Les admins peuvent supprimer n\'importe quelle étape.',
+      "Permet au vendeur de supprimer une étape. Les admins peuvent supprimer n'importe quelle étape.",
   })
   @ApiParam({
     name: 'id',
-    description: 'ID de l\'étape à supprimer',
+    description: "ID de l'étape à supprimer",
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
@@ -180,7 +181,7 @@ export class StepsController {
   })
   @ApiResponse({
     status: 403,
-    description: "Vous ne pouvez supprimer que vos propres étapes",
+    description: 'Vous ne pouvez supprimer que vos propres étapes',
   })
   @ApiResponse({ status: 404, description: 'Étape non trouvée' })
   async remove(
@@ -197,9 +198,9 @@ export class StepsController {
   @Patch('procedures/:procedureId/steps/reorder')
   @Roles('PRO', 'ADMIN')
   @ApiOperation({
-    summary: 'Réordonner les étapes d\'une procédure',
+    summary: "Réordonner les étapes d'une procédure",
     description:
-      'Permet de modifier l\'ordre d\'exécution des étapes. Envoyez un tableau d\'IDs dans l\'ordre souhaité.',
+      "Permet de modifier l'ordre d'exécution des étapes. Envoyez un tableau d'IDs dans l'ordre souhaité.",
   })
   @ApiParam({
     name: 'procedureId',
@@ -213,7 +214,7 @@ export class StepsController {
   })
   @ApiResponse({
     status: 403,
-    description: "Vous ne pouvez réordonner que vos propres étapes",
+    description: 'Vous ne pouvez réordonner que vos propres étapes',
   })
   @ApiResponse({ status: 404, description: 'Procédure non trouvée' })
   async reorder(

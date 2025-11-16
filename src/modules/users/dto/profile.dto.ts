@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsString, IsOptional, IsBoolean, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsUUID,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum UserRole {
@@ -8,11 +15,17 @@ export enum UserRole {
 }
 
 export class ProfileResponseDto {
-  @ApiProperty({ description: 'Identifiant unique du profil', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    description: 'Identifiant unique du profil',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @IsUUID()
   id!: string;
 
-  @ApiProperty({ description: 'Identifiant Supabase de l\'utilisateur', example: '123e4567-e89b-12d3-a456-426614174001' })
+  @ApiProperty({
+    description: "Identifiant Supabase de l'utilisateur",
+    example: '123e4567-e89b-12d3-a456-426614174001',
+  })
   @IsUUID()
   supabaseUserId!: string;
 
@@ -20,7 +33,11 @@ export class ProfileResponseDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ description: 'Rôle de l\'utilisateur', enum: UserRole, example: UserRole.USER })
+  @ApiProperty({
+    description: "Rôle de l'utilisateur",
+    enum: UserRole,
+    example: UserRole.USER,
+  })
   @IsEnum(UserRole)
   role!: UserRole;
 
@@ -34,22 +51,38 @@ export class ProfileResponseDto {
   @IsOptional()
   lastName?: string;
 
-  @ApiProperty({ description: 'Numéro de téléphone', required: false, example: '+33612345678' })
+  @ApiProperty({
+    description: 'Numéro de téléphone',
+    required: false,
+    example: '+33612345678',
+  })
   @IsString()
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({ description: 'URL de l\'avatar', required: false, example: 'https://example.com/avatar.jpg' })
+  @ApiProperty({
+    description: "URL de l'avatar",
+    required: false,
+    example: 'https://example.com/avatar.jpg',
+  })
   @IsString()
   @IsOptional()
   avatar?: string;
 
-  @ApiProperty({ description: 'Nom de l\'entreprise (PRO)', required: false, example: 'ACME Corp' })
+  @ApiProperty({
+    description: "Nom de l'entreprise (PRO)",
+    required: false,
+    example: 'ACME Corp',
+  })
   @IsString()
   @IsOptional()
   companyName?: string;
 
-  @ApiProperty({ description: 'Numéro SIRET (PRO)', required: false, example: '12345678901234' })
+  @ApiProperty({
+    description: 'Numéro SIRET (PRO)',
+    required: false,
+    example: '12345678901234',
+  })
   @IsString()
   @IsOptional()
   siret?: string;
@@ -62,9 +95,15 @@ export class ProfileResponseDto {
   @IsBoolean()
   isVerified!: boolean;
 
-  @ApiProperty({ description: 'Date de création', example: '2024-01-10T10:00:00Z' })
+  @ApiProperty({
+    description: 'Date de création',
+    example: '2024-01-10T10:00:00Z',
+  })
   createdAt!: Date;
 
-  @ApiProperty({ description: 'Date de dernière mise à jour', example: '2024-01-10T10:00:00Z' })
+  @ApiProperty({
+    description: 'Date de dernière mise à jour',
+    example: '2024-01-10T10:00:00Z',
+  })
   updatedAt!: Date;
 }

@@ -135,7 +135,9 @@ export class DistributionsService {
 
     // Validation si le type change
     if (updateDistributionDto.type) {
-      this.validateDistributionDto(updateDistributionDto as CreateDistributionDto);
+      this.validateDistributionDto(
+        updateDistributionDto as CreateDistributionDto,
+      );
     }
 
     const updated = await this.prismaService.distribution.update({

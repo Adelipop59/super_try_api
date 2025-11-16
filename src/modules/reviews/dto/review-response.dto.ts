@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * DTO de réponse pour un avis
  */
 export class ReviewResponseDto {
-  @ApiProperty({ description: 'ID de l\'avis' })
+  @ApiProperty({ description: "ID de l'avis" })
   id!: string;
 
   @ApiProperty({ description: 'ID de la campagne' })

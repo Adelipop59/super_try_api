@@ -39,9 +39,7 @@ import { AcceptSessionResponseDto } from './dto/accept-session.dto';
 @Controller('sessions')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 export class SessionsController {
-  constructor(
-    private readonly sessionsService: SessionsService,
-  ) {}
+  constructor(private readonly sessionsService: SessionsService) {}
 
   /**
    * 1. Postuler à une campagne (USER uniquement)
@@ -52,14 +50,17 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Postuler à une campagne de test (USER)',
     description:
-      'Permet à un testeur de postuler pour participer à une campagne de test. La candidature sera en attente d\'acceptation par le vendeur.',
+      "Permet à un testeur de postuler pour participer à une campagne de test. La candidature sera en attente d'acceptation par le vendeur.",
   })
   @ApiResponse({
     status: 201,
     description: 'Candidature envoyée avec succès',
     type: SessionResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Campagne non active ou déjà postulé' })
+  @ApiResponse({
+    status: 400,
+    description: 'Campagne non active ou déjà postulé',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle USER requis' })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
@@ -67,10 +68,7 @@ export class SessionsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() applySessionDto: ApplySessionDto,
   ): Promise<SessionResponseDto> {
-    return this.sessionsService.applyToCampaign(
-      user.id,
-      applySessionDto,
-    );
+    return this.sessionsService.applyToCampaign(user.id, applySessionDto);
   }
 
   /**
@@ -82,7 +80,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Accepter une session (PRO/ADMIN)',
     description:
-      'Permet au vendeur d\'accepter la candidature d\'un testeur. Le testeur pourra alors acheter le produit et commencer le test.',
+      "Permet au vendeur d'accepter la candidature d'un testeur. Le testeur pourra alors acheter le produit et commencer le test.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -90,9 +88,15 @@ export class SessionsController {
     description: 'Session acceptée avec succès',
     type: SessionResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Statut invalide ou pas de slots disponibles' })
+  @ApiResponse({
+    status: 400,
+    description: 'Statut invalide ou pas de slots disponibles',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire de la campagne' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès refusé - pas propriétaire de la campagne',
+  })
   @ApiResponse({ status: 404, description: 'Session non trouvée' })
   async acceptSession(
     @Param('id') id: string,
@@ -111,7 +115,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Refuser une session (PRO/ADMIN)',
     description:
-      'Permet au vendeur de refuser la candidature d\'un testeur avec une raison.',
+      "Permet au vendeur de refuser la candidature d'un testeur avec une raison.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -146,7 +150,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Valider le prix du produit trouvé (USER)',
     description:
-      'Le testeur doit entrer le prix exact qu\'il a trouvé pour le produit. Le système vérifie que le prix est dans la fourchette attendue [prix - 5€, prix + 5€] (ou [0€, 5€] si prix < 5€). Cette étape est obligatoire avant de pouvoir acheter le produit.',
+      "Le testeur doit entrer le prix exact qu'il a trouvé pour le produit. Le système vérifie que le prix est dans la fourchette attendue [prix - 5€, prix + 5€] (ou [0€, 5€] si prix < 5€). Cette étape est obligatoire avant de pouvoir acheter le produit.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -154,7 +158,10 @@ export class SessionsController {
     description: 'Prix validé avec succès',
     type: SessionResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Prix hors de la fourchette acceptable' })
+  @ApiResponse({
+    status: 400,
+    description: 'Prix hors de la fourchette acceptable',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Accès refusé' })
   @ApiResponse({ status: 404, description: 'Session non trouvée' })
@@ -177,14 +184,14 @@ export class SessionsController {
   @Roles('USER')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Soumettre la preuve d\'achat (USER)',
+    summary: "Soumettre la preuve d'achat (USER)",
     description:
-      'Permet au testeur de soumettre la preuve d\'achat du produit (reçu, confirmation) après l\'avoir acheté.',
+      "Permet au testeur de soumettre la preuve d'achat du produit (reçu, confirmation) après l'avoir acheté.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
     status: 200,
-    description: 'Preuve d\'achat soumise avec succès',
+    description: "Preuve d'achat soumise avec succès",
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Statut invalide' })
@@ -276,7 +283,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Annuler une session (USER)',
     description:
-      'Permet au testeur d\'annuler sa participation à une session de test.',
+      "Permet au testeur d'annuler sa participation à une session de test.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -293,11 +300,7 @@ export class SessionsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() cancelSessionDto: CancelSessionDto,
   ): Promise<SessionResponseDto> {
-    return this.sessionsService.cancelSession(
-      id,
-      user.id,
-      cancelSessionDto,
-    );
+    return this.sessionsService.cancelSession(id, user.id, cancelSessionDto);
   }
 
   /**
@@ -362,9 +365,9 @@ export class SessionsController {
   @Get(':id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Détails d\'une session',
+    summary: "Détails d'une session",
     description:
-      'Récupère les détails complets d\'une session (testeur, vendeur propriétaire ou admin uniquement).',
+      "Récupère les détails complets d'une session (testeur, vendeur propriétaire ou admin uniquement).",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({

@@ -1,10 +1,5 @@
-import { Controller, Post, Get, Delete, Param, Body } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-} from '@nestjs/swagger';
+import { Controller, Post, Get, Delete, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
@@ -104,11 +99,10 @@ export class TestingController {
   })
   @ApiResponse({ status: 200, description: 'Liste des distributions' })
   async listAllDistributions() {
-    const distributions =
-      await this.prismaService.distribution.findMany({
-        include: { campaign: true },
-        orderBy: { createdAt: 'desc' },
-      });
+    const distributions = await this.prismaService.distribution.findMany({
+      include: { campaign: true },
+      orderBy: { createdAt: 'desc' },
+    });
 
     await this.logsService.logInfo(
       LogCategory.TEST,
@@ -150,10 +144,11 @@ export class TestingController {
 
   @Post('run-api-tests')
   @ApiOperation({
-    summary: '[TEST_API] Exécuter tous les tests API automatisés (ANCIENNE VERSION - 31 endpoints)',
+    summary:
+      '[TEST_API] Exécuter tous les tests API automatisés (ANCIENNE VERSION - 31 endpoints)',
     description:
-      'Exécute une suite complète de tests automatisés pour valider tous les endpoints de l\'API. ' +
-      'Teste l\'authentification, les permissions, les modules métier (users, products, campaigns, procedures, steps, distributions, logs). ' +
+      "Exécute une suite complète de tests automatisés pour valider tous les endpoints de l'API. " +
+      "Teste l'authentification, les permissions, les modules métier (users, products, campaigns, procedures, steps, distributions, logs). " +
       'Retourne un rapport détaillé avec le nombre de tests réussis/échoués et les logs de chaque test.',
   })
   @ApiResponse({
@@ -170,7 +165,7 @@ export class TestingController {
         duration: {
           type: 'string',
           example: '15.3s',
-          description: 'Durée totale d\'exécution',
+          description: "Durée totale d'exécution",
         },
         summary: {
           type: 'object',
@@ -207,7 +202,8 @@ export class TestingController {
   @Post('v2/test-phase-1-auth')
   @ApiOperation({
     summary: '[TEST_API_V2] Phase 1: Auth Module (13 endpoints)',
-    description: 'Teste tous les endpoints d\'authentification: signup, login, logout, refresh, verify, password reset, OAuth',
+    description:
+      "Teste tous les endpoints d'authentification: signup, login, logout, refresh, verify, password reset, OAuth",
   })
   @ApiResponse({ status: 200, description: 'Tests Phase 1 terminés' })
   async testPhase1Auth(@Body() context?: any) {
@@ -217,7 +213,8 @@ export class TestingController {
   @Post('v2/test-phase-2-users')
   @ApiOperation({
     summary: '[TEST_API_V2] Phase 2: Users Module (8 endpoints)',
-    description: 'Teste la gestion des utilisateurs: profiles, roles, verification, suspension',
+    description:
+      'Teste la gestion des utilisateurs: profiles, roles, verification, suspension',
   })
   @ApiResponse({ status: 200, description: 'Tests Phase 2 terminés' })
   async testPhase2Users(@Body() context: any) {
@@ -237,7 +234,8 @@ export class TestingController {
   @Post('v2/test-phase-4-sessions')
   @ApiOperation({
     summary: '[TEST_API_V2] Phase 4: Testing Sessions (11 endpoints)',
-    description: 'Teste le workflow complet: apply, accept, purchase, submit, validate, dispute',
+    description:
+      'Teste le workflow complet: apply, accept, purchase, submit, validate, dispute',
   })
   @ApiResponse({ status: 200, description: 'Tests Phase 4 terminés' })
   async testPhase4Sessions(@Body() context: any) {
@@ -266,7 +264,8 @@ export class TestingController {
 
   @Post('v2/run-complete-tests')
   @ApiOperation({
-    summary: '[TEST_API_V2] ORCHESTRATEUR - Exécute TOUS les tests (122 endpoints)',
+    summary:
+      '[TEST_API_V2] ORCHESTRATEUR - Exécute TOUS les tests (122 endpoints)',
     description:
       'Exécute toutes les 6 phases en séquence avec logging détaillé JSON. ' +
       'Teste les 122 endpoints métier avec 3 rôles (USER, PRO, ADMIN). ' +
@@ -356,7 +355,7 @@ export class TestingController {
     status: 201,
     description: 'Scénario de test complet créé avec succès',
   })
-  async runAllTests(@Body() body?: { sellerId?: string }) {
+  async runAllTests() {
     await this.logsService.logInfo(
       LogCategory.TEST,
       `🔵 [TEST] Début du scénario de test complet`,
@@ -428,9 +427,9 @@ export class TestingController {
         this.prismaService.step.create({
           data: {
             procedureId: procedure.id,
-            title: 'TEST_API_Inspection de l\'emballage',
+            title: "TEST_API_Inspection de l'emballage",
             description:
-              'TEST_API_Inspectez l\'emballage extérieur et vérifiez qu\'il n\'y a aucun dommage',
+              "TEST_API_Inspectez l'emballage extérieur et vérifiez qu'il n'y a aucun dommage",
             type: StepType.TEXT,
             order: 1,
             isRequired: true,
@@ -439,9 +438,9 @@ export class TestingController {
         this.prismaService.step.create({
           data: {
             procedureId: procedure.id,
-            title: 'TEST_API_Photo de l\'emballage fermé',
+            title: "TEST_API_Photo de l'emballage fermé",
             description:
-              'TEST_API_Prenez une photo de l\'emballage sous tous les angles',
+              "TEST_API_Prenez une photo de l'emballage sous tous les angles",
             type: StepType.PHOTO,
             order: 2,
             isRequired: true,
@@ -452,7 +451,7 @@ export class TestingController {
             procedureId: procedure.id,
             title: 'TEST_API_Ouverture et déballage',
             description:
-              'TEST_API_Ouvrez délicatement l\'emballage et déballez le produit',
+              "TEST_API_Ouvrez délicatement l'emballage et déballez le produit",
             type: StepType.TEXT,
             order: 3,
             isRequired: true,
@@ -462,13 +461,14 @@ export class TestingController {
           data: {
             procedureId: procedure.id,
             title: 'TEST_API_Vérification du contenu',
-            description: 'TEST_API_Vérifiez que tous les éléments sont présents',
+            description:
+              'TEST_API_Vérifiez que tous les éléments sont présents',
             type: StepType.CHECKLIST,
             order: 4,
             isRequired: true,
             checklistItems: [
               'TEST_API_Produit principal présent et intact',
-              'TEST_API_Notice d\'utilisation incluse et lisible',
+              "TEST_API_Notice d'utilisation incluse et lisible",
               'TEST_API_Accessoires complets selon la liste',
               'TEST_API_Aucun dommage visible sur le produit',
               'TEST_API_Câbles et connecteurs en bon état',
@@ -479,7 +479,8 @@ export class TestingController {
           data: {
             procedureId: procedure.id,
             title: 'TEST_API_Photo du contenu complet',
-            description: 'TEST_API_Prenez une photo de tous les éléments déballés',
+            description:
+              'TEST_API_Prenez une photo de tous les éléments déballés',
             type: StepType.PHOTO,
             order: 5,
             isRequired: true,
@@ -645,32 +646,37 @@ export class TestingController {
     );
 
     // Compter les enregistrements avant suppression
-    const [stepsCount, proceduresCount, distributionsCount, campaignsCount, profilesCount] =
-      await Promise.all([
-        this.prismaService.step.count({
-          where: { title: { contains: 'TEST_API_' } },
-        }),
-        this.prismaService.procedure.count({
-          where: { title: { contains: 'TEST_API_' } },
-        }),
-        this.prismaService.distribution.count({
-          where: {
-            campaign: { title: { contains: 'TEST_API_' } },
-          },
-        }),
-        this.prismaService.campaign.count({
-          where: { title: { contains: 'TEST_API_' } },
-        }),
-        this.prismaService.profile.count({
-          where: {
-            OR: [
-              { email: { contains: 'TEST_API_' } },
-              { firstName: { contains: 'TEST_API_' } },
-              { supabaseUserId: { contains: 'TEST_API_' } },
-            ],
-          },
-        }),
-      ]);
+    const [
+      stepsCount,
+      proceduresCount,
+      distributionsCount,
+      campaignsCount,
+      profilesCount,
+    ] = await Promise.all([
+      this.prismaService.step.count({
+        where: { title: { contains: 'TEST_API_' } },
+      }),
+      this.prismaService.procedure.count({
+        where: { title: { contains: 'TEST_API_' } },
+      }),
+      this.prismaService.distribution.count({
+        where: {
+          campaign: { title: { contains: 'TEST_API_' } },
+        },
+      }),
+      this.prismaService.campaign.count({
+        where: { title: { contains: 'TEST_API_' } },
+      }),
+      this.prismaService.profile.count({
+        where: {
+          OR: [
+            { email: { contains: 'TEST_API_' } },
+            { firstName: { contains: 'TEST_API_' } },
+            { supabaseUserId: { contains: 'TEST_API_' } },
+          ],
+        },
+      }),
+    ]);
 
     // Supprimer dans l'ordre pour respecter les contraintes FK
     // 1. Supprimer les étapes (dépendent des procédures)
@@ -728,7 +734,8 @@ export class TestingController {
 
     return {
       success: true,
-      message: 'Nettoyage complet effectué avec succès - Toutes les données TEST_API_ ont été supprimées',
+      message:
+        'Nettoyage complet effectué avec succès - Toutes les données TEST_API_ ont été supprimées',
       details: {
         profiles: profilesCount,
         campaigns: campaignsCount,

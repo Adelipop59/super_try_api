@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -13,7 +17,10 @@ export class ProductsService {
    * Create a new product in the catalog.
    * Note: Financial details (price, shipping, rewards) are defined per campaign via the Offer model.
    */
-  async create(sellerId: string, createProductDto: CreateProductDto): Promise<ProductResponseDto> {
+  async create(
+    sellerId: string,
+    createProductDto: CreateProductDto,
+  ): Promise<ProductResponseDto> {
     const product = await this.prismaService.product.create({
       data: {
         ...createProductDto,
@@ -61,13 +68,15 @@ export class ProductsService {
       },
     });
 
-    return products.map(product => this.formatProductResponse(product));
+    return products.map((product) => this.formatProductResponse(product));
   }
 
   /**
    * Find active products only (public endpoint)
    */
-  async findAllActive(filters: ProductFilterDto): Promise<ProductResponseDto[]> {
+  async findAllActive(
+    filters: ProductFilterDto,
+  ): Promise<ProductResponseDto[]> {
     return this.findAll({ ...filters, isActive: true });
   }
 
@@ -115,7 +124,7 @@ export class ProductsService {
       },
     });
 
-    return products.map(product => this.formatProductResponse(product));
+    return products.map((product) => this.formatProductResponse(product));
   }
 
   /**
@@ -160,7 +169,11 @@ export class ProductsService {
   /**
    * Delete product (soft delete by setting isActive to false)
    */
-  async remove(id: string, sellerId: string, isAdmin: boolean = false): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    sellerId: string,
+    isAdmin: boolean = false,
+  ): Promise<{ message: string }> {
     const product = await this.prismaService.product.findUnique({
       where: { id },
     });

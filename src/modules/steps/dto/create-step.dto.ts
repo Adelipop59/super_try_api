@@ -15,7 +15,7 @@ import { StepType } from '@prisma/client';
 
 export class CreateStepDto {
   @ApiProperty({
-    description: 'Titre de l\'étape',
+    description: "Titre de l'étape",
     example: 'Prendre une photo du produit',
     minLength: 3,
     maxLength: 200,
@@ -27,7 +27,7 @@ export class CreateStepDto {
   title!: string;
 
   @ApiPropertyOptional({
-    description: 'Description détaillée de l\'étape',
+    description: "Description détaillée de l'étape",
     example: 'Prenez une photo claire du produit sous plusieurs angles',
   })
   @IsString()
@@ -35,7 +35,7 @@ export class CreateStepDto {
   description?: string;
 
   @ApiProperty({
-    description: 'Type d\'étape',
+    description: "Type d'étape",
     enum: StepType,
     example: StepType.PHOTO,
   })
@@ -43,7 +43,7 @@ export class CreateStepDto {
   type!: StepType;
 
   @ApiProperty({
-    description: 'Ordre d\'exécution',
+    description: "Ordre d'exécution",
     example: 1,
     minimum: 1,
   })

@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -7,7 +13,8 @@ import { ApiProperty } from '@nestjs/swagger';
 export class SendMessageDto {
   @ApiProperty({
     description: 'Contenu du message',
-    example: 'Bonjour, j\'ai bien reçu le produit et je commence les tests aujourd\'hui.',
+    example:
+      "Bonjour, j'ai bien reçu le produit et je commence les tests aujourd'hui.",
     maxLength: 5000,
   })
   @IsString()
@@ -17,7 +24,10 @@ export class SendMessageDto {
 
   @ApiProperty({
     description: 'URLs des fichiers joints (photos, documents)',
-    example: ['https://storage.example.com/file1.jpg', 'https://storage.example.com/file2.pdf'],
+    example: [
+      'https://storage.example.com/file1.jpg',
+      'https://storage.example.com/file2.pdf',
+    ],
     required: false,
     type: [String],
   })

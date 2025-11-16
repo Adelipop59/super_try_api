@@ -49,19 +49,19 @@ export class ActivityLogItemDto {
  */
 export class UserActivityLogDto {
   @ApiProperty({
-    description: 'ID de l\'utilisateur',
+    description: "ID de l'utilisateur",
     example: 'uuid-123',
   })
   userId: string;
 
   @ApiProperty({
-    description: 'Email de l\'utilisateur',
+    description: "Email de l'utilisateur",
     example: 'user@example.com',
   })
   userEmail: string;
 
   @ApiProperty({
-    description: 'Nombre total d\'activités',
+    description: "Nombre total d'activités",
     example: 150,
   })
   totalActivities: number;

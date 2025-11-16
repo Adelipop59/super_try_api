@@ -7,7 +7,7 @@ class SellerInfo {
   @ApiProperty({ description: 'Email du vendeur' })
   email!: string;
 
-  @ApiProperty({ description: 'Nom de l\'entreprise', required: false })
+  @ApiProperty({ description: "Nom de l'entreprise", required: false })
   companyName?: string;
 }
 
@@ -18,7 +18,10 @@ class SellerInfo {
  * to be used in multiple campaigns with different pricing structures.
  */
 export class ProductResponseDto {
-  @ApiProperty({ description: 'Identifiant unique du produit', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    description: 'Identifiant unique du produit',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   id!: string;
 
   @ApiProperty({ description: 'ID du vendeur' })
@@ -33,10 +36,14 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'Description du produit' })
   description!: string;
 
-  @ApiProperty({ description: 'Catégorie', required: false, example: 'Électronique' })
+  @ApiProperty({
+    description: 'Catégorie',
+    required: false,
+    example: 'Électronique',
+  })
   category?: string | null;
 
-  @ApiProperty({ description: 'URL de l\'image', required: false })
+  @ApiProperty({ description: "URL de l'image", required: false })
   imageUrl?: string | null;
 
   @ApiProperty({ description: 'Produit actif', example: true })

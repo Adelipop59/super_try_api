@@ -10,7 +10,7 @@ export class ChatMessageResponseDto {
   @ApiProperty({ description: 'ID de la session' })
   sessionId!: string;
 
-  @ApiProperty({ description: 'ID de l\'expéditeur' })
+  @ApiProperty({ description: "ID de l'expéditeur" })
   senderId!: string;
 
   @ApiProperty({ description: 'Contenu du message' })
@@ -40,7 +40,7 @@ export class ChatMessageResponseDto {
 
   // Relations optionnelles
   @ApiProperty({
-    description: 'Informations de l\'expéditeur',
+    description: "Informations de l'expéditeur",
     required: false,
   })
   sender?: any;

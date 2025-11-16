@@ -10,7 +10,9 @@ export class SupabaseService {
   constructor(private configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('supabase.url');
     const supabaseKey = this.configService.get<string>('supabase.key');
-    const supabaseServiceKey = this.configService.get<string>('supabase.serviceKey');
+    const supabaseServiceKey = this.configService.get<string>(
+      'supabase.serviceKey',
+    );
 
     if (!supabaseUrl || !supabaseKey || !supabaseServiceKey) {
       throw new Error('Supabase configuration is missing');
@@ -61,7 +63,8 @@ export class SupabaseService {
    */
   async getUserById(userId: string): Promise<User | null> {
     try {
-      const { data, error } = await this.supabaseAdmin.auth.admin.getUserById(userId);
+      const { data, error } =
+        await this.supabaseAdmin.auth.admin.getUserById(userId);
 
       if (error || !data.user) {
         return null;

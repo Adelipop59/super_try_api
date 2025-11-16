@@ -6,7 +6,7 @@ import { ApiProperty } from '@nestjs/swagger';
  */
 export class CancelSessionDto {
   @ApiProperty({
-    description: 'Raison de l\'annulation',
+    description: "Raison de l'annulation",
     example: 'Je ne peux plus participer pour des raisons personnelles',
     maxLength: 500,
   })

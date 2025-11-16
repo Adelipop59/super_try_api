@@ -26,7 +26,8 @@ export class ResolveDisputeDto {
 
   @ApiProperty({
     description: 'Commentaire de résolution (explication de la décision)',
-    example: 'Le testeur a fourni des preuves suffisantes. Le vendeur doit rembourser.',
+    example:
+      'Le testeur a fourni des preuves suffisantes. Le vendeur doit rembourser.',
     minLength: 10,
   })
   @IsString()
