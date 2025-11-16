@@ -16,7 +16,6 @@ import { ValidateTestDto } from './dto/validate-test.dto';
 import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
-import { SessionResponseDto } from './dto/session-response.dto';
 import {
   calculateNextPurchaseDate,
   isValidPurchaseDate,

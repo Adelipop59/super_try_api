@@ -374,7 +374,7 @@ export class AuthService {
    */
   async handleOAuthCallback(
     code: string,
-    provider: string,
+    _provider: string,
   ): Promise<AuthResponseDto> {
     const { data, error } = await this.supabaseService
       .getClient()

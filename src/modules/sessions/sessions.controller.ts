@@ -22,7 +22,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
 import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
@@ -33,7 +32,6 @@ import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
 import { SessionResponseDto } from './dto/session-response.dto';
-import { AcceptSessionResponseDto } from './dto/accept-session.dto';
 
 @ApiTags('sessions')
 @Controller('sessions')

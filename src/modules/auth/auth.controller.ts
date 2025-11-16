@@ -13,14 +13,12 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { ProfileResponseDto } from '../users/dto/profile.dto';
 import {
   SignupDto,
   LoginDto,
