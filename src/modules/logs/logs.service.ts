@@ -396,4 +396,54 @@ export class LogsService {
 
     return result.count;
   }
+
+  /**
+   * Récupérer un log par son ID
+   * @param id - ID du log
+   * @returns Le log trouvé ou null
+   */
+  async findOne(id: string) {
+    return this.prisma.systemLog.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Nettoyer les logs avant une date donnée
+   * @param beforeDate - Date limite
+   * @returns Nombre de logs supprimés
+   */
+  async cleanupBeforeDate(beforeDate: Date): Promise<number> {
+    const result = await this.prisma.systemLog.deleteMany({
+      where: {
+        createdAt: {
+          lt: beforeDate,
+        },
+      },
+    });
+
+    this.logger.log(
+      `Deleted ${result.count} logs (before ${beforeDate.toISOString()})`,
+    );
+
+    // Log l'opération de nettoyage
+    await this.logInfo(
+      LogCategory.SYSTEM,
+      `🧹 Nettoyage des logs: ${result.count} logs supprimés (avant ${beforeDate.toISOString()})`,
+      { deletedCount: result.count, beforeDate },
+    );
+
+    return result.count;
+  }
 }
