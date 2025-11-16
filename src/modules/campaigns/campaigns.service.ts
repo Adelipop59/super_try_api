@@ -11,7 +11,19 @@ import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { CampaignFilterDto } from './dto/campaign-filter.dto';
 import { CampaignResponseDto } from './dto/campaign-response.dto';
 import { AddProductsToCampaignDto } from './dto/add-products-to-campaign.dto';
-import { CampaignStatus } from '@prisma/client';
+import { CampaignStatus, Prisma } from '@prisma/client';
+
+// Type for campaign with all includes used in this service
+type CampaignWithIncludes = Prisma.CampaignGetPayload<{
+  include: {
+    seller: true;
+    offers: {
+      include: {
+        product: true;
+      };
+    };
+  };
+}>;
 
 @Injectable()
 export class CampaignsService {
@@ -544,7 +556,9 @@ export class CampaignsService {
   /**
    * Format campaign response to convert Decimal and format nested data
    */
-  private formatCampaignResponse(campaign: any): CampaignResponseDto {
+  private formatCampaignResponse(
+    campaign: CampaignWithIncludes,
+  ): CampaignResponseDto {
     return {
       id: campaign.id,
       sellerId: campaign.sellerId,
@@ -556,7 +570,7 @@ export class CampaignsService {
       totalSlots: campaign.totalSlots,
       availableSlots: campaign.availableSlots,
       status: campaign.status,
-      products: campaign.offers.map((offer: any) => ({
+      products: campaign.offers.map((offer) => ({
         id: offer.id,
         productId: offer.productId,
         quantity: offer.quantity,
