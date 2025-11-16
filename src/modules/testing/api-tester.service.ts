@@ -48,8 +48,6 @@ export class ApiTesterService {
       await this.testUsersModule();
       await this.testProductsModule();
       await this.testCampaignsModule();
-      await this.proceduresModule();
-      await this.stepsModule();
       await this.distributionsModule();
       await this.testLogsModule();
 
@@ -362,122 +360,7 @@ export class ApiTesterService {
   }
 
   /**
-   * B4. Tests du module Test Procedures
-   */
-  private async proceduresModule(): Promise<void> {
-    this.logger.log('🔵 [TEST_API] Module: Test Procedures');
-
-    // POST create procedure (PRO)
-    await this.testEndpoint(
-      'test_procedures',
-      'POST',
-      `/campaigns/${this.context.campaignId}/procedures`,
-      {
-        title: 'Test Procedure',
-        description: 'Test procedure description',
-        order: 1,
-        isRequired: true,
-      },
-      this.context.tokenPro,
-      201,
-      async (response) => {
-        this.context.procedureId = response.id;
-      },
-    );
-
-    // GET list procedures (public)
-    await this.testEndpoint(
-      'test_procedures',
-      'GET',
-      `/campaigns/${this.context.campaignId}/procedures`,
-      null,
-      null,
-      200,
-    );
-
-    // GET procedure details
-    await this.testEndpoint(
-      'test_procedures',
-      'GET',
-      `/campaigns/${this.context.campaignId}/procedures/${this.context.procedureId}`,
-      null,
-      null,
-      200,
-    );
-
-    // PATCH update procedure (PRO)
-    await this.testEndpoint(
-      'test_procedures',
-      'PATCH',
-      `/campaigns/${this.context.campaignId}/procedures/${this.context.procedureId}`,
-      {
-        title: 'Updated Test Procedure',
-      },
-      this.context.tokenPro,
-      200,
-    );
-  }
-
-  /**
-   * B5. Tests du module Test Steps
-   */
-  private async stepsModule(): Promise<void> {
-    this.logger.log('🔵 [TEST_API] Module: Test Steps');
-
-    // POST create step (PRO)
-    await this.testEndpoint(
-      'test_steps',
-      'POST',
-      `/procedures/${this.context.procedureId}/steps`,
-      {
-        title: 'Test Step',
-        description: 'Test step description',
-        type: 'TEXT',
-        order: 1,
-        isRequired: true,
-      },
-      this.context.tokenPro,
-      201,
-      async (response) => {
-        this.context.stepId = response.id;
-      },
-    );
-
-    // GET list steps (public)
-    await this.testEndpoint(
-      'test_steps',
-      'GET',
-      `/procedures/${this.context.procedureId}/steps`,
-      null,
-      null,
-      200,
-    );
-
-    // GET step details
-    await this.testEndpoint(
-      'test_steps',
-      'GET',
-      `/steps/${this.context.stepId}`,
-      null,
-      null,
-      200,
-    );
-
-    // PATCH update step (PRO)
-    await this.testEndpoint(
-      'test_steps',
-      'PATCH',
-      `/steps/${this.context.stepId}`,
-      {
-        title: 'Updated Test Step',
-      },
-      this.context.tokenPro,
-      200,
-    );
-  }
-
-  /**
-   * B6. Tests du module Distributions
+   * B4. Tests du module Distributions
    */
   private async distributionsModule(): Promise<void> {
     this.logger.log('🔵 [TEST_API] Module: Distributions');
