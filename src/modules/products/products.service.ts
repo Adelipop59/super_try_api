@@ -8,6 +8,14 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
+import { Prisma } from '@prisma/client';
+
+// Type for product with all includes
+type ProductWithIncludes = Prisma.ProductGetPayload<{
+  include: {
+    seller: true;
+  };
+}>;
 
 @Injectable()
 export class ProductsService {
@@ -226,7 +234,9 @@ export class ProductsService {
   /**
    * Format product response
    */
-  private formatProductResponse(product: any): ProductResponseDto {
+  private formatProductResponse(
+    product: ProductWithIncludes,
+  ): ProductResponseDto {
     return {
       id: product.id,
       sellerId: product.sellerId,
