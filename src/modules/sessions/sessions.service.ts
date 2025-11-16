@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
+import { WalletsService } from '../wallets/wallets.service';
 import { LogCategory, SessionStatus, Prisma } from '@prisma/client';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
@@ -32,6 +33,7 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
+    private readonly walletsService: WalletsService,
   ) {}
 
   /**
@@ -554,6 +556,50 @@ export class SessionsService {
         tester: true,
       },
     });
+
+    // Créditer le wallet du testeur si le montant de la récompense est > 0
+    if (rewardAmount > 0) {
+      try {
+        await this.walletsService.creditWallet(
+          session.testerId,
+          rewardAmount,
+          `Récompense pour test validé - Campagne: ${session.campaign.title}`,
+          sessionId,
+          undefined,
+          {
+            campaignId: session.campaignId,
+            campaignTitle: session.campaign.title,
+            rating: dto.rating,
+          },
+        );
+
+        await this.logsService.logSuccess(
+          LogCategory.WALLET,
+          `💰 Wallet crédité de ${rewardAmount}€ pour session ${sessionId}`,
+          {
+            sessionId,
+            testerId: session.testerId,
+            amount: rewardAmount,
+          },
+        );
+      } catch (error) {
+        // Log l'erreur mais ne bloque pas la validation du test
+        this.logger.error(
+          `Failed to credit wallet for session ${sessionId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.logsService.logError(
+          LogCategory.WALLET,
+          `❌ Échec du crédit wallet pour session ${sessionId}`,
+          {
+            sessionId,
+            testerId: session.testerId,
+            amount: rewardAmount,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        );
+      }
+    }
 
     await this.logsService.logSuccess(
       LogCategory.SESSION,
