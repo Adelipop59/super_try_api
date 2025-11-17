@@ -58,32 +58,6 @@ export class ProductsController {
     return this.productsService.create(user.id, createProductDto);
   }
 
-  @Public()
-  @Get()
-  @ApiOperation({
-    summary: 'Liste des produits actifs',
-    description:
-      'Récupère tous les produits actifs avec filtres optionnels (accessible sans authentification)',
-  })
-  @ApiQuery({
-    name: 'sellerId',
-    required: false,
-    description: 'Filtrer par vendeur',
-  })
-  @ApiQuery({
-    name: 'category',
-    required: false,
-    description: 'Filtrer par catégorie',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Liste des produits',
-    type: [ProductResponseDto],
-  })
-  findAll(@Query() filters: ProductFilterDto): Promise<ProductResponseDto[]> {
-    return this.productsService.findAllActive(filters);
-  }
-
   @Roles('ADMIN')
   @Get('all')
   @ApiBearerAuth('supabase-auth')

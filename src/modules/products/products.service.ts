@@ -55,7 +55,7 @@ export class ProductsService {
   }
 
   /**
-   * Find all products with filters
+   * Find all products with filters (ADMIN only)
    */
   async findAll(filters: ProductFilterDto): Promise<ProductResponseDto[]> {
     const { sellerId, category, isActive } = filters;
@@ -83,15 +83,6 @@ export class ProductsService {
     });
 
     return products.map((product) => this.formatProductResponse(product));
-  }
-
-  /**
-   * Find active products only (public endpoint)
-   */
-  async findAllActive(
-    filters: ProductFilterDto,
-  ): Promise<ProductResponseDto[]> {
-    return this.findAll({ ...filters, isActive: true });
   }
 
   /**
