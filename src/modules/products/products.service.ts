@@ -13,7 +13,13 @@ import { Prisma } from '@prisma/client';
 // Type for product with all includes
 type ProductWithIncludes = Prisma.ProductGetPayload<{
   include: {
-    seller: true;
+    seller: {
+      select: {
+        id: true;
+        email: true;
+        companyName: true;
+      };
+    };
   };
 }>;
 

@@ -16,7 +16,13 @@ import { CampaignStatus, Prisma } from '@prisma/client';
 // Type for campaign with all includes used in this service
 type CampaignWithIncludes = Prisma.CampaignGetPayload<{
   include: {
-    seller: true;
+    seller: {
+      select: {
+        id: true;
+        email: true;
+        companyName: true;
+      };
+    };
     offers: {
       include: {
         product: true;

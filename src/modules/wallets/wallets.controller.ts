@@ -28,7 +28,7 @@ import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
   CurrentUser,
-  AuthenticatedUser,
+  type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Wallets')

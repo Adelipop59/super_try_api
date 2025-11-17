@@ -8,7 +8,7 @@ class SellerInfo {
   email!: string;
 
   @ApiProperty({ description: "Nom de l'entreprise", required: false })
-  companyName?: string;
+  companyName?: string | null;
 }
 
 /**

@@ -76,7 +76,7 @@ export class LoggingInterceptor implements NestInterceptor {
     url: string,
     statusCode: number,
     duration: number,
-    ipAddress: string,
+    ipAddress: string | undefined,
     userAgent: string,
     userId?: string,
   ): void {
@@ -105,7 +105,7 @@ export class LoggingInterceptor implements NestInterceptor {
     url: string,
     statusCode: number,
     duration: number,
-    ipAddress: string,
+    ipAddress: string | undefined,
     userAgent: string,
     userId: string | undefined,
     error: Error,
