@@ -31,6 +31,13 @@ export class AuthService {
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
     const { email, password, role, ...profileData } = signupDto;
 
+    // Security: Prevent ADMIN creation via public signup
+    if (role === 'ADMIN') {
+      throw new BadRequestException(
+        'Cannot create ADMIN users via signup. Contact support.',
+      );
+    }
+
     // Create user in Supabase
     const { data, error } = await this.supabaseService
       .getAdminClient()
@@ -47,6 +54,7 @@ export class AuthService {
     }
 
     // Create profile in database using UsersService
+    // Only allow USER or PRO roles
     const profile = await this.usersService.createProfile({
       supabaseUserId: data.user.id,
       email,

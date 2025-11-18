@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -127,7 +128,7 @@ export class UsersController {
 
     // Users can only view their own profile unless they're admin
     if (user.role !== 'ADMIN' && profile.id !== user.id) {
-      throw new Error('You can only view your own profile');
+      throw new ForbiddenException('You can only view your own profile');
     }
 
     return profile;

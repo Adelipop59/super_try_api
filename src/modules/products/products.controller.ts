@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -115,12 +116,13 @@ export class ProductsController {
     return this.productsService.findBySeller(user.id);
   }
 
-  @Public()
+  @Roles('PRO', 'ADMIN')
   @Get(':id')
+  @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: "Détails d'un produit",
     description:
-      "Récupère les détails d'un produit par son ID (accessible sans authentification)",
+      "Récupère les détails d'un produit (propriétaire uniquement ou ADMIN)",
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
   @ApiResponse({
@@ -128,9 +130,26 @@ export class ProductsController {
     description: 'Détails du produit',
     type: ProductResponseDto,
   })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez consulter que vos propres produits',
+  })
   @ApiResponse({ status: 404, description: 'Produit non trouvé' })
-  findOne(@Param('id') id: string): Promise<ProductResponseDto> {
-    return this.productsService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProductResponseDto> {
+    const product = await this.productsService.findOne(id);
+
+    // Sellers can only view their own products unless they're admin
+    if (user.role !== 'ADMIN' && product.sellerId !== user.id) {
+      throw new ForbiddenException(
+        'You can only view your own products',
+      );
+    }
+
+    return product;
   }
 
   @Roles('PRO', 'ADMIN')
@@ -184,6 +203,34 @@ export class ProductsController {
   ): Promise<{ message: string }> {
     const isAdmin = user.role === 'ADMIN';
     return this.productsService.remove(id, user.id, isAdmin);
+  }
+
+  @Roles('PRO', 'ADMIN')
+  @Patch(':id/activate')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Activer un produit',
+    description:
+      'Active un produit désactivé (propriétaire uniquement ou ADMIN)',
+  })
+  @ApiParam({ name: 'id', description: 'ID du produit' })
+  @ApiResponse({
+    status: 200,
+    description: 'Produit activé avec succès',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez activer que vos propres produits',
+  })
+  @ApiResponse({ status: 404, description: 'Produit non trouvé' })
+  activate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProductResponseDto> {
+    const isAdmin = user.role === 'ADMIN';
+    return this.productsService.activate(id, user.id, isAdmin);
   }
 
   @Roles('ADMIN')

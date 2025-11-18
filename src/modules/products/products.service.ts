@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -191,12 +192,75 @@ export class ProductsService {
       throw new ForbiddenException('You can only delete your own products');
     }
 
+    // Check if product is in any active campaigns
+    const activeCampaigns = await this.prismaService.campaign.findMany({
+      where: {
+        status: { in: ['DRAFT', 'ACTIVE'] },
+        offers: {
+          some: {
+            productId: id,
+          },
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+      },
+    });
+
+    if (activeCampaigns.length > 0) {
+      const campaignTitles = activeCampaigns
+        .map((c) => `"${c.title}" (${c.status})`)
+        .join(', ');
+      throw new BadRequestException(
+        `Cannot deactivate product. It is used in active campaigns: ${campaignTitles}`,
+      );
+    }
+
     await this.prismaService.product.update({
       where: { id },
       data: { isActive: false },
     });
 
     return { message: 'Product deactivated successfully' };
+  }
+
+  /**
+   * Activate product (seller or admin)
+   */
+  async activate(
+    id: string,
+    sellerId: string,
+    isAdmin: boolean = false,
+  ): Promise<ProductResponseDto> {
+    const product = await this.prismaService.product.findUnique({
+      where: { id },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    if (!isAdmin && product.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only activate your own products');
+    }
+
+    const updatedProduct = await this.prismaService.product.update({
+      where: { id },
+      data: { isActive: true },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            companyName: true,
+          },
+        },
+      },
+    });
+
+    return this.formatProductResponse(updatedProduct);
   }
 
   /**
