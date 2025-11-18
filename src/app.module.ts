@@ -10,6 +10,7 @@ import { SupabaseModule } from './common/supabase/supabase.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { ProceduresModule } from './modules/procedures/procedures.module';
@@ -46,6 +47,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     AuthModule,
     UsersModule,
     ProductsModule,
+    CategoriesModule,
     CampaignsModule,
     LogsModule,
     ProceduresModule,
