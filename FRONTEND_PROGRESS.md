@@ -11,9 +11,9 @@ Dernière mise à jour : 2025-11-18
 | **APIs Frontend** | 12 | 14 | 86% |
 | **Composants réutilisables** | 6 | 10 | 60% |
 | **Pages USER (Testeur)** | 7 | 15 | 47% |
-| **Pages PRO (Vendeur)** | 6 | 20 | 30% |
-| **Pages ADMIN** | 0 | 15 | 0% |
-| **TOTAL** | **31** | **74** | **42%** |
+| **Pages PRO (Vendeur)** | 14 | 20 | 70% |
+| **Pages ADMIN** | 2 | 15 | 13% |
+| **TOTAL** | **41** | **74** | **55%** |
 
 ---
 
@@ -112,9 +112,9 @@ Toutes les APIs ont des types complets, gestion d'erreurs, et validation :
 
 ---
 
-## 🟡 Phase 3 : Flows Vendeur PRO (EN COURS - 30%)
+## 🟡 Phase 3 : Flows Vendeur PRO (EN COURS - 70%)
 
-### Pages PRO implémentées (6/20)
+### Pages PRO implémentées (14/20)
 
 #### Gestion Produits ✅
 
@@ -155,59 +155,66 @@ Toutes les APIs ont des types complets, gestion d'erreurs, et validation :
      - Quantité
    - Liste produits ajoutés avec suppression
 
-### Pages PRO manquantes (14/20)
+#### Wizard Campagne (Étapes 3-4-5) ✅
 
-#### Wizard Campagne (3 étapes) ⏳
-
-7. ⏳ **`/pro/campaigns/[id]/criteria`** - Wizard Étape 3 : Critères
+7. ✅ **`/pro/campaigns/[id]/criteria`** - Wizard Étape 3 : Critères
    - Âge min/max
    - Rating minimum
    - Sessions complétées minimum
    - Genre requis
-   - Localisations requises
-   - Catégories préférées requises
+   - Localisations requises (add/remove dynamique)
+   - Catégories préférées requises (multi-select visuel)
+   - Tous critères optionnels
 
-8. ⏳ **`/pro/campaigns/[id]/distributions`** - Wizard Étape 4 : Distributions
+8. ✅ **`/pro/campaigns/[id]/distributions`** - Wizard Étape 4 : Distributions
    - Type : RECURRING (jour semaine) ou SPECIFIC_DATE
    - Sélection jours/dates
    - Max unités par jour
-   - Batch creation (semaine complète)
-   - Calendrier visuel
+   - Batch creation (semaine complète en un clic)
+   - Liste distributions avec suppression
+   - Progress indicator (4/5)
 
-9. ⏳ **`/pro/campaigns/[id]/procedures`** - Wizard Étape 5 : Procédures
-   - Liste procédures
-   - Ajout/édition procédures (titre, description, ordre, requis)
-   - Drag & drop pour réorganiser
-   - Pour chaque procédure : ajout d'étapes
+9. ✅ **`/pro/campaigns/[id]/procedures`** - Wizard Étape 5 : Procédures
+   - Liste procédures avec create/edit/delete
+   - Formulaire procédure : titre, description, ordre, requis
+   - Pour chaque procédure : gestion des étapes
    - Types d'étapes : TEXT, PHOTO, VIDEO, CHECKLIST, RATING, PRICE_VALIDATION
-   - Validation finale et activation campagne
+   - CHECKLIST : items configurables (séparés par ligne)
+   - Create/edit/delete steps
+   - Bouton final "Activer campagne" (DRAFT → ACTIVE)
+   - Progress indicator (5/5)
+
+#### Gestion Sessions ✅
+
+10. ✅ **`/pro/sessions`** - Liste sessions vendeur
+    - Filtre par campagne (dropdown)
+    - Onglets : En attente (PENDING), Actives, Terminées, Refusées
+    - SessionCard component réutilisé
+    - Chargement sessions du vendeur
+
+11. ✅ **`/pro/sessions/[id]`** - Détail session vendeur
+    - Profil testeur : avatar, nom, stats (completedSessions, averageRating, isVerified)
+    - Message d'application affiché
+    - Actions selon statut :
+      - **PENDING** : Accepter (message optionnel) / Refuser (raison requise)
+      - **ACCEPTED** : Voir preuve d'achat, Valider achat
+      - **IN_PROGRESS** : Voir statut
+      - **SUBMITTED** : Noter testeur (1-5 étoiles), feedback, Valider test
+      - **COMPLETED** : Afficher note donnée
+    - Timeline session (sidebar)
+    - Infos produit (sidebar)
+    - Bouton messages
+
+### Pages PRO manquantes (6/20)
 
 #### Détail Campagne ⏳
 
-10. ⏳ **`/pro/campaigns/[id]`** - Détail campagne vendeur
+12. ⏳ **`/pro/campaigns/[id]`** - Détail campagne vendeur
     - Vue d'ensemble complète
     - Onglets : Infos, Produits, Critères, Distributions, Procédures, Sessions, Stats
     - Actions : éditer (si DRAFT), activer, fermer, supprimer
 
-#### Gestion Sessions ⏳
-
-11. ⏳ **`/pro/sessions`** - Liste sessions vendeur
-    - Filtres : campagne, statut, testeur
-    - Onglets : En attente (PENDING), Actives, Terminées
-    - Colonnes : testeur, campagne, statut, date application
-    - Bouton "Voir détails"
-
-12. ⏳ **`/pro/sessions/[id]`** - Détail session vendeur
-    - Infos testeur : nom, rating, sessions complétées
-    - Message d'application
-    - Actions selon statut :
-      - **PENDING** : Accepter / Refuser (avec raison)
-      - **ACCEPTED** : Voir preuve d'achat, Valider achat
-      - **IN_PROGRESS** : Voir progression étapes
-      - **SUBMITTED** : Voir toutes soumissions, Valider test (avec rating)
-    - Timeline session
-    - Chat avec testeur
-    - Bouton "Créer Bonus Task"
+#### Bonus Tasks ⏳
 
 #### Bonus Tasks ⏳
 
@@ -259,49 +266,59 @@ Toutes les APIs ont des types complets, gestion d'erreurs, et validation :
 
 ---
 
-## ⏳ Phase 4 : Flows Admin (À FAIRE - 0%)
+## ⏳ Phase 4 : Flows Admin (EN COURS - 13%)
 
-### Pages ADMIN (0/15)
+### Pages ADMIN implémentées (2/15)
 
-#### Dashboard ⏳
+#### Dashboard ✅
 
-1. ⏳ **`/admin`** - Dashboard admin
-   - Stats globales :
+1. ✅ **`/admin`** - Dashboard admin
+   - Stats globales avec StatsCards :
      - Utilisateurs totaux (USER/PRO/ADMIN)
      - Campagnes actives/totales
      - Sessions en cours/complétées
      - Montant total transféré
-     - Disputes en attente
-   - Graphiques :
-     - Évolution inscriptions
-     - Sessions par jour
-     - Revenus par mois
-   - Alertes : disputes, retraits en attente
+   - Alertes (disputes, retraits en attente) avec Cards colorées
+   - 6 Quick action cards :
+     - Gestion utilisateurs (avec stats)
+     - Catégories
+     - Campagnes (avec stats)
+     - Litiges (avec count)
+     - Retraits (avec count)
+     - Logs système
+   - Vérification rôle ADMIN
+   - Section "Activité récente" (placeholder)
+
+#### Gestion Catégories ✅
+
+2. ✅ **`/admin/categories`** - Gestion catégories
+   - CRUD complet :
+     - Créer : nom, slug (auto-généré), description, icon, actif
+     - Éditer (dialog modal)
+     - Toggle actif/inactif
+     - Supprimer (avec confirmation)
+   - Table : nom, slug, icône, description, statut
+   - Slug auto-généré avec normalisation (accents, espaces)
+   - Empty state avec CTA
+   - Dialog pour create/edit
+   - Toast feedback
+
+### Pages ADMIN manquantes (13/15)
 
 #### Gestion Utilisateurs ⏳
 
-2. ⏳ **`/admin/users`** - Liste utilisateurs
+3. ⏳ **`/admin/users`** - Liste utilisateurs
    - Filtres : rôle, vérifié, actif, date inscription
    - Table : email, nom, rôle, vérifié, actif, date création
    - Actions : voir, changer rôle, suspendre, supprimer
 
-3. ⏳ **`/admin/users/[id]`** - Détail utilisateur
+4. ⏳ **`/admin/users/[id]`** - Détail utilisateur
    - Toutes infos profile
    - Historique d'activité
    - Sessions (si USER)
    - Campagnes/Produits (si PRO)
    - Wallet (si USER)
    - Actions : vérifier, changer rôle, suspendre, désactiver
-
-#### Gestion Catégories ⏳
-
-4. ⏳ **`/admin/categories`** - Gestion catégories
-   - Liste catégories
-   - CRUD complet :
-     - Créer (nom, slug, description, icon, actif)
-     - Éditer
-     - Activer/Désactiver
-     - Supprimer
 
 #### Gestion Produits ⏳
 
@@ -530,4 +547,4 @@ Toutes les APIs ont des types complets, gestion d'erreurs, et validation :
 ---
 
 **Dernière mise à jour** : 18/11/2025
-**Prochain objectif** : Compléter wizard campagne PRO (étapes 3-4-5)
+**Prochain objectif** : Compléter pages ADMIN (users, campaigns, disputes, withdrawals, logs)
