@@ -107,6 +107,10 @@ export class CampaignsService {
           create: products.map((p) => ({
             productId: p.productId,
             quantity: p.quantity,
+            expectedPrice: p.expectedPrice,
+            shippingCost: p.shippingCost ?? 0,
+            priceRangeMin: p.priceRangeMin,
+            priceRangeMax: p.priceRangeMax,
             reimbursedPrice: p.reimbursedPrice ?? true,
             reimbursedShipping: p.reimbursedShipping ?? true,
             maxReimbursedPrice: p.maxReimbursedPrice,
@@ -459,6 +463,10 @@ export class CampaignsService {
         campaignId: id,
         productId: p.productId,
         quantity: p.quantity,
+        expectedPrice: p.expectedPrice,
+        shippingCost: p.shippingCost ?? 0,
+        priceRangeMin: p.priceRangeMin,
+        priceRangeMax: p.priceRangeMax,
         reimbursedPrice: p.reimbursedPrice ?? true,
         reimbursedShipping: p.reimbursedShipping ?? true,
         maxReimbursedPrice: p.maxReimbursedPrice,
@@ -620,7 +628,14 @@ export class CampaignsService {
     newStatus: CampaignStatus,
   ): void {
     const validTransitions: Record<CampaignStatus, CampaignStatus[]> = {
-      [CampaignStatus.DRAFT]: [CampaignStatus.ACTIVE, CampaignStatus.CANCELLED],
+      [CampaignStatus.DRAFT]: [
+        CampaignStatus.PENDING_PAYMENT,
+        CampaignStatus.CANCELLED,
+      ],
+      [CampaignStatus.PENDING_PAYMENT]: [
+        CampaignStatus.ACTIVE,
+        CampaignStatus.CANCELLED,
+      ],
       [CampaignStatus.ACTIVE]: [
         CampaignStatus.COMPLETED,
         CampaignStatus.CANCELLED,
