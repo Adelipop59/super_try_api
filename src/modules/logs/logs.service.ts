@@ -475,27 +475,6 @@ export class LogsService {
     return result.count;
   }
 
-  /**
-   * Récupérer un log par son ID
-   * @param id - ID du log
-   * @returns Le log trouvé ou null
-   */
-  async findOne(id: string) {
-    return this.prisma.systemLog.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-          },
-        },
-      },
-    });
-  }
 
   /**
    * Nettoyer les logs avant une date donnée

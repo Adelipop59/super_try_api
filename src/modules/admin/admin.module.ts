@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EmailProvider } from '../notifications/providers/email.provider';
 import { SmsProvider } from '../notifications/providers/sms.provider';
 import { PushProvider } from '../notifications/providers/push.provider';
+import { WalletsService } from '../wallets/wallets.service';
 
 /**
  * Module d'administration
@@ -40,6 +41,7 @@ import { PushProvider } from '../notifications/providers/push.provider';
     ProductsService,
     MessagesService,
     NotificationsService,
+    WalletsService,
     // Providers de notifications (nécessaires pour NotificationsService)
     EmailProvider,
     SmsProvider,
