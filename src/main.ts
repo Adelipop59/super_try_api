@@ -58,6 +58,7 @@ async function bootstrap() {
     .addTag('auth', "Endpoints d'authentification")
     .addTag('users', 'Gestion des utilisateurs et profils')
     .addTag('products', 'Gestion des produits')
+    .addTag('categories', 'Catégories de produits')
     .addTag('campaigns', 'Gestion des campagnes de test')
     .addTag('procedures', 'Procédures de test pour les campagnes')
     .addTag('steps', 'Étapes détaillées des procédures de test')

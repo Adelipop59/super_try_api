@@ -16,6 +16,23 @@ export class CampaignSellerDto {
 }
 
 /**
+ * Category info for product
+ */
+export class CategoryInfo {
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
+  id!: string;
+
+  @ApiProperty({ example: 'Électronique' })
+  name!: string;
+
+  @ApiProperty({ example: 'electronique' })
+  slug!: string;
+
+  @ApiProperty({ example: '📱', required: false })
+  icon?: string | null;
+}
+
+/**
  * DTO pour les offres (produits + pricing) incluses dans la campagne.
  * Les informations financières proviennent du modèle Offer, pas du produit.
  * Cela permet au même produit d'être utilisé dans plusieurs campagnes avec des prix différents.
@@ -34,7 +51,13 @@ export class CampaignProductResponseDto {
       id: '123e4567-e89b-12d3-a456-426614174000',
       name: 'iPhone 15 Pro Max',
       description: 'Latest iPhone model',
-      category: 'Electronics',
+      categoryId: '123e4567-e89b-12d3-a456-426614174000',
+      category: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Électronique',
+        slug: 'electronique',
+        icon: '📱',
+      },
       imageUrl: 'https://example.com/iphone.jpg',
       isActive: true,
     },
@@ -43,7 +66,8 @@ export class CampaignProductResponseDto {
     id: string;
     name: string;
     description: string;
-    category: string | null;
+    categoryId: string | null;
+    category: CategoryInfo | null;
     imageUrl: string | null;
     isActive: boolean;
   };

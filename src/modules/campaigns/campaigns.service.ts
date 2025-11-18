@@ -25,7 +25,18 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
     };
     offers: {
       include: {
-        product: true;
+        product: {
+          include: {
+            category: {
+              select: {
+                id: true;
+                name: true;
+                slug: true;
+                icon: true;
+              };
+            };
+          };
+        };
       };
     };
   };
@@ -114,7 +125,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -159,7 +181,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -196,7 +229,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -225,7 +269,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -312,7 +367,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -492,7 +558,18 @@ export class CampaignsService {
         },
         offers: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    icon: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -590,6 +667,7 @@ export class CampaignsService {
           id: offer.product.id,
           name: offer.product.name,
           description: offer.product.description,
+          categoryId: offer.product.categoryId,
           category: offer.product.category,
           imageUrl: offer.product.imageUrl,
           isActive: offer.product.isActive,

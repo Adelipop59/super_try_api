@@ -11,6 +11,20 @@ class SellerInfo {
   companyName?: string | null;
 }
 
+class CategoryInfo {
+  @ApiProperty({ description: 'ID de la catégorie' })
+  id!: string;
+
+  @ApiProperty({ description: 'Nom de la catégorie' })
+  name!: string;
+
+  @ApiProperty({ description: 'Slug URL-friendly' })
+  slug!: string;
+
+  @ApiProperty({ description: 'Icône/emoji', required: false })
+  icon?: string | null;
+}
+
 /**
  * DTO for product response.
  * Note: Financial details (price, shipping, rewards) are not part of the product catalog.
@@ -30,18 +44,17 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'Informations du vendeur', type: SellerInfo })
   seller!: SellerInfo;
 
+  @ApiProperty({ description: 'ID de la catégorie', required: false })
+  categoryId?: string | null;
+
+  @ApiProperty({ description: 'Informations de la catégorie', type: CategoryInfo, required: false })
+  category?: CategoryInfo | null;
+
   @ApiProperty({ description: 'Nom du produit', example: 'iPhone 15 Pro Max' })
   name!: string;
 
   @ApiProperty({ description: 'Description du produit' })
   description!: string;
-
-  @ApiProperty({
-    description: 'Catégorie',
-    required: false,
-    example: 'Électronique',
-  })
-  category?: string | null;
 
   @ApiProperty({ description: "URL de l'image", required: false })
   imageUrl?: string | null;

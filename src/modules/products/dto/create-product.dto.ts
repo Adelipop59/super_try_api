@@ -30,13 +30,13 @@ export class CreateProductDto {
   description!: string;
 
   @ApiProperty({
-    description: 'Catégorie du produit',
-    example: 'Électronique',
+    description: 'ID de la catégorie du produit',
+    example: '123e4567-e89b-12d3-a456-426614174000',
     required: false,
   })
-  @IsString()
+  @IsUUID()
   @IsOptional()
-  category?: string;
+  categoryId?: string;
 
   @ApiProperty({
     description: "URL de l'image du produit",
