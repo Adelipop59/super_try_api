@@ -21,6 +21,14 @@ type ProductWithIncludes = Prisma.ProductGetPayload<{
         companyName: true;
       };
     };
+    category: {
+      select: {
+        id: true;
+        name: true;
+        slug: true;
+        icon: true;
+      };
+    };
   };
 }>;
 
@@ -47,6 +55,14 @@ export class ProductsService {
             id: true,
             email: true,
             companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
           },
         },
       },
@@ -77,6 +93,14 @@ export class ProductsService {
             companyName: true,
           },
         },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -98,6 +122,14 @@ export class ProductsService {
             id: true,
             email: true,
             companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
           },
         },
       },
@@ -122,6 +154,14 @@ export class ProductsService {
             id: true,
             email: true,
             companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
           },
         },
       },
@@ -164,6 +204,14 @@ export class ProductsService {
             id: true,
             email: true,
             companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
           },
         },
       },
@@ -257,6 +305,14 @@ export class ProductsService {
             companyName: true,
           },
         },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
       },
     });
 
@@ -286,6 +342,14 @@ export class ProductsService {
             companyName: true,
           },
         },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
       },
     });
 
@@ -302,9 +366,10 @@ export class ProductsService {
       id: product.id,
       sellerId: product.sellerId,
       seller: product.seller,
+      categoryId: product.categoryId,
+      category: product.category,
       name: product.name,
       description: product.description,
-      category: product.category,
       imageUrl: product.imageUrl,
       isActive: product.isActive,
       createdAt: product.createdAt,
