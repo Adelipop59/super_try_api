@@ -21,7 +21,8 @@ enum UserRole {
 // Enum for campaign status
 enum CampaignStatus {
   DRAFT // Brouillon
-  ACTIVE // Active et visible par les testeurs
+  PENDING_PAYMENT // En attente de paiement par le vendeur
+  ACTIVE // Active et visible par les testeurs (payée)
   COMPLETED // Terminée (délai dépassé ou stock épuisé)
   CANCELLED // Annulée par le vendeur
 }
@@ -58,6 +59,7 @@ enum StepType {
   VIDEO // Demander une vidéo
   CHECKLIST // Liste de vérification
   RATING // Notation (1-5 étoiles)
+  PRICE_VALIDATION // Validation du prix (step automatique final)
 }
 
 // Enum for notification types
@@ -134,6 +136,14 @@ model Profile {
   phone     String?
   avatar    String?
 
+  // Tester specific info (for USER role)
+  birthDate              DateTime? @map("birth_date") // Date de naissance pour calculer l'âge
+  gender                 String? // M, F, Other
+  location               String? // Ville/région
+  averageRating          Decimal?  @default(0) @map("average_rating") @db.Decimal(3, 2) // Note moyenne (0-5)
+  completedSessionsCount Int       @default(0) @map("completed_sessions_count") // Nombre de tests complétés
+  preferredCategories    String[]  @map("preferred_categories") // IDs des catégories préférées
+
   // Business info for PRO users
   companyName String? @map("company_name")
   siret       String?
@@ -202,7 +212,7 @@ model Product {
 
   // Product information (catalogue de base)
   name        String
-  description String @db.Text
+  description String  @db.Text
   imageUrl    String? @map("image_url")
 
   // Pricing information
@@ -257,6 +267,7 @@ model Campaign {
   distributions Distribution[] // Calendrier de distribution
   sessions      Session[] // Sessions pour cette campagne
   reviews       CampaignReview[] // Avis sur cette campagne
+  criteria      CampaignCriteria? // Critères de sélection des testeurs
 
   @@index([sellerId])
   @@index([status])
@@ -275,6 +286,13 @@ model Offer {
 
   productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Prix du produit et livraison (définis par le vendeur)
+  expectedPrice   Decimal @map("expected_price") @db.Decimal(10, 2) // Prix exact attendu du produit
+  shippingCost    Decimal @default(0) @map("shipping_cost") @db.Decimal(10, 2) // Frais de livraison attendus
+  priceRangeMin   Decimal @map("price_range_min") @db.Decimal(10, 2) // Tranche de prix min pour validation testeur
+  priceRangeMax   Decimal @map("price_range_max") @db.Decimal(10, 2) // Tranche de prix max pour validation testeur
+  isPriceRevealed Boolean @default(false) @map("is_price_revealed") // Le prix exact est-il révélé aux testeurs ?
 
   // Remboursements (oui/non)
   reimbursedPrice    Boolean @default(true) @map("reimbursed_price") // Le prix du produit est-il remboursé ?
@@ -297,6 +315,41 @@ model Offer {
   @@index([campaignId])
   @@index([productId])
   @@map("offers")
+}
+
+// CampaignCriteria table - Critères de sélection des testeurs pour une campagne
+model CampaignCriteria {
+  id String @id @default(uuid())
+
+  // Relation with campaign (one-to-one)
+  campaignId String   @unique @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Age criteria
+  minAge Int? @map("min_age") // Âge minimum
+  maxAge Int? @map("max_age") // Âge maximum
+
+  // Rating criteria
+  minRating Decimal? @map("min_rating") @db.Decimal(3, 2) // Note minimum (0-5)
+  maxRating Decimal? @map("max_rating") @db.Decimal(3, 2) // Note maximum (0-5)
+
+  // Experience criteria
+  minCompletedSessions Int? @map("min_completed_sessions") // Nombre minimum de tests complétés
+
+  // Gender criteria
+  requiredGender String? @map("required_gender") // M, F, ALL, null
+
+  // Location criteria
+  requiredLocations String[] @map("required_locations") // Liste de villes/régions acceptées
+
+  // Category preferences
+  requiredCategories String[] @map("required_categories") // IDs des catégories requises dans les préférences
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([campaignId])
+  @@map("campaign_criteria")
 }
 
 // SystemLog table - Logs système pour traçabilité et debug
@@ -373,12 +426,46 @@ model Step {
   // For CHECKLIST type
   checklistItems Json? @map("checklist_items")
 
+  // Relations
+  progressTracking SessionStepProgress[] // Progression de ce step dans les sessions
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([procedureId])
   @@index([order])
   @@map("steps")
+}
+
+// SessionStepProgress table - Tracking de la progression des testeurs dans les steps
+model SessionStepProgress {
+  id String @id @default(uuid())
+
+  // Relations
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  stepId String @map("step_id")
+  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  // Progress info
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+
+  // Submission data (photos, videos, text, checklist answers, rating)
+  submissionData Json? @map("submission_data")
+
+  // For PRICE_VALIDATION step - prix saisi par le testeur
+  validatedPrice Decimal? @map("validated_price") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([sessionId, stepId]) // Un step ne peut être complété qu'une fois par session
+  @@index([sessionId])
+  @@index([stepId])
+  @@index([isCompleted])
+  @@map("session_step_progress")
 }
 
 // Distribution table - Calendrier de distribution de la campagne
@@ -482,6 +569,7 @@ model Session {
 
   // Relations
   messages     Message[] // Messages de cette session
+  stepProgress SessionStepProgress[] // Progression dans les steps de la procédure
   review       CampaignReview? // Avis de cette session
   bonusTasks   BonusTask[] // Prestations supplémentaires demandées par le vendeur
   transactions Transaction[] // Transactions financières liées à cette session

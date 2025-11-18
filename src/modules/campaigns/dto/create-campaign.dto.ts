@@ -38,6 +38,40 @@ export class CampaignProductDto {
   quantity!: number;
 
   @ApiProperty({
+    description: 'Prix exact attendu du produit',
+    example: 1199.0,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  expectedPrice!: number;
+
+  @ApiProperty({
+    description: 'Frais de livraison attendus',
+    example: 5.99,
+    default: 0,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  shippingCost?: number;
+
+  @ApiProperty({
+    description: 'Prix minimum de la tranche montrée au testeur pour validation',
+    example: 1180.0,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  priceRangeMin!: number;
+
+  @ApiProperty({
+    description: 'Prix maximum de la tranche montrée au testeur pour validation',
+    example: 1220.0,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  priceRangeMax!: number;
+
+  @ApiProperty({
     description: 'Le prix du produit est-il remboursé ?',
     example: true,
     default: true,
@@ -59,7 +93,7 @@ export class CampaignProductDto {
 
   @ApiProperty({
     description: 'Prix maximum remboursé (si null = remboursement total)',
-    example: 99.99,
+    example: 1199.0,
     required: false,
   })
   @IsNumber()
@@ -68,7 +102,7 @@ export class CampaignProductDto {
 
   @ApiProperty({
     description: 'Livraison maximum remboursée (si null = remboursement total)',
-    example: 9.99,
+    example: 5.99,
     required: false,
   })
   @IsNumber()
@@ -77,7 +111,7 @@ export class CampaignProductDto {
 
   @ApiProperty({
     description: 'Bonus supplémentaire pour le testeur',
-    example: 10.0,
+    example: 20.0,
     default: 0,
     required: false,
   })
