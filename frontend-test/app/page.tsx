@@ -1,55 +1,19 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import HeroSection from "@/components/hero-section";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary">
-      {/* Header / Navigation */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">🧪 Super Try</h1>
-          <div className="flex gap-3">
-            <Button variant="ghost" asChild>
-              <Link href="/login">Connexion</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/signup">S'inscrire</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
-        <Badge className="mb-4" variant="secondary">
-          Plateforme de Tests Produits
-        </Badge>
-        <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
-          Testez des produits,
-          <br />
-          <span className="text-primary">Gagnez des récompenses</span>
-        </h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-          La plateforme qui met en relation vendeurs et testeurs.
-          Créez des campagnes de tests rémunérées ou devenez testeur et gagnez de l'argent.
-        </p>
-        <div className="flex gap-4 justify-center">
-          <Button size="lg" asChild>
-            <Link href="/signup">Devenir Testeur</Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="/signup?type=pro">Espace Vendeur</Link>
-          </Button>
-        </div>
-      </section>
+    <>
+      {/* Hero Section with animated header */}
+      <HeroSection />
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-16">
+      <section id="features" className="container mx-auto px-4 py-16 bg-background">
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {/* Testeur Card */}
-          <Card className="border-2 hover:shadow-lg transition-shadow">
+          <Card id="testeurs" className="border-2 hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span className="text-3xl">🧑‍🔬</span>
@@ -80,7 +44,7 @@ export default function Home() {
           </Card>
 
           {/* Vendeur Card */}
-          <Card className="border-2 hover:shadow-lg transition-shadow">
+          <Card id="vendeurs" className="border-2 hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span className="text-3xl">👨‍💼</span>
@@ -113,7 +77,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-4 py-16 text-center">
+      <section className="container mx-auto px-4 py-16 text-center bg-background">
         <Card className="max-w-2xl mx-auto bg-primary text-primary-foreground">
           <CardHeader>
             <CardTitle className="text-3xl">Prêt à commencer ?</CardTitle>
@@ -130,11 +94,11 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t mt-16">
+      <footer id="about" className="border-t mt-16 bg-background">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
           <p>© 2025 Super Try. Plateforme de tests produits.</p>
         </div>
       </footer>
-    </div>
+    </>
   );
 }
