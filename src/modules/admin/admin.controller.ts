@@ -35,9 +35,15 @@ import {
   BroadcastNotificationDto,
   BroadcastResponseDto,
 } from './dto/broadcast-notification.dto';
-import { BulkDeleteDto, BulkOperationResponseDto } from './dto/bulk-operation.dto';
+import {
+  BulkDeleteDto,
+  BulkOperationResponseDto,
+} from './dto/bulk-operation.dto';
 import { UserActivityLogDto } from './dto/activity-log.dto';
-import { DisputeFiltersDto, DisputeDetailsDto } from './dto/dispute-filters.dto';
+import {
+  DisputeFiltersDto,
+  DisputeDetailsDto,
+} from './dto/dispute-filters.dto';
 import { CampaignStatus } from '@prisma/client';
 
 @ApiTags('admin')
@@ -63,7 +69,8 @@ export class AdminController {
   @Get('dashboard/stats')
   @ApiOperation({
     summary: 'Obtenir les statistiques du dashboard',
-    description: 'Récupère toutes les KPIs de la plateforme pour le dashboard admin',
+    description:
+      'Récupère toutes les KPIs de la plateforme pour le dashboard admin',
   })
   @ApiResponse({
     status: 200,
@@ -104,13 +111,13 @@ export class AdminController {
 
   @Get('users/:id')
   @ApiOperation({
-    summary: 'Obtenir les détails d\'un utilisateur',
-    description: 'Récupère les informations complètes d\'un utilisateur',
+    summary: "Obtenir les détails d'un utilisateur",
+    description: "Récupère les informations complètes d'un utilisateur",
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
-    description: 'Détails de l\'utilisateur',
+    description: "Détails de l'utilisateur",
   })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async getUserDetails(@Param('id') userId: string) {
@@ -119,15 +126,15 @@ export class AdminController {
 
   @Get('users/:id/activity')
   @ApiOperation({
-    summary: 'Obtenir l\'historique d\'activité d\'un utilisateur',
-    description: 'Récupère tous les logs d\'activité d\'un utilisateur',
+    summary: "Obtenir l'historique d'activité d'un utilisateur",
+    description: "Récupère tous les logs d'activité d'un utilisateur",
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
   @ApiQuery({ name: 'offset', required: false, type: Number, example: 0 })
   @ApiResponse({
     status: 200,
-    description: 'Historique d\'activité',
+    description: "Historique d'activité",
     type: UserActivityLogDto,
   })
   async getUserActivity(
@@ -147,7 +154,7 @@ export class AdminController {
     summary: 'Suspendre un utilisateur',
     description: 'Suspend temporairement ou définitivement un utilisateur',
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur suspendu',
@@ -164,24 +171,27 @@ export class AdminController {
   @Patch('users/:id/unsuspend')
   @ApiOperation({
     summary: 'Réactiver un utilisateur suspendu',
-    description: 'Lève la suspension d\'un utilisateur',
+    description: "Lève la suspension d'un utilisateur",
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur réactivé',
     type: SuspensionResponseDto,
   })
-  async unsuspendUser(@Param('id') userId: string): Promise<SuspensionResponseDto> {
+  async unsuspendUser(
+    @Param('id') userId: string,
+  ): Promise<SuspensionResponseDto> {
     return await this.adminService.unsuspendUser(userId);
   }
 
   @Patch('users/:id/verify')
   @ApiOperation({
-    summary: 'Forcer la vérification d\'un utilisateur',
-    description: 'Vérifie manuellement un utilisateur (bypass du processus normal)',
+    summary: "Forcer la vérification d'un utilisateur",
+    description:
+      'Vérifie manuellement un utilisateur (bypass du processus normal)',
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur vérifié',
@@ -192,10 +202,10 @@ export class AdminController {
 
   @Patch('users/:id/role')
   @ApiOperation({
-    summary: 'Changer le rôle d\'un utilisateur',
-    description: 'Modifie le rôle d\'un utilisateur (USER, PRO, ADMIN)',
+    summary: "Changer le rôle d'un utilisateur",
+    description: "Modifie le rôle d'un utilisateur (USER, PRO, ADMIN)",
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
     description: 'Rôle modifié',
@@ -209,10 +219,11 @@ export class AdminController {
 
   @Delete('users/:id/permanent')
   @ApiOperation({
-    summary: 'Suppression définitive d\'un utilisateur',
-    description: 'ATTENTION: Supprime définitivement un utilisateur et toutes ses données (irréversible)',
+    summary: "Suppression définitive d'un utilisateur",
+    description:
+      'ATTENTION: Supprime définitivement un utilisateur et toutes ses données (irréversible)',
   })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur' })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur supprimé définitivement',
@@ -236,9 +247,7 @@ export class AdminController {
     status: 200,
     description: 'Liste des campagnes',
   })
-  async getAllCampaigns(
-    @Query('status') status?: CampaignStatus,
-  ) {
+  async getAllCampaigns(@Query('status') status?: CampaignStatus) {
     return await this.campaignsService.findAll({
       status,
     });
@@ -246,8 +255,8 @@ export class AdminController {
 
   @Get('campaigns/:id')
   @ApiOperation({
-    summary: 'Obtenir les détails d\'une campagne',
-    description: 'Récupère les informations complètes d\'une campagne',
+    summary: "Obtenir les détails d'une campagne",
+    description: "Récupère les informations complètes d'une campagne",
   })
   @ApiParam({ name: 'id', description: 'ID de la campagne' })
   @ApiResponse({
@@ -260,8 +269,8 @@ export class AdminController {
 
   @Get('campaigns/:id/sessions')
   @ApiOperation({
-    summary: 'Obtenir les sessions d\'une campagne',
-    description: 'Récupère toutes les sessions de test d\'une campagne',
+    summary: "Obtenir les sessions d'une campagne",
+    description: "Récupère toutes les sessions de test d'une campagne",
   })
   @ApiParam({ name: 'id', description: 'ID de la campagne' })
   @ApiResponse({
@@ -274,8 +283,8 @@ export class AdminController {
 
   @Patch('campaigns/:id/status')
   @ApiOperation({
-    summary: 'Forcer le changement de statut d\'une campagne',
-    description: 'Change le statut d\'une campagne (bypass des règles métier)',
+    summary: "Forcer le changement de statut d'une campagne",
+    description: "Change le statut d'une campagne (bypass des règles métier)",
   })
   @ApiParam({ name: 'id', description: 'ID de la campagne' })
   @ApiResponse({
@@ -286,13 +295,17 @@ export class AdminController {
     @Param('id') campaignId: string,
     @Body('newStatus') newStatus: CampaignStatus,
   ) {
-    return await this.adminService.forceUpdateCampaignStatus(campaignId, newStatus);
+    return await this.adminService.forceUpdateCampaignStatus(
+      campaignId,
+      newStatus,
+    );
   }
 
   @Delete('campaigns/:id/permanent')
   @ApiOperation({
-    summary: 'Suppression définitive d\'une campagne',
-    description: 'ATTENTION: Supprime définitivement une campagne et toutes ses sessions (irréversible)',
+    summary: "Suppression définitive d'une campagne",
+    description:
+      'ATTENTION: Supprime définitivement une campagne et toutes ses sessions (irréversible)',
   })
   @ApiParam({ name: 'id', description: 'ID de la campagne' })
   @ApiResponse({
@@ -312,7 +325,20 @@ export class AdminController {
     summary: 'Lister toutes les sessions',
     description: 'Récupère toutes les sessions de test',
   })
-  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'DISPUTED'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [
+      'PENDING',
+      'ACCEPTED',
+      'IN_PROGRESS',
+      'SUBMITTED',
+      'COMPLETED',
+      'REJECTED',
+      'CANCELLED',
+      'DISPUTED',
+    ],
+  })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiResponse({
@@ -321,7 +347,16 @@ export class AdminController {
   })
   async getAllSessions(
     @CurrentUser('id') adminId: string,
-    @Query('status') status?: 'PENDING' | 'ACCEPTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'DISPUTED',
+    @Query('status')
+    status?:
+      | 'PENDING'
+      | 'ACCEPTED'
+      | 'IN_PROGRESS'
+      | 'SUBMITTED'
+      | 'COMPLETED'
+      | 'REJECTED'
+      | 'CANCELLED'
+      | 'DISPUTED',
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ) {
@@ -334,8 +369,8 @@ export class AdminController {
 
   @Get('sessions/:id')
   @ApiOperation({
-    summary: 'Obtenir les détails d\'une session',
-    description: 'Récupère les informations complètes d\'une session',
+    summary: "Obtenir les détails d'une session",
+    description: "Récupère les informations complètes d'une session",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -351,8 +386,9 @@ export class AdminController {
 
   @Patch('sessions/:id/force-complete')
   @ApiOperation({
-    summary: 'Forcer la complétion d\'une session',
-    description: 'Marque une session comme complétée (bypass des règles métier)',
+    summary: "Forcer la complétion d'une session",
+    description:
+      'Marque une session comme complétée (bypass des règles métier)',
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -365,7 +401,7 @@ export class AdminController {
 
   @Patch('sessions/:id/force-reject')
   @ApiOperation({
-    summary: 'Forcer le rejet d\'une session',
+    summary: "Forcer le rejet d'une session",
     description: 'Marque une session comme rejetée',
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
@@ -443,8 +479,8 @@ export class AdminController {
 
   @Get('disputes/:sessionId')
   @ApiOperation({
-    summary: 'Obtenir les détails d\'un litige',
-    description: 'Récupère les informations complètes d\'un litige',
+    summary: "Obtenir les détails d'un litige",
+    description: "Récupère les informations complètes d'un litige",
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session en litige' })
   @ApiResponse({
@@ -504,8 +540,8 @@ export class AdminController {
 
   @Get('products/:id')
   @ApiOperation({
-    summary: 'Obtenir les détails d\'un produit',
-    description: 'Récupère les informations complètes d\'un produit',
+    summary: "Obtenir les détails d'un produit",
+    description: "Récupère les informations complètes d'un produit",
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
   @ApiResponse({
@@ -519,7 +555,7 @@ export class AdminController {
   @Patch('products/:id/toggle-active')
   @ApiOperation({
     summary: 'Activer/Désactiver un produit',
-    description: 'Toggle le statut actif d\'un produit',
+    description: "Toggle le statut actif d'un produit",
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
   @ApiResponse({
@@ -532,7 +568,7 @@ export class AdminController {
 
   @Delete('products/:id/permanent')
   @ApiOperation({
-    summary: 'Suppression définitive d\'un produit',
+    summary: "Suppression définitive d'un produit",
     description: 'ATTENTION: Supprime définitivement un produit (irréversible)',
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
@@ -560,10 +596,10 @@ export class AdminController {
     status: 200,
     description: 'Liste des messages',
   })
-  async getAllMessages(
-    @Query('sessionId') sessionId?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+  getAllMessages(
+    @Query('sessionId') _sessionId?: string,
+    @Query('limit') _limit?: number,
+    @Query('offset') _offset?: number,
   ) {
     // TODO: Ajouter une méthode dans MessagesService pour récupérer tous les messages (admin)
     return { message: 'Feature coming soon - list all messages' };
@@ -593,7 +629,9 @@ export class AdminController {
     description: 'Opération en masse terminée',
     type: BulkOperationResponseDto,
   })
-  async bulkDeleteMessages(@Body() dto: BulkDeleteDto): Promise<BulkOperationResponseDto> {
+  async bulkDeleteMessages(
+    @Body() dto: BulkDeleteDto,
+  ): Promise<BulkOperationResponseDto> {
     return await this.adminService.bulkDeleteMessages(dto);
   }
 
@@ -620,7 +658,8 @@ export class AdminController {
   @Get('notifications/failed')
   @ApiOperation({
     summary: 'Lister les notifications en échec',
-    description: 'Récupère toutes les notifications qui n\'ont pas pu être envoyées',
+    description:
+      "Récupère toutes les notifications qui n'ont pas pu être envoyées",
   })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
   @ApiResponse({
@@ -635,8 +674,8 @@ export class AdminController {
 
   @Post('notifications/:id/retry')
   @ApiOperation({
-    summary: 'Réessayer l\'envoi d\'une notification',
-    description: 'Relance l\'envoi d\'une notification qui a échoué',
+    summary: "Réessayer l'envoi d'une notification",
+    description: "Relance l'envoi d'une notification qui a échoué",
   })
   @ApiParam({ name: 'id', description: 'ID de la notification' })
   @ApiResponse({
@@ -656,8 +695,28 @@ export class AdminController {
     summary: 'Consulter les logs système',
     description: 'Récupère les logs système avec filtres',
   })
-  @ApiQuery({ name: 'level', required: false, enum: ['INFO', 'SUCCESS', 'WARNING', 'ERROR', 'DEBUG'] })
-  @ApiQuery({ name: 'category', required: false, enum: ['AUTH', 'USER', 'PRODUCT', 'CAMPAIGN', 'PROCEDURE', 'SESSION', 'WALLET', 'MESSAGE', 'ADMIN', 'SYSTEM', 'TEST'] })
+  @ApiQuery({
+    name: 'level',
+    required: false,
+    enum: ['INFO', 'SUCCESS', 'WARNING', 'ERROR', 'DEBUG'],
+  })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    enum: [
+      'AUTH',
+      'USER',
+      'PRODUCT',
+      'CAMPAIGN',
+      'PROCEDURE',
+      'SESSION',
+      'WALLET',
+      'MESSAGE',
+      'ADMIN',
+      'SYSTEM',
+      'TEST',
+    ],
+  })
   @ApiQuery({ name: 'userId', required: false, type: String })
   @ApiQuery({ name: 'dateFrom', required: false, type: String })
   @ApiQuery({ name: 'dateTo', required: false, type: String })
@@ -670,7 +729,19 @@ export class AdminController {
   })
   async getSystemLogs(
     @Query('level') level?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'DEBUG',
-    @Query('category') category?: 'AUTH' | 'USER' | 'PRODUCT' | 'CAMPAIGN' | 'PROCEDURE' | 'SESSION' | 'WALLET' | 'MESSAGE' | 'ADMIN' | 'SYSTEM' | 'TEST',
+    @Query('category')
+    category?:
+      | 'AUTH'
+      | 'USER'
+      | 'PRODUCT'
+      | 'CAMPAIGN'
+      | 'PROCEDURE'
+      | 'SESSION'
+      | 'WALLET'
+      | 'MESSAGE'
+      | 'ADMIN'
+      | 'SYSTEM'
+      | 'TEST',
     @Query('userId') userId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
@@ -716,7 +787,12 @@ export class AdminController {
     summary: 'Nettoyer les anciens logs',
     description: 'Supprime les logs plus anciens que X jours',
   })
-  @ApiQuery({ name: 'olderThanDays', required: true, type: Number, example: 90 })
+  @ApiQuery({
+    name: 'olderThanDays',
+    required: true,
+    type: Number,
+    example: 90,
+  })
   @ApiResponse({
     status: 200,
     description: 'Logs nettoyés',

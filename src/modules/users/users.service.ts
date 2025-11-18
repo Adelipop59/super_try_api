@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
@@ -55,7 +59,9 @@ export class UsersService {
       where: {
         ...(filters?.role && { role: filters.role as any }),
         ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
-        ...(filters?.isVerified !== undefined && { isVerified: filters.isVerified }),
+        ...(filters?.isVerified !== undefined && {
+          isVerified: filters.isVerified,
+        }),
       },
       orderBy: {
         createdAt: 'desc',
@@ -81,7 +87,9 @@ export class UsersService {
   /**
    * Get profile by Supabase user ID
    */
-  async getProfileBySupabaseId(supabaseUserId: string): Promise<Profile | null> {
+  async getProfileBySupabaseId(
+    supabaseUserId: string,
+  ): Promise<Profile | null> {
     return this.prismaService.profile.findUnique({
       where: { supabaseUserId },
     });
@@ -99,7 +107,10 @@ export class UsersService {
   /**
    * Update profile
    */
-  async updateProfile(id: string, updateProfileDto: UpdateProfileDto): Promise<Profile> {
+  async updateProfile(
+    id: string,
+    updateProfileDto: UpdateProfileDto,
+  ): Promise<Profile> {
     const profile = await this.getProfileById(id);
 
     if (!profile) {
@@ -151,7 +162,10 @@ export class UsersService {
   /**
    * Change user role (admin only)
    */
-  async changeRole(id: string, newRole: 'USER' | 'PRO' | 'ADMIN'): Promise<Profile> {
+  async changeRole(
+    id: string,
+    newRole: 'USER' | 'PRO' | 'ADMIN',
+  ): Promise<Profile> {
     const profile = await this.getProfileById(id);
 
     if (!profile) {

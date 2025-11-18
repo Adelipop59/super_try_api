@@ -51,19 +51,36 @@ export class CampaignProductResponseDto {
   @ApiProperty({ example: 10 })
   quantity!: number;
 
-  @ApiProperty({ example: true, description: 'Le prix du produit est-il remboursé ?' })
+  @ApiProperty({
+    example: true,
+    description: 'Le prix du produit est-il remboursé ?',
+  })
   reimbursedPrice!: boolean;
 
-  @ApiProperty({ example: true, description: 'Les frais de livraison sont-ils remboursés ?' })
+  @ApiProperty({
+    example: true,
+    description: 'Les frais de livraison sont-ils remboursés ?',
+  })
   reimbursedShipping!: boolean;
 
-  @ApiProperty({ example: '99.99', required: false, description: 'Prix maximum remboursé' })
+  @ApiProperty({
+    example: '99.99',
+    required: false,
+    description: 'Prix maximum remboursé',
+  })
   maxReimbursedPrice?: string | null;
 
-  @ApiProperty({ example: '9.99', required: false, description: 'Livraison maximum remboursée' })
+  @ApiProperty({
+    example: '9.99',
+    required: false,
+    description: 'Livraison maximum remboursée',
+  })
   maxReimbursedShipping?: string | null;
 
-  @ApiProperty({ example: '10.00', description: 'Bonus supplémentaire pour le testeur' })
+  @ApiProperty({
+    example: '10.00',
+    description: 'Bonus supplémentaire pour le testeur',
+  })
   bonus!: string;
 
   @ApiProperty({ example: '2025-01-15T10:00:00.000Z' })
@@ -87,8 +104,7 @@ export class CampaignResponseDto {
   title!: string;
 
   @ApiProperty({
-    example:
-      'Nous recherchons des testeurs pour notre nouveau iPhone 15 Pro.',
+    example: 'Nous recherchons des testeurs pour notre nouveau iPhone 15 Pro.',
   })
   description!: string;
 

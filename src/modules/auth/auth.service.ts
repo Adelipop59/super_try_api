@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service';
 import { PrismaService } from '../../database/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -9,7 +14,7 @@ import {
   AuthResponseDto,
   RefreshTokenResponseDto,
   MessageResponseDto,
-  OAuthUrlResponseDto
+  OAuthUrlResponseDto,
 } from './dto/auth.dto';
 
 @Injectable()
@@ -26,18 +31,30 @@ export class AuthService {
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
     const { email, password, role, ...profileData } = signupDto;
 
+    // Security: Prevent ADMIN creation via public signup
+    if (role === 'ADMIN') {
+      throw new BadRequestException(
+        'Cannot create ADMIN users via signup. Contact support.',
+      );
+    }
+
     // Create user in Supabase
-    const { data, error } = await this.supabaseService.getAdminClient().auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email
-    });
+    const { data, error } = await this.supabaseService
+      .getAdminClient()
+      .auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true, // Auto-confirm email
+      });
 
     if (error || !data.user) {
-      throw new BadRequestException(error?.message || 'Erreur lors de la création du compte');
+      throw new BadRequestException(
+        error?.message || 'Erreur lors de la création du compte',
+      );
     }
 
     // Create profile in database using UsersService
+    // Only allow USER or PRO roles
     const profile = await this.usersService.createProfile({
       supabaseUserId: data.user.id,
       email,
@@ -54,7 +71,9 @@ export class AuthService {
       });
 
     if (signInError || !sessionData.session) {
-      throw new BadRequestException('Compte créé mais erreur lors de la connexion');
+      throw new BadRequestException(
+        'Compte créé mais erreur lors de la connexion',
+      );
     }
 
     return {
@@ -86,10 +105,12 @@ export class AuthService {
     const { email, password } = loginDto;
 
     // Sign in with Supabase
-    const { data, error } = await this.supabaseService.getClient().auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (error || !data.session || !data.user) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
@@ -159,9 +180,11 @@ export class AuthService {
    * Refresh token - Generate new access token
    */
   async refreshToken(refreshToken: string): Promise<RefreshTokenResponseDto> {
-    const { data, error } = await this.supabaseService.getClient().auth.refreshSession({
-      refresh_token: refreshToken,
-    });
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .auth.refreshSession({
+        refresh_token: refreshToken,
+      });
 
     if (error || !data.session) {
       throw new UnauthorizedException('Refresh token invalide ou expiré');
@@ -178,7 +201,9 @@ export class AuthService {
    * Logout - Sign out user
    */
   async logout(supabaseUserId: string): Promise<MessageResponseDto> {
-    const { error } = await this.supabaseService.getAdminClient().auth.admin.signOut(supabaseUserId);
+    const { error } = await this.supabaseService
+      .getAdminClient()
+      .auth.admin.signOut(supabaseUserId);
 
     if (error) {
       throw new BadRequestException('Erreur lors de la déconnexion');
@@ -191,12 +216,14 @@ export class AuthService {
    * Forgot password - Send reset email
    */
   async forgotPassword(email: string): Promise<MessageResponseDto> {
-    const { error } = await this.supabaseService.getClient().auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
-    });
+    const { error } = await this.supabaseService
+      .getClient()
+      .auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+      });
 
     if (error) {
-      throw new BadRequestException('Erreur lors de l\'envoi de l\'email');
+      throw new BadRequestException("Erreur lors de l'envoi de l'email");
     }
 
     return { message: 'Email de réinitialisation envoyé' };
@@ -205,7 +232,10 @@ export class AuthService {
   /**
    * Reset password - Update password with token
    */
-  async resetPassword(token: string, newPassword: string): Promise<MessageResponseDto> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<MessageResponseDto> {
     const { error } = await this.supabaseService.getClient().auth.updateUser({
       password: newPassword,
     });
@@ -220,12 +250,18 @@ export class AuthService {
   /**
    * Change password - Update password with old password verification
    */
-  async changePassword(email: string, oldPassword: string, newPassword: string): Promise<MessageResponseDto> {
+  async changePassword(
+    email: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<MessageResponseDto> {
     // Verify old password by attempting to sign in
-    const { error: signInError } = await this.supabaseService.getClient().auth.signInWithPassword({
-      email,
-      password: oldPassword,
-    });
+    const { error: signInError } = await this.supabaseService
+      .getClient()
+      .auth.signInWithPassword({
+        email,
+        password: oldPassword,
+      });
 
     if (signInError) {
       throw new BadRequestException('Ancien mot de passe incorrect');
@@ -237,7 +273,9 @@ export class AuthService {
     });
 
     if (error) {
-      throw new BadRequestException('Erreur lors du changement de mot de passe');
+      throw new BadRequestException(
+        'Erreur lors du changement de mot de passe',
+      );
     }
 
     return { message: 'Mot de passe modifié avec succès' };
@@ -246,7 +284,11 @@ export class AuthService {
   /**
    * Update email - Change user email
    */
-  async updateEmail(supabaseUserId: string, newEmail: string, password: string): Promise<MessageResponseDto> {
+  async updateEmail(
+    supabaseUserId: string,
+    newEmail: string,
+    password: string,
+  ): Promise<MessageResponseDto> {
     // Get current user email
     const profile = await this.prismaService.profile.findUnique({
       where: { supabaseUserId },
@@ -257,22 +299,28 @@ export class AuthService {
     }
 
     // Verify password
-    const { error: signInError } = await this.supabaseService.getClient().auth.signInWithPassword({
-      email: profile.email,
-      password,
-    });
+    const { error: signInError } = await this.supabaseService
+      .getClient()
+      .auth.signInWithPassword({
+        email: profile.email,
+        password,
+      });
 
     if (signInError) {
       throw new BadRequestException('Mot de passe incorrect');
     }
 
     // Update email in Supabase
-    const { error } = await this.supabaseService.getAdminClient().auth.admin.updateUserById(supabaseUserId, {
-      email: newEmail,
-    });
+    const { error } = await this.supabaseService
+      .getAdminClient()
+      .auth.admin.updateUserById(supabaseUserId, {
+        email: newEmail,
+      });
 
     if (error) {
-      throw new BadRequestException('Email déjà utilisé ou erreur lors de la mise à jour');
+      throw new BadRequestException(
+        'Email déjà utilisé ou erreur lors de la mise à jour',
+      );
     }
 
     // Update email in profile
@@ -294,7 +342,9 @@ export class AuthService {
     });
 
     if (error) {
-      throw new BadRequestException('Erreur lors de l\'envoi de l\'email de vérification');
+      throw new BadRequestException(
+        "Erreur lors de l'envoi de l'email de vérification",
+      );
     }
 
     return { message: 'Email de vérification envoyé' };
@@ -303,16 +353,22 @@ export class AuthService {
   /**
    * Initiate OAuth - Generate OAuth URL
    */
-  async initiateOAuth(provider: 'google' | 'github'): Promise<OAuthUrlResponseDto> {
-    const { data, error } = await this.supabaseService.getClient().auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/v1/auth/oauth/callback`,
-      },
-    });
+  async initiateOAuth(
+    provider: 'google' | 'github',
+  ): Promise<OAuthUrlResponseDto> {
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/v1/auth/oauth/callback`,
+        },
+      });
 
     if (error || !data.url) {
-      throw new BadRequestException('Erreur lors de la génération de l\'URL OAuth');
+      throw new BadRequestException(
+        "Erreur lors de la génération de l'URL OAuth",
+      );
     }
 
     return {
@@ -324,8 +380,13 @@ export class AuthService {
   /**
    * Handle OAuth callback
    */
-  async handleOAuthCallback(code: string, provider: string): Promise<AuthResponseDto> {
-    const { data, error } = await this.supabaseService.getClient().auth.exchangeCodeForSession(code);
+  async handleOAuthCallback(
+    code: string,
+    _provider: string,
+  ): Promise<AuthResponseDto> {
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .auth.exchangeCodeForSession(code);
 
     if (error || !data.session || !data.user) {
       throw new BadRequestException('Code OAuth invalide');
@@ -340,8 +401,10 @@ export class AuthService {
         supabaseUserId: data.user.id,
         email: data.user.email!,
         role: 'USER',
-        firstName: data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
-        lastName: data.user.user_metadata?.full_name?.split(' ')[1] || undefined,
+        firstName:
+          data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
+        lastName:
+          data.user.user_metadata?.full_name?.split(' ')[1] || undefined,
       });
     }
 

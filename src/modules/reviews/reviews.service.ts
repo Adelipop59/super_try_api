@@ -160,18 +160,21 @@ export class ReviewsService {
     const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0;
 
     // Grouper par campagne
-    const reviewsByCampaign = reviews.reduce((acc, review) => {
-      const campaignId = review.campaignId;
-      if (!acc[campaignId]) {
-        acc[campaignId] = {
-          campaign: review.campaign,
-          reviews: [],
-          averageRating: 0,
-        };
-      }
-      acc[campaignId].reviews.push(review);
-      return acc;
-    }, {} as Record<string, any>);
+    const reviewsByCampaign = reviews.reduce(
+      (acc, review) => {
+        const campaignId = review.campaignId;
+        if (!acc[campaignId]) {
+          acc[campaignId] = {
+            campaign: review.campaign,
+            reviews: [],
+            averageRating: 0,
+          };
+        }
+        acc[campaignId].reviews.push(review);
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     // Calculer la moyenne par campagne
     Object.values(reviewsByCampaign).forEach((campaignData: any) => {
@@ -194,7 +197,10 @@ export class ReviewsService {
   /**
    * Accepter la proposition de republication
    */
-  async acceptRepublish(reviewId: string, userId: string): Promise<CampaignReview> {
+  async acceptRepublish(
+    reviewId: string,
+    userId: string,
+  ): Promise<CampaignReview> {
     const review = await this.prisma.campaignReview.findUnique({
       where: { id: reviewId },
     });
@@ -222,7 +228,10 @@ export class ReviewsService {
   /**
    * Refuser la proposition de republication
    */
-  async declineRepublish(reviewId: string, userId: string): Promise<CampaignReview> {
+  async declineRepublish(
+    reviewId: string,
+    userId: string,
+  ): Promise<CampaignReview> {
     const review = await this.prisma.campaignReview.findUnique({
       where: { id: reviewId },
     });

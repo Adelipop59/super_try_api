@@ -146,15 +146,17 @@ model Profile {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  products                Product[]               // Produits créés par ce vendeur
-  campaigns               Campaign[]              // Campagnes créées par ce vendeur
-  systemLogs              SystemLog[]             // Logs d'actions de cet utilisateur
-  sessions                Session[]               // Sessions (en tant que testeur)
-  messages                Message[]               // Messages envoyés
-  notifications           Notification[]          // Notifications reçues
+  products                Product[] // Produits créés par ce vendeur
+  campaigns               Campaign[] // Campagnes créées par ce vendeur
+  systemLogs              SystemLog[] // Logs d'actions de cet utilisateur
+  sessions                Session[] // Sessions (en tant que testeur)
+  messages                Message[] // Messages envoyés
+  notifications           Notification[] // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
   reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
   requestedBonusTasks     BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
+  wallet                  Wallet? // Portefeuille financier (pour les testeurs)
+  withdrawals             Withdrawal[] // Demandes de retrait (pour les testeurs)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -413,8 +415,8 @@ model Session {
   orderNumberValidatedAt DateTime? @map("order_number_validated_at") // Date de validation par le vendeur
 
   // Price validation (range check before purchase)
-  validatedProductPrice  Decimal?  @map("validated_product_price") @db.Decimal(10, 2) // Prix trouvé et validé par le testeur
-  priceValidatedAt       DateTime? @map("price_validated_at") // Date de validation du prix
+  validatedProductPrice Decimal?  @map("validated_product_price") @db.Decimal(10, 2) // Prix trouvé et validé par le testeur
+  priceValidatedAt      DateTime? @map("price_validated_at") // Date de validation du prix
 
   // Test submission
   submittedAt    DateTime? @map("submitted_at")
@@ -445,9 +447,10 @@ model Session {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  messages   Message[]        // Messages de cette session
-  review     CampaignReview?  // Avis de cette session
-  bonusTasks BonusTask[]      // Prestations supplémentaires demandées par le vendeur
+  messages     Message[] // Messages de cette session
+  review       CampaignReview? // Avis de cette session
+  bonusTasks   BonusTask[] // Prestations supplémentaires demandées par le vendeur
+  transactions Transaction[] // Transactions financières liées à cette session
 
   @@index([campaignId])
   @@index([testerId])
@@ -612,7 +615,7 @@ model BonusTask {
   status BonusTaskStatus @default(REQUESTED)
 
   // Submission
-  submissionUrls String[] @map("submission_urls") // URLs des fichiers (photos, vidéos)
+  submissionUrls String[]  @map("submission_urls") // URLs des fichiers (photos, vidéos)
   submittedAt    DateTime? @map("submitted_at")
 
   // Validation
@@ -621,8 +624,11 @@ model BonusTask {
   rejectionReason String?   @map("rejection_reason") @db.Text
 
   // Creator (seller who requested the task)
-  requestedBy String   @map("requested_by") // ID du vendeur
-  requester   Profile  @relation("RequestedBonusTasks", fields: [requestedBy], references: [id], onDelete: Cascade)
+  requestedBy String  @map("requested_by") // ID du vendeur
+  requester   Profile @relation("RequestedBonusTasks", fields: [requestedBy], references: [id], onDelete: Cascade)
+
+  // Relations
+  transactions Transaction[] // Transactions liées à cette prestation
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -632,4 +638,146 @@ model BonusTask {
   @@index([requestedBy])
   @@index([createdAt])
   @@map("bonus_tasks")
+}
+
+// Enum for transaction types
+enum TransactionType {
+  CREDIT // Ajout d'argent (récompense, bonus)
+  DEBIT // Retrait d'argent (retrait bancaire, carte cadeau)
+}
+
+// Enum for transaction status
+enum TransactionStatus {
+  PENDING // En attente de traitement
+  COMPLETED // Transaction complétée
+  FAILED // Transaction échouée
+  REFUNDED // Transaction remboursée
+}
+
+// Enum for withdrawal methods
+enum WithdrawalMethod {
+  BANK_TRANSFER // Virement bancaire
+  GIFT_CARD // Carte cadeau
+}
+
+// Enum for withdrawal status
+enum WithdrawalStatus {
+  PENDING // En attente de traitement
+  PROCESSING // En cours de traitement
+  COMPLETED // Retrait complété
+  FAILED // Retrait échoué
+  CANCELLED // Retrait annulé
+}
+
+// Wallet table - Portefeuille financier de l'utilisateur (testeur)
+model Wallet {
+  id String @id @default(uuid())
+
+  // Relation with user (one-to-one)
+  userId String  @unique @map("user_id")
+  user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Balance
+  balance  Decimal @default(0) @db.Decimal(10, 2) // Solde actuel
+  currency String  @default("EUR") // Devise (EUR par défaut)
+
+  // Lifetime stats
+  totalEarned     Decimal   @default(0) @map("total_earned") @db.Decimal(10, 2) // Total gagné depuis la création
+  totalWithdrawn  Decimal   @default(0) @map("total_withdrawn") @db.Decimal(10, 2) // Total retiré
+  lastCreditedAt  DateTime? @map("last_credited_at") // Date du dernier crédit
+  lastWithdrawnAt DateTime? @map("last_withdrawn_at") // Date du dernier retrait
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  transactions Transaction[] // Historique des transactions
+
+  @@index([userId])
+  @@index([balance])
+  @@map("wallets")
+}
+
+// Transaction table - Historique des transactions financières
+model Transaction {
+  id String @id @default(uuid())
+
+  // Relation with wallet
+  walletId String @map("wallet_id")
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  // Transaction info
+  type   TransactionType
+  amount Decimal         @db.Decimal(10, 2) // Montant (toujours positif, le type indique CREDIT/DEBIT)
+  reason String // Description de la transaction
+
+  // Related entities
+  sessionId    String?     @map("session_id") // Lien vers une session si applicable
+  session      Session?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  bonusTaskId  String?     @map("bonus_task_id") // Lien vers une bonus task si applicable
+  bonusTask    BonusTask?  @relation(fields: [bonusTaskId], references: [id], onDelete: SetNull)
+  withdrawalId String?     @map("withdrawal_id") // Lien vers un retrait si applicable
+  withdrawal   Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
+
+  // Status & metadata
+  status        TransactionStatus @default(COMPLETED)
+  failureReason String?           @map("failure_reason") @db.Text // Raison de l'échec si FAILED
+  metadata      Json? // Données additionnelles (références, détails)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([walletId])
+  @@index([sessionId])
+  @@index([bonusTaskId])
+  @@index([withdrawalId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+// Withdrawal table - Demandes de retrait d'argent
+model Withdrawal {
+  id String @id @default(uuid())
+
+  // Relation with user (testeur)
+  userId String  @map("user_id")
+  user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Withdrawal info
+  amount   Decimal          @db.Decimal(10, 2) // Montant du retrait
+  method   WithdrawalMethod // Méthode de retrait
+  status   WithdrawalStatus @default(PENDING)
+  currency String           @default("EUR")
+
+  // Payment details (varie selon la méthode)
+  paymentDetails Json? @map("payment_details") // IBAN pour virement, type de carte cadeau, etc.
+
+  // Processing info
+  processedAt        DateTime? @map("processed_at") // Date de traitement
+  completedAt        DateTime? @map("completed_at") // Date de complétion
+  failedAt           DateTime? @map("failed_at") // Date d'échec
+  failureReason      String?   @map("failure_reason") @db.Text // Raison de l'échec
+  cancelledAt        DateTime? @map("cancelled_at") // Date d'annulation
+  cancellationReason String?   @map("cancellation_reason") @db.Text // Raison de l'annulation
+
+  // Admin info
+  processedBy String? @map("processed_by") // ID de l'admin qui a traité
+  notes       String? @db.Text // Notes internes admin
+
+  // Metadata
+  metadata Json? // Données additionnelles (référence de paiement, etc.)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  transactions Transaction[] // Transactions liées à ce retrait
+
+  @@index([userId])
+  @@index([status])
+  @@index([method])
+  @@index([createdAt])
+  @@map("withdrawals")
 }

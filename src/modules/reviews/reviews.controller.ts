@@ -7,7 +7,12 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { ReviewResponseDto } from './dto/review-response.dto';
@@ -26,7 +31,9 @@ export class ReviewsController {
 
   @Post('sessions/:sessionId')
   @Roles(UserRole.USER)
-  @ApiOperation({ summary: 'Créer un avis pour une session (testeur uniquement)' })
+  @ApiOperation({
+    summary: 'Créer un avis pour une session (testeur uniquement)',
+  })
   @ApiResponse({
     status: 201,
     description: 'Avis créé avec succès',
@@ -41,7 +48,7 @@ export class ReviewsController {
   }
 
   @Get('campaigns/:campaignId')
-  @ApiOperation({ summary: 'Obtenir tous les avis d\'une campagne' })
+  @ApiOperation({ summary: "Obtenir tous les avis d'une campagne" })
   @ApiResponse({
     status: 200,
     description: 'Liste des avis de la campagne',
@@ -52,7 +59,7 @@ export class ReviewsController {
   }
 
   @Get('campaigns/:campaignId/stats')
-  @ApiOperation({ summary: 'Obtenir les statistiques d\'avis d\'une campagne' })
+  @ApiOperation({ summary: "Obtenir les statistiques d'avis d'une campagne" })
   @ApiResponse({
     status: 200,
     description: 'Statistiques des avis',
@@ -62,7 +69,9 @@ export class ReviewsController {
   }
 
   @Get('products/:productId')
-  @ApiOperation({ summary: 'Obtenir tous les avis d\'un produit (agrégés par campagne)' })
+  @ApiOperation({
+    summary: "Obtenir tous les avis d'un produit (agrégés par campagne)",
+  })
   @ApiResponse({
     status: 200,
     description: 'Avis du produit groupés par campagne',
@@ -73,7 +82,9 @@ export class ReviewsController {
 
   @Patch(':reviewId/accept-republish')
   @Roles(UserRole.USER)
-  @ApiOperation({ summary: 'Accepter la proposition de republication de l\'avis' })
+  @ApiOperation({
+    summary: "Accepter la proposition de republication de l'avis",
+  })
   @ApiResponse({
     status: 200,
     description: 'Republication acceptée',
@@ -88,7 +99,9 @@ export class ReviewsController {
 
   @Patch(':reviewId/decline-republish')
   @Roles(UserRole.USER)
-  @ApiOperation({ summary: 'Refuser la proposition de republication de l\'avis' })
+  @ApiOperation({
+    summary: "Refuser la proposition de republication de l'avis",
+  })
   @ApiResponse({
     status: 200,
     description: 'Republication refusée',

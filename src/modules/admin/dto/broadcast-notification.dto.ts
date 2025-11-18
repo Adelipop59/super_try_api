@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { NotificationType, NotificationChannel } from '@prisma/client';
 
@@ -47,7 +53,8 @@ export class BroadcastNotificationDto {
 
   @ApiProperty({
     description: 'Message de la notification',
-    example: 'La plateforme sera en maintenance le 15 janvier de 2h à 4h du matin.',
+    example:
+      'La plateforme sera en maintenance le 15 janvier de 2h à 4h du matin.',
     minLength: 10,
   })
   @IsString()
@@ -78,7 +85,7 @@ export class BroadcastNotificationDto {
  */
 export class BroadcastResponseDto {
   @ApiProperty({
-    description: 'Nombre d\'utilisateurs ciblés',
+    description: "Nombre d'utilisateurs ciblés",
     example: 1250,
   })
   targetedUsers: number;

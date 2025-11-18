@@ -1,11 +1,12 @@
-import {
-  Injectable,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
-import { LogCategory, NotificationType, NotificationChannel, Prisma } from '@prisma/client';
+import {
+  LogCategory,
+  NotificationType,
+  NotificationChannel,
+  Prisma,
+} from '@prisma/client';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { EmailProvider } from './providers/email.provider';
@@ -47,7 +48,9 @@ export class NotificationsService {
     // Vérifier les préférences
     const preferences = user.notificationPreferences;
     if (preferences && !this.isChannelEnabled(preferences, dto.channel)) {
-      this.logger.warn(`Canal ${dto.channel} désactivé pour l'utilisateur ${dto.userId}`);
+      this.logger.warn(
+        `Canal ${dto.channel} désactivé pour l'utilisateur ${dto.userId}`,
+      );
       // On crée quand même la notification en IN_APP
       if (dto.channel !== NotificationChannel.IN_APP) {
         dto.channel = NotificationChannel.IN_APP;
@@ -55,7 +58,9 @@ export class NotificationsService {
     }
 
     if (preferences && !this.isTypeEnabled(preferences, dto.type)) {
-      this.logger.warn(`Type ${dto.type} désactivé pour l'utilisateur ${dto.userId}`);
+      this.logger.warn(
+        `Type ${dto.type} désactivé pour l'utilisateur ${dto.userId}`,
+      );
       return null; // Ne pas créer la notification
     }
 
@@ -72,7 +77,14 @@ export class NotificationsService {
     });
 
     // Envoyer la notification en arrière-plan (ne pas bloquer)
-    this.sendAsync(notification.id, user, dto.channel, dto.title, dto.message, dto.data);
+    this.sendAsync(
+      notification.id,
+      user,
+      dto.channel,
+      dto.title,
+      dto.message,
+      dto.data,
+    );
 
     await this.logsService.logSuccess(
       LogCategory.SYSTEM,
@@ -160,7 +172,10 @@ export class NotificationsService {
   /**
    * Récupérer les informations de contact selon le canal
    */
-  private getContactInfo(user: any, channel: NotificationChannel): string | null {
+  private getContactInfo(
+    user: any,
+    channel: NotificationChannel,
+  ): string | null {
     switch (channel) {
       case NotificationChannel.EMAIL:
         return user.email;
@@ -179,7 +194,10 @@ export class NotificationsService {
   /**
    * Vérifier si le canal est activé
    */
-  private isChannelEnabled(preferences: any, channel: NotificationChannel): boolean {
+  private isChannelEnabled(
+    preferences: any,
+    channel: NotificationChannel,
+  ): boolean {
     switch (channel) {
       case NotificationChannel.EMAIL:
         return preferences.emailEnabled ?? true;
@@ -209,9 +227,16 @@ export class NotificationsService {
       NotificationType.DISPUTE_CREATED,
     ];
 
-    const messageTypes: NotificationType[] = [NotificationType.MESSAGE_RECEIVED];
-    const paymentTypes: NotificationType[] = [NotificationType.PAYMENT_RECEIVED];
-    const campaignTypes: NotificationType[] = [NotificationType.CAMPAIGN_CREATED, NotificationType.CAMPAIGN_ENDING_SOON];
+    const messageTypes: NotificationType[] = [
+      NotificationType.MESSAGE_RECEIVED,
+    ];
+    const paymentTypes: NotificationType[] = [
+      NotificationType.PAYMENT_RECEIVED,
+    ];
+    const campaignTypes: NotificationType[] = [
+      NotificationType.CAMPAIGN_CREATED,
+      NotificationType.CAMPAIGN_ENDING_SOON,
+    ];
     const systemTypes: NotificationType[] = [NotificationType.SYSTEM_ALERT];
 
     if (sessionTypes.includes(type)) {
@@ -263,7 +288,10 @@ export class NotificationsService {
   /**
    * 3. Marquer une notification comme lue
    */
-  async markAsRead(notificationId: string, userId: string): Promise<PrismaNotificationResponse> {
+  async markAsRead(
+    notificationId: string,
+    userId: string,
+  ): Promise<PrismaNotificationResponse> {
     const notification = await this.prisma.notification.findUnique({
       where: { id: notificationId },
     });
@@ -367,7 +395,11 @@ export class NotificationsService {
   /**
    * 8. Supprimer une notification (utilisateur ou ADMIN)
    */
-  async remove(notificationId: string, userId: string, isAdmin: boolean): Promise<{ message: string }> {
+  async remove(
+    notificationId: string,
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<{ message: string }> {
     const notification = await this.prisma.notification.findUnique({
       where: { id: notificationId },
     });

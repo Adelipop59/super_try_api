@@ -189,7 +189,12 @@ export class CampaignsController {
     @Body() updateCampaignDto: UpdateCampaignDto,
   ): Promise<CampaignResponseDto> {
     const isAdmin = user.role === 'ADMIN';
-    return this.campaignsService.update(id, user.id, updateCampaignDto, isAdmin);
+    return this.campaignsService.update(
+      id,
+      user.id,
+      updateCampaignDto,
+      isAdmin,
+    );
   }
 
   @Roles('PRO', 'ADMIN')
@@ -220,7 +225,12 @@ export class CampaignsController {
     @Body() addProductsDto: AddProductsToCampaignDto,
   ): Promise<CampaignResponseDto> {
     const isAdmin = user.role === 'ADMIN';
-    return this.campaignsService.addProducts(id, user.id, addProductsDto, isAdmin);
+    return this.campaignsService.addProducts(
+      id,
+      user.id,
+      addProductsDto,
+      isAdmin,
+    );
   }
 
   @Roles('PRO', 'ADMIN')
@@ -305,8 +315,7 @@ export class CampaignsController {
   @ApiResponse({ status: 200, description: 'Campagne supprimée avec succès' })
   @ApiResponse({
     status: 400,
-    description:
-      'Seules les campagnes en brouillon peuvent être supprimées',
+    description: 'Seules les campagnes en brouillon peuvent être supprimées',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({

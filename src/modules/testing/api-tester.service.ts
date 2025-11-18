@@ -36,7 +36,7 @@ export class ApiTesterService {
 
     await this.logsService.logInfo(
       LogCategory.TEST_API,
-      '🔵 [TEST_API] Début des tests complets de l\'API',
+      "🔵 [TEST_API] Début des tests complets de l'API",
       { timestamp: new Date().toISOString() },
     );
 
@@ -537,7 +537,10 @@ export class ApiTesterService {
         headers,
       };
 
-      if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+      if (
+        body &&
+        (method === 'POST' || method === 'PATCH' || method === 'PUT')
+      ) {
         options.body = JSON.stringify(body);
       }
 

@@ -10,7 +10,10 @@ export class AppController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Page d\'accueil', description: 'Retourne un message de bienvenue' })
+  @ApiOperation({
+    summary: "Page d'accueil",
+    description: 'Retourne un message de bienvenue',
+  })
   @ApiResponse({ status: 200, description: 'Message de bienvenue' })
   getHello(): string {
     return this.appService.getHello();
@@ -18,7 +21,10 @@ export class AppController {
 
   @Public()
   @Get('health')
-  @ApiOperation({ summary: 'Health check', description: 'Vérifie que l\'API est opérationnelle' })
+  @ApiOperation({
+    summary: 'Health check',
+    description: "Vérifie que l'API est opérationnelle",
+  })
   @ApiResponse({ status: 200, description: 'Service opérationnel' })
   getHealth() {
     return {

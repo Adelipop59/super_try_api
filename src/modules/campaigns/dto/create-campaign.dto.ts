@@ -77,7 +77,7 @@ export class CampaignProductDto {
 
   @ApiProperty({
     description: 'Bonus supplémentaire pour le testeur',
-    example: 10.00,
+    example: 10.0,
     default: 0,
     required: false,
   })

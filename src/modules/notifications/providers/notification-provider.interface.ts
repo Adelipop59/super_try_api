@@ -5,5 +5,10 @@ export interface INotificationProvider {
   /**
    * Envoyer une notification
    */
-  send(to: string, title: string, message: string, data?: any): Promise<boolean>;
+  send(
+    to: string,
+    title: string,
+    message: string,
+    data?: any,
+  ): Promise<boolean>;
 }

@@ -11,7 +11,7 @@ export class ProductFilterDto {
   @ApiProperty({
     description: 'Filtrer par ID du vendeur',
     required: false,
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsString()
   @IsOptional()
@@ -20,7 +20,7 @@ export class ProductFilterDto {
   @ApiProperty({
     description: 'Filtrer par catégorie',
     required: false,
-    example: 'Électronique'
+    example: 'Électronique',
   })
   @IsString()
   @IsOptional()
@@ -29,7 +29,7 @@ export class ProductFilterDto {
   @ApiProperty({
     description: 'Filtrer par statut actif',
     required: false,
-    example: true
+    example: true,
   })
   @IsBoolean()
   @Type(() => Boolean)

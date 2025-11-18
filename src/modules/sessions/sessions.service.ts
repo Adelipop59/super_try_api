@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
+import { WalletsService } from '../wallets/wallets.service';
 import { LogCategory, SessionStatus, Prisma } from '@prisma/client';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
@@ -16,8 +17,11 @@ import { ValidateTestDto } from './dto/validate-test.dto';
 import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
-import { SessionResponseDto } from './dto/session-response.dto';
-import { calculateNextPurchaseDate, isValidPurchaseDate, formatDate } from './utils/distribution.util';
+import {
+  calculateNextPurchaseDate,
+  isValidPurchaseDate,
+  formatDate,
+} from './utils/distribution.util';
 
 // Type helper pour les réponses Prisma (permet d'accepter any pour éviter les problèmes de Decimal)
 type PrismaSessionResponse = any;
@@ -29,6 +33,7 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
+    private readonly walletsService: WalletsService,
   ) {}
 
   /**
@@ -65,7 +70,9 @@ export class SessionsService {
     });
 
     if (existingApplication) {
-      throw new BadRequestException('You have already applied to this campaign');
+      throw new BadRequestException(
+        'You have already applied to this campaign',
+      );
     }
 
     // Créer la session
@@ -285,7 +292,9 @@ export class SessionsService {
 
     // Vérifier que la session est ACCEPTED
     if (session.status !== SessionStatus.ACCEPTED) {
-      throw new BadRequestException('Session must be ACCEPTED to validate product price');
+      throw new BadRequestException(
+        'Session must be ACCEPTED to validate product price',
+      );
     }
 
     // Vérifier qu'il n'a pas déjà validé le prix
@@ -380,12 +389,16 @@ export class SessionsService {
 
     // Vérifier que la session est ACCEPTED
     if (session.status !== SessionStatus.ACCEPTED) {
-      throw new BadRequestException('Session must be ACCEPTED to submit purchase proof');
+      throw new BadRequestException(
+        'Session must be ACCEPTED to submit purchase proof',
+      );
     }
 
     // Vérifier que le prix du produit a été validé
     if (!session.validatedProductPrice) {
-      throw new BadRequestException('You must validate the product price before submitting purchase proof');
+      throw new BadRequestException(
+        'You must validate the product price before submitting purchase proof',
+      );
     }
 
     // Vérifier que l'achat est fait au bon jour (si scheduledPurchaseDate est défini)
@@ -452,7 +465,9 @@ export class SessionsService {
 
     // Vérifier que la session est IN_PROGRESS
     if (session.status !== SessionStatus.IN_PROGRESS) {
-      throw new BadRequestException('Session must be IN_PROGRESS to submit test');
+      throw new BadRequestException(
+        'Session must be IN_PROGRESS to submit test',
+      );
     }
 
     const updatedSession = await this.prisma.session.update({
@@ -542,6 +557,50 @@ export class SessionsService {
       },
     });
 
+    // Créditer le wallet du testeur si le montant de la récompense est > 0
+    if (rewardAmount > 0) {
+      try {
+        await this.walletsService.creditWallet(
+          session.testerId,
+          rewardAmount,
+          `Récompense pour test validé - Campagne: ${session.campaign.title}`,
+          sessionId,
+          undefined,
+          {
+            campaignId: session.campaignId,
+            campaignTitle: session.campaign.title,
+            rating: dto.rating,
+          },
+        );
+
+        await this.logsService.logSuccess(
+          LogCategory.WALLET,
+          `💰 Wallet crédité de ${rewardAmount}€ pour session ${sessionId}`,
+          {
+            sessionId,
+            testerId: session.testerId,
+            amount: rewardAmount,
+          },
+        );
+      } catch (error) {
+        // Log l'erreur mais ne bloque pas la validation du test
+        this.logger.error(
+          `Failed to credit wallet for session ${sessionId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.logsService.logError(
+          LogCategory.WALLET,
+          `❌ Échec du crédit wallet pour session ${sessionId}`,
+          {
+            sessionId,
+            testerId: session.testerId,
+            amount: rewardAmount,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        );
+      }
+    }
+
     await this.logsService.logSuccess(
       LogCategory.SESSION,
       `✅ Test validé et payé (session ${sessionId}) - Récompense: ${rewardAmount}€`,
@@ -588,7 +647,9 @@ export class SessionsService {
     }
 
     // Si la session était ACCEPTED, rendre le slot disponible
-    const shouldRestoreSlot = session.status === SessionStatus.ACCEPTED || session.status === SessionStatus.IN_PROGRESS;
+    const shouldRestoreSlot =
+      session.status === SessionStatus.ACCEPTED ||
+      session.status === SessionStatus.IN_PROGRESS;
 
     const operations: any[] = [
       this.prisma.session.update({

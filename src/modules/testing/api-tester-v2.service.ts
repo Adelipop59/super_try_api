@@ -47,7 +47,7 @@ export class ApiTesterV2Service {
 
     await this.logsService.logInfo(
       LogCategory.TEST_API,
-      '🔵 [TEST_API] Début des tests COMPLETS de l\'API - 122 endpoints',
+      "🔵 [TEST_API] Début des tests COMPLETS de l'API - 122 endpoints",
       { timestamp: new Date().toISOString() },
     );
 
@@ -101,7 +101,7 @@ export class ApiTesterV2Service {
           passed: summary.summary.passed,
           failed: summary.summary.failed,
           total: summary.summary.tested,
-          duration: summary.duration
+          duration: summary.duration,
         },
       );
 
@@ -133,18 +133,21 @@ export class ApiTesterV2Service {
 
   private async endPhase(): Promise<void> {
     const duration = Date.now() - this.phaseStartTime;
-    const phaseTests = this.results.filter(r =>
-      this.detailedLogs.find(l =>
-        l.endpoint === r.endpoint && l.method === r.method && l.phase === this.currentPhase
-      )
+    const phaseTests = this.results.filter((r) =>
+      this.detailedLogs.find(
+        (l) =>
+          l.endpoint === r.endpoint &&
+          l.method === r.method &&
+          l.phase === this.currentPhase,
+      ),
     );
 
     const phaseResult: PhaseResult = {
       phase: this.currentPhase,
       endpoints: phaseTests.length,
-      passed: phaseTests.filter(r => r.status === 'passed').length,
-      failed: phaseTests.filter(r => r.status === 'failed').length,
-      skipped: phaseTests.filter(r => r.status === 'skipped').length,
+      passed: phaseTests.filter((r) => r.status === 'passed').length,
+      failed: phaseTests.filter((r) => r.status === 'failed').length,
+      skipped: phaseTests.filter((r) => r.status === 'skipped').length,
       duration: this.formatDuration(duration),
     };
 
@@ -264,12 +267,44 @@ export class ApiTesterV2Service {
     // Skip this test as we don't have refresh tokens from signup
 
     // 7-9. Verify tokens
-    await this.testEndpoint('auth', 'GET', '/auth/verify', null, this.context.tokenUser, 200, 'USER');
-    await this.testEndpoint('auth', 'GET', '/auth/verify', null, this.context.tokenPro, 200, 'PRO');
-    await this.testEndpoint('auth', 'GET', '/auth/verify', null, this.context.tokenAdmin, 200, 'ADMIN');
+    await this.testEndpoint(
+      'auth',
+      'GET',
+      '/auth/verify',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
+    await this.testEndpoint(
+      'auth',
+      'GET',
+      '/auth/verify',
+      null,
+      this.context.tokenPro,
+      200,
+      'PRO',
+    );
+    await this.testEndpoint(
+      'auth',
+      'GET',
+      '/auth/verify',
+      null,
+      this.context.tokenAdmin,
+      200,
+      'ADMIN',
+    );
 
     // 10. Health check (public)
-    await this.testEndpoint('auth', 'GET', '/auth/health', null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'auth',
+      'GET',
+      '/auth/health',
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 11. Resend verification
     await this.testEndpoint(
@@ -317,7 +352,10 @@ export class ApiTesterV2Service {
         headers,
       };
 
-      if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+      if (
+        body &&
+        (method === 'POST' || method === 'PATCH' || method === 'PUT')
+      ) {
         options.body = JSON.stringify(body);
       }
 
@@ -342,7 +380,9 @@ export class ApiTesterV2Service {
         status: testStatus,
         statusCode,
         duration,
-        error: passed ? undefined : `Expected ${expectedStatus}, got ${statusCode}`,
+        error: passed
+          ? undefined
+          : `Expected ${expectedStatus}, got ${statusCode}`,
       });
 
       // Add detailed log
@@ -361,7 +401,9 @@ export class ApiTesterV2Service {
           duration,
         },
         status: testStatus,
-        error: passed ? undefined : `Expected ${expectedStatus}, got ${statusCode}`,
+        error: passed
+          ? undefined
+          : `Expected ${expectedStatus}, got ${statusCode}`,
         contextData: { ...this.context },
       };
 
@@ -381,7 +423,12 @@ export class ApiTesterV2Service {
         await this.logsService.logError(
           LogCategory.TEST_API,
           `❌ [${this.currentPhase}] ${module}: ${method} ${path} - Expected ${expectedStatus}, got ${statusCode}`,
-          { duration: `${duration}ms`, statusCode, response: responseData, role },
+          {
+            duration: `${duration}ms`,
+            statusCode,
+            response: responseData,
+            role,
+          },
         );
       }
     } catch (error) {
@@ -419,7 +466,12 @@ export class ApiTesterV2Service {
       await this.logsService.logError(
         LogCategory.TEST_API,
         `❌ [${this.currentPhase}] ${module}: ${method} ${path} - ${error.message}`,
-        { duration: `${duration}ms`, error: error.message, stack: error.stack, role },
+        {
+          duration: `${duration}ms`,
+          error: error.message,
+          stack: error.stack,
+          role,
+        },
       );
     }
   }
@@ -527,7 +579,9 @@ export class ApiTesterV2Service {
 
     // 8. DELETE /users/profiles/:id (ADMIN only) - Skip to avoid deleting test users
     // We skip this to keep test users for subsequent phases
-    this.logger.log('⏭️  Skipping DELETE /users/profiles/:id to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping DELETE /users/profiles/:id to preserve test data',
+    );
   }
 
   /**
@@ -556,16 +610,48 @@ export class ApiTesterV2Service {
     );
 
     // 2. GET /products (PUBLIC) - List all active products
-    await this.testEndpoint('products', 'GET', '/products', null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'products',
+      'GET',
+      '/products',
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 3. GET /products/my-products (PRO) - Get seller's products
-    await this.testEndpoint('products', 'GET', '/products/my-products', null, this.context.tokenPro, 200, 'PRO');
+    await this.testEndpoint(
+      'products',
+      'GET',
+      '/products/my-products',
+      null,
+      this.context.tokenPro,
+      200,
+      'PRO',
+    );
 
     // 4. GET /products/all (ADMIN) - List all products (admin)
-    await this.testEndpoint('products', 'GET', '/products/all', null, this.context.tokenAdmin, 200, 'ADMIN');
+    await this.testEndpoint(
+      'products',
+      'GET',
+      '/products/all',
+      null,
+      this.context.tokenAdmin,
+      200,
+      'ADMIN',
+    );
 
     // 5. GET /products/:id (PUBLIC) - Get product details
-    await this.testEndpoint('products', 'GET', `/products/${this.context.productId}`, null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'products',
+      'GET',
+      `/products/${this.context.productId}`,
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 6. PATCH /products/:id (PRO) - Update product
     await this.testEndpoint(
@@ -594,7 +680,9 @@ export class ApiTesterV2Service {
 
     // 8. DELETE /products/:id (PRO) - Deactivate product (soft delete)
     // Skip to keep product for campaign tests
-    this.logger.log('⏭️  Skipping DELETE /products/:id to preserve test data for campaigns');
+    this.logger.log(
+      '⏭️  Skipping DELETE /products/:id to preserve test data for campaigns',
+    );
   }
 
   /**
@@ -610,7 +698,8 @@ export class ApiTesterV2Service {
       '/campaigns',
       {
         title: 'TEST_API_Campaign_Test',
-        description: 'TEST_API_Campaign description for automated testing purposes',
+        description:
+          'TEST_API_Campaign description for automated testing purposes',
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         totalSlots: 50,
@@ -627,16 +716,48 @@ export class ApiTesterV2Service {
     );
 
     // 2. GET /campaigns (PUBLIC) - List active campaigns
-    await this.testEndpoint('campaigns', 'GET', '/campaigns', null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'campaigns',
+      'GET',
+      '/campaigns',
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 3. GET /campaigns/my-campaigns (PRO) - Get seller's campaigns
-    await this.testEndpoint('campaigns', 'GET', '/campaigns/my-campaigns', null, this.context.tokenPro, 200, 'PRO');
+    await this.testEndpoint(
+      'campaigns',
+      'GET',
+      '/campaigns/my-campaigns',
+      null,
+      this.context.tokenPro,
+      200,
+      'PRO',
+    );
 
     // 4. GET /campaigns/all (ADMIN) - List all campaigns
-    await this.testEndpoint('campaigns', 'GET', '/campaigns/all', null, this.context.tokenAdmin, 200, 'ADMIN');
+    await this.testEndpoint(
+      'campaigns',
+      'GET',
+      '/campaigns/all',
+      null,
+      this.context.tokenAdmin,
+      200,
+      'ADMIN',
+    );
 
     // 5. GET /campaigns/:id (PUBLIC) - Get campaign details
-    await this.testEndpoint('campaigns', 'GET', `/campaigns/${this.context.campaignId}`, null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'campaigns',
+      'GET',
+      `/campaigns/${this.context.campaignId}`,
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 6. PATCH /campaigns/:id (PRO) - Update campaign
     await this.testEndpoint(
@@ -653,11 +774,15 @@ export class ApiTesterV2Service {
 
     // 7. POST /campaigns/:id/products - Add products to campaign
     // Skip (we already added products during creation)
-    this.logger.log('⏭️  Skipping POST /campaigns/:id/products (already added during creation)');
+    this.logger.log(
+      '⏭️  Skipping POST /campaigns/:id/products (already added during creation)',
+    );
 
     // 8. DELETE /campaigns/:campaignId/products/:productId - Remove product from campaign
     // Skip to keep product in campaign for tests
-    this.logger.log('⏭️  Skipping DELETE /campaigns/:campaignId/products/:productId to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping DELETE /campaigns/:campaignId/products/:productId to preserve test data',
+    );
 
     // 9. PATCH /campaigns/:id/status/:status - Change campaign status
     await this.testEndpoint(
@@ -747,7 +872,9 @@ export class ApiTesterV2Service {
 
     // 6. DELETE /campaigns/:campaignId/procedures/:id (PRO) - Delete procedure
     // Skip to keep procedure for steps tests
-    this.logger.log('⏭️  Skipping DELETE /campaigns/:campaignId/procedures/:id to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping DELETE /campaigns/:campaignId/procedures/:id to preserve test data',
+    );
   }
 
   /**
@@ -785,7 +912,15 @@ export class ApiTesterV2Service {
     );
 
     // 3. GET /steps/:id (PUBLIC) - Get step details
-    await this.testEndpoint('steps', 'GET', `/steps/${this.context.stepId}`, null, null, 200, 'PUBLIC');
+    await this.testEndpoint(
+      'steps',
+      'GET',
+      `/steps/${this.context.stepId}`,
+      null,
+      null,
+      200,
+      'PUBLIC',
+    );
 
     // 4. PATCH /steps/:id (PRO) - Update step
     await this.testEndpoint(
@@ -894,7 +1029,9 @@ export class ApiTesterV2Service {
 
     // 6. DELETE /campaigns/:campaignId/distributions/:dayOfWeek (PRO) - Delete distribution
     // Skip to keep distribution for subsequent tests
-    this.logger.log('⏭️  Skipping DELETE /campaigns/:campaignId/distributions/:dayOfWeek to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping DELETE /campaigns/:campaignId/distributions/:dayOfWeek to preserve test data',
+    );
   }
 
   /**
@@ -910,7 +1047,8 @@ export class ApiTesterV2Service {
       '/sessions/apply',
       {
         campaignId: this.context.campaignId,
-        motivation: 'TEST_API_I want to test this product because I am a passionate tester',
+        motivation:
+          'TEST_API_I want to test this product because I am a passionate tester',
       },
       this.context.tokenUser,
       201,
@@ -918,13 +1056,37 @@ export class ApiTesterV2Service {
     );
 
     // 2. GET /sessions - List sessions
-    await this.testEndpoint('sessions', 'GET', '/sessions', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'sessions',
+      'GET',
+      '/sessions',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 3. GET /sessions/:id - Get session details
-    await this.testEndpoint('sessions', 'GET', `/sessions/${this.context.sessionId}`, null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'sessions',
+      'GET',
+      `/sessions/${this.context.sessionId}`,
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 4. PATCH /sessions/:id/accept - Accept session (PRO)
-    await this.testEndpoint('sessions', 'PATCH', `/sessions/${this.context.sessionId}/accept`, null, this.context.tokenPro, 200, 'PRO');
+    await this.testEndpoint(
+      'sessions',
+      'PATCH',
+      `/sessions/${this.context.sessionId}/accept`,
+      null,
+      this.context.tokenPro,
+      200,
+      'PRO',
+    );
 
     // 5. PATCH /sessions/:id/submit-purchase - Submit purchase proof (USER)
     await this.testEndpoint(
@@ -973,15 +1135,21 @@ export class ApiTesterV2Service {
 
     // 8. PATCH /sessions/:id/dispute - Create dispute (USER or PRO)
     // Skip to avoid creating disputes in test data
-    this.logger.log('⏭️  Skipping PATCH /sessions/:id/dispute to avoid disputes in test data');
+    this.logger.log(
+      '⏭️  Skipping PATCH /sessions/:id/dispute to avoid disputes in test data',
+    );
 
     // 9. PATCH /sessions/:id/cancel - Cancel session (USER)
     // Skip to keep session for subsequent tests
-    this.logger.log('⏭️  Skipping PATCH /sessions/:id/cancel to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping PATCH /sessions/:id/cancel to preserve test data',
+    );
 
     // 10. PATCH /sessions/:id/reject - Reject session (PRO)
     // Skip as we already accepted the session
-    this.logger.log('⏭️  Skipping PATCH /sessions/:id/reject (session already accepted)');
+    this.logger.log(
+      '⏭️  Skipping PATCH /sessions/:id/reject (session already accepted)',
+    );
 
     // 11. DELETE /sessions/:id - Delete session (ADMIN)
     // Skip to keep session for subsequent tests
@@ -1000,7 +1168,8 @@ export class ApiTesterV2Service {
       'POST',
       `/sessions/${this.context.sessionId}/messages`,
       {
-        content: 'TEST_API_Hello, this is a test message from automated testing',
+        content:
+          'TEST_API_Hello, this is a test message from automated testing',
         attachmentUrls: ['https://example.com/attachment1.jpg'],
       },
       this.context.tokenUser,
@@ -1020,13 +1189,37 @@ export class ApiTesterV2Service {
     );
 
     // 3. GET /messages/unread/count - Count unread messages
-    await this.testEndpoint('messages', 'GET', '/messages/unread/count', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'messages',
+      'GET',
+      '/messages/unread/count',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 4. GET /messages/:id - Get message details
-    await this.testEndpoint('messages', 'GET', `/messages/${this.context.messageIds?.[0]}`, null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'messages',
+      'GET',
+      `/messages/${this.context.messageIds?.[0]}`,
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 5. PATCH /messages/:id/read - Mark message as read
-    await this.testEndpoint('messages', 'PATCH', `/messages/${this.context.messageIds?.[0]}/read`, null, this.context.tokenPro, 200, 'PRO');
+    await this.testEndpoint(
+      'messages',
+      'PATCH',
+      `/messages/${this.context.messageIds?.[0]}/read`,
+      null,
+      this.context.tokenPro,
+      200,
+      'PRO',
+    );
 
     // 6. PATCH /sessions/:sessionId/messages/read-all - Mark all messages as read
     await this.testEndpoint(
@@ -1067,13 +1260,37 @@ export class ApiTesterV2Service {
     );
 
     // 2. GET /notifications - List user's notifications
-    await this.testEndpoint('notifications', 'GET', '/notifications', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'notifications',
+      'GET',
+      '/notifications',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 3. GET /notifications/unread/count - Count unread notifications
-    await this.testEndpoint('notifications', 'GET', '/notifications/unread/count', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'notifications',
+      'GET',
+      '/notifications/unread/count',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 4. GET /notifications/preferences - Get notification preferences
-    await this.testEndpoint('notifications', 'GET', '/notifications/preferences', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'notifications',
+      'GET',
+      '/notifications/preferences',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 5. PATCH /notifications/preferences - Update notification preferences
     await this.testEndpoint(
@@ -1101,11 +1318,21 @@ export class ApiTesterV2Service {
     );
 
     // 7. PATCH /notifications/read-all - Mark all notifications as read
-    await this.testEndpoint('notifications', 'PATCH', '/notifications/read-all', null, this.context.tokenUser, 200, 'USER');
+    await this.testEndpoint(
+      'notifications',
+      'PATCH',
+      '/notifications/read-all',
+      null,
+      this.context.tokenUser,
+      200,
+      'USER',
+    );
 
     // 8. DELETE /notifications/:id - Delete notification
     // Skip to preserve test data
-    this.logger.log('⏭️  Skipping DELETE /notifications/:id to preserve test data');
+    this.logger.log(
+      '⏭️  Skipping DELETE /notifications/:id to preserve test data',
+    );
   }
 
   private async testLogsModule(): Promise<void> {
@@ -1137,7 +1364,9 @@ export class ApiTesterV2Service {
     this.logger.log('  ⏭️  SKIP: GET /logs/:id - No specific log ID available');
 
     // 4. DELETE /logs/cleanup - Cleanup old logs (ADMIN) - SKIP (don't delete logs during test)
-    this.logger.log('  ⏭️  SKIP: DELETE /logs/cleanup - Preserve logs for audit');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /logs/cleanup - Preserve logs for audit',
+    );
   }
 
   private async testAdminModule(): Promise<void> {
@@ -1233,10 +1462,14 @@ export class ApiTesterV2Service {
     );
 
     // 8. PATCH /admin/users/:id/role - Change user role (ADMIN) - SKIP (don't modify test user role)
-    this.logger.log('  ⏭️  SKIP: PATCH /admin/users/:id/role - Preserve test user role');
+    this.logger.log(
+      '  ⏭️  SKIP: PATCH /admin/users/:id/role - Preserve test user role',
+    );
 
     // 9. DELETE /admin/users/:id/permanent - Delete user permanently (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/users/:id/permanent - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/users/:id/permanent - Preserve test data',
+    );
 
     // ========================================
     // CAMPAIGN MANAGEMENT (5 endpoints)
@@ -1276,10 +1509,14 @@ export class ApiTesterV2Service {
     );
 
     // 13. PATCH /admin/campaigns/:id/status - Force update campaign status (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: PATCH /admin/campaigns/:id/status - Preserve campaign status');
+    this.logger.log(
+      '  ⏭️  SKIP: PATCH /admin/campaigns/:id/status - Preserve campaign status',
+    );
 
     // 14. DELETE /admin/campaigns/:id/permanent - Delete campaign permanently (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/campaigns/:id/permanent - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/campaigns/:id/permanent - Preserve test data',
+    );
 
     // ========================================
     // SESSION MANAGEMENT (6 endpoints)
@@ -1308,13 +1545,19 @@ export class ApiTesterV2Service {
     );
 
     // 17. PATCH /admin/sessions/:id/force-complete - Force complete session (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: PATCH /admin/sessions/:id/force-complete - Preserve session state');
+    this.logger.log(
+      '  ⏭️  SKIP: PATCH /admin/sessions/:id/force-complete - Preserve session state',
+    );
 
     // 18. PATCH /admin/sessions/:id/force-reject - Force reject session (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: PATCH /admin/sessions/:id/force-reject - Preserve session state');
+    this.logger.log(
+      '  ⏭️  SKIP: PATCH /admin/sessions/:id/force-reject - Preserve session state',
+    );
 
     // 19. DELETE /admin/sessions/:id - Delete session (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/sessions/:id - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/sessions/:id - Preserve test data',
+    );
 
     // ========================================
     // DISPUTE MANAGEMENT (3 endpoints)
@@ -1332,10 +1575,14 @@ export class ApiTesterV2Service {
     );
 
     // 21. GET /admin/disputes/:sessionId - Get dispute details (ADMIN) - SKIP (no dispute created)
-    this.logger.log('  ⏭️  SKIP: GET /admin/disputes/:sessionId - No dispute created');
+    this.logger.log(
+      '  ⏭️  SKIP: GET /admin/disputes/:sessionId - No dispute created',
+    );
 
     // 22. PATCH /admin/disputes/:sessionId/resolve - Resolve dispute (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: PATCH /admin/disputes/:sessionId/resolve - No dispute to resolve');
+    this.logger.log(
+      '  ⏭️  SKIP: PATCH /admin/disputes/:sessionId/resolve - No dispute to resolve',
+    );
 
     // ========================================
     // PRODUCT MANAGEMENT (4 endpoints)
@@ -1386,7 +1633,9 @@ export class ApiTesterV2Service {
     );
 
     // 26. DELETE /admin/products/:id/permanent - Delete product permanently (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/products/:id/permanent - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/products/:id/permanent - Preserve test data',
+    );
 
     // ========================================
     // MESSAGE MANAGEMENT (3 endpoints)
@@ -1404,10 +1653,14 @@ export class ApiTesterV2Service {
     );
 
     // 28. DELETE /admin/messages/:id - Delete message (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/messages/:id - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/messages/:id - Preserve test data',
+    );
 
     // 29. POST /admin/messages/bulk-delete - Bulk delete messages (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: POST /admin/messages/bulk-delete - Preserve test data');
+    this.logger.log(
+      '  ⏭️  SKIP: POST /admin/messages/bulk-delete - Preserve test data',
+    );
 
     // ========================================
     // NOTIFICATION MANAGEMENT (3 endpoints)
@@ -1421,7 +1674,8 @@ export class ApiTesterV2Service {
       {
         type: 'INFO',
         title: 'TEST_API_Broadcast Notification',
-        message: 'TEST_API_This is a broadcast notification from automated testing',
+        message:
+          'TEST_API_This is a broadcast notification from automated testing',
         targetRoles: ['USER', 'PRO'],
       },
       this.context.tokenAdmin,
@@ -1441,7 +1695,9 @@ export class ApiTesterV2Service {
     );
 
     // 32. POST /admin/notifications/:id/retry - Retry failed notification (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: POST /admin/notifications/:id/retry - No failed notification to retry');
+    this.logger.log(
+      '  ⏭️  SKIP: POST /admin/notifications/:id/retry - No failed notification to retry',
+    );
 
     // ========================================
     // LOGS & AUDIT (3 endpoints) - Already tested in testLogsModule
@@ -1475,7 +1731,9 @@ export class ApiTesterV2Service {
     );
 
     // 35. DELETE /admin/logs/cleanup - Cleanup old logs (ADMIN) - SKIP
-    this.logger.log('  ⏭️  SKIP: DELETE /admin/logs/cleanup - Preserve logs for audit');
+    this.logger.log(
+      '  ⏭️  SKIP: DELETE /admin/logs/cleanup - Preserve logs for audit',
+    );
   }
 
   /**
@@ -1540,7 +1798,9 @@ export class ApiTesterV2Service {
   /**
    * FINAL REPORT
    */
-  private async generateFinalReport(cleanupResult: CleanupResult): Promise<TestSummary> {
+  private async generateFinalReport(
+    cleanupResult: CleanupResult,
+  ): Promise<TestSummary> {
     const duration = Date.now() - this.startTime;
     const passed = this.results.filter((r) => r.status === 'passed').length;
     const failed = this.results.filter((r) => r.status === 'failed').length;
@@ -1550,7 +1810,12 @@ export class ApiTesterV2Service {
     const byModule: Record<string, ModuleStats> = {};
     for (const result of this.results) {
       if (!byModule[result.module]) {
-        byModule[result.module] = { total: 0, passed: 0, failed: 0, skipped: 0 };
+        byModule[result.module] = {
+          total: 0,
+          passed: 0,
+          failed: 0,
+          skipped: 0,
+        };
       }
       byModule[result.module].total++;
       byModule[result.module][result.status]++;
@@ -1563,7 +1828,9 @@ export class ApiTesterV2Service {
         endpoint: r.endpoint,
         method: r.method,
         error: r.error || 'Unknown error',
-        details: this.detailedLogs.find(l => l.endpoint === r.endpoint && l.method === r.method),
+        details: this.detailedLogs.find(
+          (l) => l.endpoint === r.endpoint && l.method === r.method,
+        ),
       }));
 
     const summary: TestSummary = {

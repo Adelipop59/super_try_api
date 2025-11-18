@@ -21,13 +21,13 @@ export class BulkDeleteDto {
  */
 export class BulkOperationResponseDto {
   @ApiProperty({
-    description: 'Nombre d\'éléments traités avec succès',
+    description: "Nombre d'éléments traités avec succès",
     example: 25,
   })
   successCount: number;
 
   @ApiProperty({
-    description: 'Nombre d\'échecs',
+    description: "Nombre d'échecs",
     example: 2,
   })
   failureCount: number;

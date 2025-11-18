@@ -34,7 +34,7 @@ export class CreateProcedureDto {
   description!: string;
 
   @ApiProperty({
-    description: 'Ordre d\'exécution (priorité)',
+    description: "Ordre d'exécution (priorité)",
     example: 1,
     minimum: 1,
   })

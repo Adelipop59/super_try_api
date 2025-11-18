@@ -10,12 +10,16 @@ import { BonusTaskStatus } from '@prisma/client';
 import { CreateBonusTaskDto } from './dto/create-bonus-task.dto';
 import { SubmitBonusTaskDto } from './dto/submit-bonus-task.dto';
 import { RejectBonusTaskDto } from './dto/reject-bonus-task.dto';
+import { WalletsService } from '../wallets/wallets.service';
 
 @Injectable()
 export class BonusTasksService {
   private readonly logger = new Logger(BonusTasksService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   /**
    * 1. Créer une bonus task (vendeur seulement)
@@ -73,7 +77,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can accept this task');
+      throw new ForbiddenException(
+        'Only the session tester can accept this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.REQUESTED) {
@@ -106,7 +112,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can reject this task');
+      throw new ForbiddenException(
+        'Only the session tester can reject this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.REQUESTED) {
@@ -143,7 +151,9 @@ export class BonusTasksService {
     }
 
     if (bonusTask.session.testerId !== testerId) {
-      throw new ForbiddenException('Only the session tester can submit this task');
+      throw new ForbiddenException(
+        'Only the session tester can submit this task',
+      );
     }
 
     if (bonusTask.status !== BonusTaskStatus.ACCEPTED) {
@@ -161,7 +171,9 @@ export class BonusTasksService {
       },
     });
 
-    this.logger.log(`Bonus task ${bonusTaskId} submitted by tester ${testerId}`);
+    this.logger.log(
+      `Bonus task ${bonusTaskId} submitted by tester ${testerId}`,
+    );
 
     return updatedTask;
   }
@@ -201,12 +213,37 @@ export class BonusTasksService {
       data: { status: BonusTaskStatus.VALIDATED, validatedAt: new Date() },
     });
 
-    // TODO: Créditer le wallet du testeur
-    this.logger.warn(
-      `TODO: Credit wallet for tester ${bonusTask.session.testerId} with amount ${bonusTask.reward}`,
-    );
+    // Créditer le wallet du testeur
+    const rewardAmount = Number(bonusTask.reward);
+    if (rewardAmount > 0) {
+      try {
+        await this.walletsService.creditWallet(
+          bonusTask.session.testerId,
+          rewardAmount,
+          `Récompense pour bonus task: ${bonusTask.title}`,
+          bonusTask.sessionId,
+          bonusTaskId,
+          {
+            bonusTaskType: bonusTask.type,
+            bonusTaskTitle: bonusTask.title,
+          },
+        );
 
-    this.logger.log(`Bonus task ${bonusTaskId} validated by seller ${sellerId}`);
+        this.logger.log(
+          `💰 Wallet crédité de ${rewardAmount}€ pour bonus task ${bonusTaskId}`,
+        );
+      } catch (error) {
+        // Log l'erreur mais ne bloque pas la validation
+        this.logger.error(
+          `Failed to credit wallet for bonus task ${bonusTaskId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Bonus task ${bonusTaskId} validated by seller ${sellerId}`,
+    );
 
     return updatedTask;
   }
@@ -288,7 +325,9 @@ export class BonusTasksService {
       data: { status: BonusTaskStatus.CANCELLED },
     });
 
-    this.logger.log(`Bonus task ${bonusTaskId} cancelled by seller ${sellerId}`);
+    this.logger.log(
+      `Bonus task ${bonusTaskId} cancelled by seller ${sellerId}`,
+    );
 
     return updatedTask;
   }

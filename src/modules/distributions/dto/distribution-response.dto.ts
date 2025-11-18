@@ -17,7 +17,8 @@ export class DistributionResponseDto {
 
   @ApiProperty({
     example: 1,
-    description: '0 = Dimanche, 1 = Lundi, ..., 6 = Samedi (null si SPECIFIC_DATE)',
+    description:
+      '0 = Dimanche, 1 = Lundi, ..., 6 = Samedi (null si SPECIFIC_DATE)',
     nullable: true,
   })
   dayOfWeek?: number | null;

@@ -64,9 +64,9 @@ export class ProceduresController {
   @Public()
   @Get()
   @ApiOperation({
-    summary: 'Liste des procédures d\'une campagne',
+    summary: "Liste des procédures d'une campagne",
     description:
-      'Récupère toutes les procédures d\'une campagne (accessible publiquement)',
+      "Récupère toutes les procédures d'une campagne (accessible publiquement)",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({
@@ -83,8 +83,8 @@ export class ProceduresController {
   @Public()
   @Get(':id')
   @ApiOperation({
-    summary: 'Détails d\'une procédure',
-    description: 'Récupère les détails d\'une procédure',
+    summary: "Détails d'une procédure",
+    description: "Récupère les détails d'une procédure",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiParam({ name: 'id', description: 'ID de la procédure' })
@@ -155,7 +155,7 @@ export class ProceduresController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Réordonner les procédures (PRO/ADMIN)',
-    description: 'Change l\'ordre d\'exécution des procédures',
+    description: "Change l'ordre d'exécution des procédures",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({

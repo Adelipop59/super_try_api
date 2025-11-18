@@ -8,21 +8,21 @@ import { UserRole } from '@prisma/client';
  */
 export class CreateProfileDto {
   @ApiProperty({
-    description: 'ID de l\'utilisateur Supabase',
+    description: "ID de l'utilisateur Supabase",
     example: 'uuid-from-supabase',
   })
   @IsUUID()
   supabaseUserId: string;
 
   @ApiProperty({
-    description: 'Email de l\'utilisateur',
+    description: "Email de l'utilisateur",
     example: 'user@example.com',
   })
   @IsEmail()
   email: string;
 
   @ApiProperty({
-    description: 'Rôle de l\'utilisateur',
+    description: "Rôle de l'utilisateur",
     enum: UserRole,
     example: UserRole.USER,
     default: UserRole.USER,
@@ -59,7 +59,7 @@ export class CreateProfileDto {
   phone?: string;
 
   @ApiProperty({
-    description: 'URL de l\'avatar',
+    description: "URL de l'avatar",
     example: 'https://example.com/avatar.jpg',
     required: false,
   })
@@ -68,7 +68,7 @@ export class CreateProfileDto {
   avatar?: string;
 
   @ApiProperty({
-    description: 'Nom de l\'entreprise (pour PRO)',
+    description: "Nom de l'entreprise (pour PRO)",
     example: 'Acme Corp',
     required: false,
   })

@@ -40,7 +40,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Envoyer un message dans une session',
     description:
-      'Permet au testeur ou au vendeur d\'envoyer un message dans le cadre d\'une session de test. Supporte les pièces jointes (URLs).',
+      "Permet au testeur ou au vendeur d'envoyer un message dans le cadre d'une session de test. Supporte les pièces jointes (URLs).",
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
@@ -49,7 +49,10 @@ export class MessagesController {
     type: ChatMessageResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'Vous ne faites pas partie de cette conversation' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne faites pas partie de cette conversation',
+  })
   @ApiResponse({ status: 404, description: 'Session non trouvée' })
   async sendMessage(
     @Param('sessionId') sessionId: string,
@@ -65,9 +68,9 @@ export class MessagesController {
   @Get('sessions/:sessionId/messages')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Lister les messages d\'une session',
+    summary: "Lister les messages d'une session",
     description:
-      'Récupère tous les messages d\'une session (testeur, vendeur ou admin uniquement). Les messages sont triés par ordre chronologique.',
+      "Récupère tous les messages d'une session (testeur, vendeur ou admin uniquement). Les messages sont triés par ordre chronologique.",
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
@@ -94,7 +97,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Marquer un message comme lu',
     description:
-      'Marque un message comme lu (destinataire uniquement). L\'expéditeur ne peut pas marquer son propre message comme lu.',
+      "Marque un message comme lu (destinataire uniquement). L'expéditeur ne peut pas marquer son propre message comme lu.",
   })
   @ApiParam({ name: 'id', description: 'ID du message' })
   @ApiResponse({
@@ -120,7 +123,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Marquer tous les messages comme lus',
     description:
-      'Marque tous les messages non lus d\'une session comme lus (sauf ceux envoyés par l\'utilisateur).',
+      "Marque tous les messages non lus d'une session comme lus (sauf ceux envoyés par l'utilisateur).",
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
@@ -151,7 +154,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Compter les messages non lus',
     description:
-      'Retourne le nombre total de messages non lus pour l\'utilisateur connecté (toutes sessions confondues).',
+      "Retourne le nombre total de messages non lus pour l'utilisateur connecté (toutes sessions confondues).",
   })
   @ApiResponse({
     status: 200,
@@ -177,8 +180,8 @@ export class MessagesController {
   @Get('messages/:id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Détails d\'un message',
-    description: 'Récupère les détails d\'un message spécifique.',
+    summary: "Détails d'un message",
+    description: "Récupère les détails d'un message spécifique.",
   })
   @ApiParam({ name: 'id', description: 'ID du message' })
   @ApiResponse({

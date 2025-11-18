@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsDateString, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -7,7 +13,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class SuspendUserDto {
   @ApiProperty({
     description: 'Raison de la suspension',
-    example: 'Violation des conditions d\'utilisation - spam',
+    example: "Violation des conditions d'utilisation - spam",
     minLength: 10,
   })
   @IsString()
@@ -16,7 +22,8 @@ export class SuspendUserDto {
   reason: string;
 
   @ApiProperty({
-    description: 'Date de fin de suspension (optionnel, si non fourni = suspension permanente)',
+    description:
+      'Date de fin de suspension (optionnel, si non fourni = suspension permanente)',
     example: '2025-12-31T23:59:59Z',
     required: false,
   })
@@ -30,7 +37,7 @@ export class SuspendUserDto {
  */
 export class SuspensionResponseDto {
   @ApiProperty({
-    description: 'ID de l\'utilisateur',
+    description: "ID de l'utilisateur",
     example: 'uuid-123',
   })
   userId: string;
@@ -43,7 +50,7 @@ export class SuspensionResponseDto {
 
   @ApiProperty({
     description: 'Raison de la suspension',
-    example: 'Violation des conditions d\'utilisation',
+    example: "Violation des conditions d'utilisation",
   })
   suspensionReason: string | null;
 

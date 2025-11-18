@@ -8,7 +8,7 @@ import { Type } from 'class-transformer';
 export class ValidateProductPriceDto {
   @ApiProperty({
     description: 'Prix exact du produit trouvé par le testeur',
-    example: 49.90,
+    example: 49.9,
   })
   @IsNumber()
   @IsPositive()

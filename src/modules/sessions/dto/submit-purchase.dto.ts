@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsUrl, IsNumber, IsPositive } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsUrl,
+  IsNumber,
+  IsPositive,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -7,7 +13,7 @@ import { Type } from 'class-transformer';
  */
 export class SubmitPurchaseDto {
   @ApiProperty({
-    description: 'URL de la preuve d\'achat (reçu, confirmation)',
+    description: "URL de la preuve d'achat (reçu, confirmation)",
     example: 'https://storage.example.com/receipts/receipt-123.jpg',
   })
   @IsUrl()
@@ -15,7 +21,7 @@ export class SubmitPurchaseDto {
   purchaseProofUrl!: string;
 
   @ApiProperty({
-    description: 'Numéro de commande de l\'achat',
+    description: "Numéro de commande de l'achat",
     example: 'AMZ-FR-12345-67890',
   })
   @IsString()

@@ -7,7 +7,6 @@ import {
   Param,
   Body,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { BonusTasksService } from './bonus-tasks.service';
@@ -15,6 +14,10 @@ import { CreateBonusTaskDto } from './dto/create-bonus-task.dto';
 import { SubmitBonusTaskDto } from './dto/submit-bonus-task.dto';
 import { RejectBonusTaskDto } from './dto/reject-bonus-task.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 
 @ApiTags('bonus_tasks')
 @Controller()
@@ -31,10 +34,9 @@ export class BonusTasksController {
   async createBonusTask(
     @Param('sessionId') sessionId: string,
     @Body() dto: CreateBonusTaskDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
-    return this.bonusTasksService.createBonusTask(sessionId, userId, dto);
+    return this.bonusTasksService.createBonusTask(sessionId, user.id, dto);
   }
 
   /**
@@ -44,10 +46,9 @@ export class BonusTasksController {
   @Get('sessions/:sessionId/bonus-tasks')
   async getBonusTasksBySession(
     @Param('sessionId') sessionId: string,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
-    return this.bonusTasksService.getBonusTasksBySession(sessionId, userId);
+    return this.bonusTasksService.getBonusTasksBySession(sessionId, user.id);
   }
 
   /**
@@ -55,9 +56,11 @@ export class BonusTasksController {
    * Récupérer une bonus task par ID
    */
   @Get('bonus-tasks/:id')
-  async getBonusTaskById(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.id;
-    return this.bonusTasksService.getBonusTaskById(id, userId);
+  async getBonusTaskById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bonusTasksService.getBonusTaskById(id, user.id);
   }
 
   /**
@@ -65,9 +68,11 @@ export class BonusTasksController {
    * Accepter une bonus task (testeur seulement)
    */
   @Patch('bonus-tasks/:id/accept')
-  async acceptBonusTask(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.id;
-    return this.bonusTasksService.acceptBonusTask(id, userId);
+  async acceptBonusTask(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bonusTasksService.acceptBonusTask(id, user.id);
   }
 
   /**
@@ -75,9 +80,11 @@ export class BonusTasksController {
    * Refuser une bonus task (testeur seulement)
    */
   @Patch('bonus-tasks/:id/reject')
-  async rejectBonusTask(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.id;
-    return this.bonusTasksService.rejectBonusTask(id, userId);
+  async rejectBonusTask(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bonusTasksService.rejectBonusTask(id, user.id);
   }
 
   /**
@@ -88,10 +95,9 @@ export class BonusTasksController {
   async submitBonusTask(
     @Param('id') id: string,
     @Body() dto: SubmitBonusTaskDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
-    return this.bonusTasksService.submitBonusTask(id, userId, dto);
+    return this.bonusTasksService.submitBonusTask(id, user.id, dto);
   }
 
   /**
@@ -99,9 +105,11 @@ export class BonusTasksController {
    * Valider une bonus task et payer (vendeur seulement)
    */
   @Patch('bonus-tasks/:id/validate')
-  async validateBonusTask(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.id;
-    return this.bonusTasksService.validateBonusTask(id, userId);
+  async validateBonusTask(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bonusTasksService.validateBonusTask(id, user.id);
   }
 
   /**
@@ -112,10 +120,9 @@ export class BonusTasksController {
   async rejectSubmission(
     @Param('id') id: string,
     @Body() dto: RejectBonusTaskDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
-    return this.bonusTasksService.rejectSubmission(id, userId, dto);
+    return this.bonusTasksService.rejectSubmission(id, user.id, dto);
   }
 
   /**
@@ -123,8 +130,10 @@ export class BonusTasksController {
    * Annuler une bonus task (vendeur seulement)
    */
   @Delete('bonus-tasks/:id')
-  async cancelBonusTask(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.id;
-    return this.bonusTasksService.cancelBonusTask(id, userId);
+  async cancelBonusTask(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bonusTasksService.cancelBonusTask(id, user.id);
   }
 }

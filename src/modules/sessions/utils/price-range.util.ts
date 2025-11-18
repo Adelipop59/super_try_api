@@ -23,11 +23,12 @@ export interface PriceRange {
  * calculatePriceRange(3)  // { min: 0, max: 5 }
  * calculatePriceRange(100) // { min: 95, max: 105 }
  */
-export function calculatePriceRange(productPrice: Decimal | number): PriceRange {
+export function calculatePriceRange(
+  productPrice: Decimal | number,
+): PriceRange {
   // Convertir Decimal en number si nécessaire
-  const price = typeof productPrice === 'number'
-    ? productPrice
-    : Number(productPrice);
+  const price =
+    typeof productPrice === 'number' ? productPrice : Number(productPrice);
 
   // Exception : produits à moins de 5€
   if (price < 5) {
@@ -58,7 +59,7 @@ export function calculatePriceRange(productPrice: Decimal | number): PriceRange 
  */
 export function isPriceInRange(
   enteredPrice: number,
-  expectedPrice: Decimal | number
+  expectedPrice: Decimal | number,
 ): boolean {
   const range = calculatePriceRange(expectedPrice);
   return enteredPrice >= range.min && enteredPrice <= range.max;

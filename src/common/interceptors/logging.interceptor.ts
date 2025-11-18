@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { LogsService } from '../../modules/logs/logs.service';
@@ -17,8 +18,8 @@ export class LoggingInterceptor implements NestInterceptor {
   constructor(private logsService: LogsService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const response = context.switchToHttp().getResponse();
+    const request = context.switchToHttp().getRequest<Request>();
+    const response = context.switchToHttp().getResponse<Response>();
 
     const { method, url, ip, headers } = request;
     const userAgent = headers['user-agent'] || '';
@@ -70,51 +71,61 @@ export class LoggingInterceptor implements NestInterceptor {
   /**
    * Logger une requête réussie
    */
-  private async logRequest(
+  private logRequest(
     method: string,
     url: string,
     statusCode: number,
     duration: number,
-    ipAddress: string,
+    ipAddress: string | undefined,
     userAgent: string,
     userId?: string,
-  ): Promise<void> {
+  ): void {
     const category = this.getCategoryFromUrl(url);
     const message = `${method} ${url} - ${statusCode} (${duration}ms)`;
 
-    // Log INFO pour les requêtes réussies
-    await this.logsService.logInfo(
-      category,
-      message,
-      { method, url, statusCode, duration },
-      userId,
-      { ipAddress, userAgent, endpoint: url, method, statusCode, duration },
-    );
+    // Log INFO pour les requêtes réussies (fire and forget)
+    this.logsService
+      .logInfo(
+        category,
+        message,
+        { method, url, statusCode, duration },
+        userId,
+        { ipAddress, userAgent, endpoint: url, method, statusCode, duration },
+      )
+      .catch(() => {
+        // Silently ignore logging errors
+      });
   }
 
   /**
    * Logger une erreur
    */
-  private async logError(
+  private logError(
     method: string,
     url: string,
     statusCode: number,
     duration: number,
-    ipAddress: string,
+    ipAddress: string | undefined,
     userAgent: string,
     userId: string | undefined,
-    error: any,
-  ): Promise<void> {
+    error: Error,
+  ): void {
     const category = this.getCategoryFromUrl(url);
     const message = `${method} ${url} - ERROR ${statusCode} (${duration}ms)`;
 
-    await this.logsService.logError(
-      category,
-      message,
-      error,
-      userId,
-      { ipAddress, userAgent, endpoint: url, method, statusCode, duration },
-    );
+    // Log ERROR (fire and forget)
+    this.logsService
+      .logError(category, message, error, userId, {
+        ipAddress,
+        userAgent,
+        endpoint: url,
+        method,
+        statusCode,
+        duration,
+      })
+      .catch(() => {
+        // Silently ignore logging errors
+      });
   }
 
   /**

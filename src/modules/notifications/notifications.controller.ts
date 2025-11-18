@@ -9,7 +9,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
@@ -33,7 +38,8 @@ export class NotificationsController {
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Envoyer une notification',
-    description: 'Permet d\'envoyer une notification à un utilisateur (Admin uniquement)',
+    description:
+      "Permet d'envoyer une notification à un utilisateur (Admin uniquement)",
   })
   @ApiResponse({
     status: 201,
@@ -51,7 +57,7 @@ export class NotificationsController {
   @Get()
   @ApiOperation({
     summary: 'Lister mes notifications',
-    description: 'Récupère toutes les notifications de l\'utilisateur connecté',
+    description: "Récupère toutes les notifications de l'utilisateur connecté",
   })
   @ApiResponse({
     status: 200,
@@ -65,7 +71,8 @@ export class NotificationsController {
     @Query('offset') offset?: number,
   ) {
     const filters = {
-      isRead: isRead !== undefined ? isRead === true || isRead === 'true' : undefined,
+      isRead:
+        isRead !== undefined ? isRead === true || isRead === 'true' : undefined,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     };
@@ -78,7 +85,8 @@ export class NotificationsController {
   @Get('unread/count')
   @ApiOperation({
     summary: 'Compter les notifications non lues',
-    description: 'Retourne le nombre de notifications non lues de l\'utilisateur',
+    description:
+      "Retourne le nombre de notifications non lues de l'utilisateur",
   })
   @ApiResponse({
     status: 200,
@@ -101,7 +109,8 @@ export class NotificationsController {
   @Get('preferences')
   @ApiOperation({
     summary: 'Récupérer mes préférences de notification',
-    description: 'Retourne les préférences de notification de l\'utilisateur connecté',
+    description:
+      "Retourne les préférences de notification de l'utilisateur connecté",
   })
   @ApiResponse({
     status: 200,
@@ -117,7 +126,8 @@ export class NotificationsController {
   @Patch('preferences')
   @ApiOperation({
     summary: 'Mettre à jour mes préférences',
-    description: 'Permet de configurer les canaux et types de notifications souhaités',
+    description:
+      'Permet de configurer les canaux et types de notifications souhaités',
   })
   @ApiResponse({
     status: 200,
@@ -157,7 +167,7 @@ export class NotificationsController {
   @Patch('read-all')
   @ApiOperation({
     summary: 'Marquer toutes les notifications comme lues',
-    description: 'Marque toutes les notifications de l\'utilisateur comme lues',
+    description: "Marque toutes les notifications de l'utilisateur comme lues",
   })
   @ApiResponse({
     status: 200,
@@ -187,7 +197,10 @@ export class NotificationsController {
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Notification deleted successfully' },
+        message: {
+          type: 'string',
+          example: 'Notification deleted successfully',
+        },
       },
     },
   })
@@ -198,6 +211,10 @@ export class NotificationsController {
     @CurrentUser('role') userRole: string,
   ) {
     const isAdmin = userRole === 'ADMIN';
-    return await this.notificationsService.remove(notificationId, userId, isAdmin);
+    return await this.notificationsService.remove(
+      notificationId,
+      userId,
+      isAdmin,
+    );
   }
 }

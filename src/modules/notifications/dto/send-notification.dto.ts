@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsObject, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsObject,
+  IsUUID,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { NotificationType, NotificationChannel } from '@prisma/client';
 
@@ -7,7 +14,7 @@ import { NotificationType, NotificationChannel } from '@prisma/client';
  */
 export class SendNotificationDto {
   @ApiProperty({
-    description: 'ID de l\'utilisateur destinataire',
+    description: "ID de l'utilisateur destinataire",
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsUUID()
@@ -42,7 +49,8 @@ export class SendNotificationDto {
 
   @ApiProperty({
     description: 'Message de la notification',
-    example: 'Votre candidature pour la campagne "Test Produit X" a été acceptée par le vendeur.',
+    example:
+      'Votre candidature pour la campagne "Test Produit X" a été acceptée par le vendeur.',
   })
   @IsString()
   @IsNotEmpty()

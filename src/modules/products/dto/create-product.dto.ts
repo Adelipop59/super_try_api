@@ -11,7 +11,7 @@ export class CreateProductDto {
     description: 'Nom du produit',
     example: 'iPhone 15 Pro Max',
     minLength: 3,
-    maxLength: 200
+    maxLength: 200,
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +22,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Description détaillée du produit',
     example: 'Smartphone haut de gamme avec écran OLED...',
-    minLength: 10
+    minLength: 10,
   })
   @IsString()
   @IsNotEmpty()
@@ -32,16 +32,16 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Catégorie du produit',
     example: 'Électronique',
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
   category?: string;
 
   @ApiProperty({
-    description: 'URL de l\'image du produit',
+    description: "URL de l'image du produit",
     example: 'https://example.com/images/iphone.jpg',
-    required: false
+    required: false,
   })
   @IsUrl()
   @IsOptional()

@@ -143,8 +143,9 @@ export class DistributionsController {
   @Get(':id')
   @Public()
   @ApiOperation({
-    summary: "Récupérer une distribution par ID",
-    description: 'Récupère les détails d\'une distribution. Accessible publiquement.',
+    summary: 'Récupérer une distribution par ID',
+    description:
+      "Récupère les détails d'une distribution. Accessible publiquement.",
   })
   @ApiParam({
     name: 'campaignId',

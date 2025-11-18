@@ -31,11 +31,18 @@ export function calculateNextPurchaseDate(
   const possibleDates: Date[] = [];
 
   for (const distribution of distributions) {
-    if (distribution.type === DistributionType.RECURRING && distribution.dayOfWeek !== null && distribution.dayOfWeek !== undefined) {
+    if (
+      distribution.type === DistributionType.RECURRING &&
+      distribution.dayOfWeek !== null &&
+      distribution.dayOfWeek !== undefined
+    ) {
       // Calculer le prochain jour de la semaine
       const nextDate = getNextDayOfWeek(fromDate, distribution.dayOfWeek);
       possibleDates.push(nextDate);
-    } else if (distribution.type === DistributionType.SPECIFIC_DATE && distribution.specificDate) {
+    } else if (
+      distribution.type === DistributionType.SPECIFIC_DATE &&
+      distribution.specificDate
+    ) {
       // Vérifier que la date spécifique est dans le futur
       const specificDate = new Date(distribution.specificDate);
       if (specificDate > fromDate) {
