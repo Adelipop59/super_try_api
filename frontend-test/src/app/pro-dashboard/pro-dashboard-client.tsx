@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { productsApi, Product } from "@/lib/api/products";
+import { campaignsApi, Campaign } from "@/lib/api/campaigns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ export default function ProDashboardClient() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [testingSessions, setTestingSessions] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -34,6 +35,8 @@ export default function ProDashboardClient() {
   // Campaign form
   const [selectedProduct, setSelectedProduct] = useState("");
   const [campaignName, setCampaignName] = useState("");
+  const [campaignDescription, setCampaignDescription] = useState("");
+  const [campaignSlots, setCampaignSlots] = useState("10");
 
   useEffect(() => {
     setMounted(true);
@@ -66,8 +69,11 @@ export default function ProDashboardClient() {
       const productsData = await productsApi.getMyProducts(token);
       setProducts(productsData);
 
-      // TODO: Fetch campaigns and testing sessions when endpoints are ready
-      setCampaigns([]);
+      // Récupérer les campagnes du vendeur
+      const campaignsData = await campaignsApi.getMyCampaigns(token);
+      setCampaigns(campaignsData);
+
+      // TODO: Fetch testing sessions when endpoints are ready
       setTestingSessions([]);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -109,10 +115,31 @@ export default function ProDashboardClient() {
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // TODO: Call API to create campaign
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert("Vous devez être connecté pour créer une campagne");
+        return;
+      }
+
+      await campaignsApi.createCampaign(token, {
+        title: campaignName,
+        description: campaignDescription,
+        startDate: new Date().toISOString(),
+        totalSlots: parseInt(campaignSlots),
+        products: [{
+          productId: selectedProduct,
+          quantity: 1,
+          expectedPrice: 0,
+          priceRangeMin: 0,
+          priceRangeMax: 1000,
+        }],
+      });
+
       alert("Campagne créée avec succès !");
       setShowCampaignDialog(false);
       setCampaignName("");
+      setCampaignDescription("");
+      setCampaignSlots("10");
       setSelectedProduct("");
       fetchData();
     } catch (error: any) {
@@ -329,16 +356,31 @@ export default function ProDashboardClient() {
                   </DialogHeader>
                   <form onSubmit={handleCreateCampaign} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="campaign-name">Nom de la campagne</Label>
+                      <Label htmlFor="campaign-name">Nom de la campagne *</Label>
                       <Input
                         id="campaign-name"
                         value={campaignName}
                         onChange={(e) => setCampaignName(e.target.value)}
+                        placeholder="Campagne Test iPhone"
+                        minLength={3}
+                        maxLength={200}
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="product">Produit</Label>
+                      <Label htmlFor="campaign-description">Description *</Label>
+                      <Textarea
+                        id="campaign-description"
+                        value={campaignDescription}
+                        onChange={(e) => setCampaignDescription(e.target.value)}
+                        placeholder="Décrivez votre campagne de test..."
+                        minLength={10}
+                        rows={3}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product">Produit *</Label>
                       <select
                         id="product"
                         className="w-full rounded-md border border-input bg-background px-3 py-2"
@@ -353,6 +395,19 @@ export default function ProDashboardClient() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="slots">Nombre de testeurs *</Label>
+                      <Input
+                        id="slots"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={campaignSlots}
+                        onChange={(e) => setCampaignSlots(e.target.value)}
+                        placeholder="10"
+                        required
+                      />
                     </div>
                     <Button type="submit" className="w-full" disabled={products.length === 0}>
                       Créer la campagne
@@ -375,31 +430,37 @@ export default function ProDashboardClient() {
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div>
-                          <CardTitle className="text-lg">{campaign.name}</CardTitle>
-                          <CardDescription>{campaign.products?.name}</CardDescription>
+                          <CardTitle className="text-lg">{campaign.title}</CardTitle>
+                          <CardDescription className="line-clamp-2">{campaign.description}</CardDescription>
                         </div>
                         <Badge
-                          variant={campaign.status === "active" ? "default" : "secondary"}
+                          variant={campaign.status === "ACTIVE" ? "default" : campaign.status === "DRAFT" ? "secondary" : "outline"}
                         >
                           {campaign.status}
                         </Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Prix</p>
-                          <p className="font-medium">{campaign.products?.price || 0} €</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Livraison</p>
-                          <p className="font-medium">{campaign.products?.delivery_cost || 0} €</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Récompense</p>
-                          <p className="font-medium text-green-600">
-                            {campaign.products?.reward || 0} €
-                          </p>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Slots totaux</p>
+                            <p className="font-medium">{campaign.totalSlots}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Slots restants</p>
+                            <p className="font-medium">{campaign.remainingSlots}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Date début</p>
+                            <p className="font-medium">{new Date(campaign.startDate).toLocaleDateString('fr-FR')}</p>
+                          </div>
+                          {campaign.endDate && (
+                            <div>
+                              <p className="text-muted-foreground">Date fin</p>
+                              <p className="font-medium">{new Date(campaign.endDate).toLocaleDateString('fr-FR')}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </CardContent>
