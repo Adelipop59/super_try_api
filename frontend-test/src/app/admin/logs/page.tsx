@@ -209,7 +209,7 @@ export default function AdminLogsPage() {
                     {logs.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {new Date(log.timestamp).toLocaleString('fr-FR', {
+                          {new Date(log.createdAt).toLocaleString('fr-FR', {
                             day: '2-digit',
                             month: '2-digit',
                             hour: '2-digit',

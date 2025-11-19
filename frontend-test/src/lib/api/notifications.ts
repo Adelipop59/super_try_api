@@ -61,6 +61,13 @@ export async function markNotificationAsRead(id: string): Promise<Notification> 
   return response;
 }
 
+// Mark all notifications as read
+export async function markAllNotificationsAsRead(): Promise<void> {
+  await apiClient('/notifications/read-all', {
+    method: 'PATCH',
+  });
+}
+
 // Update notification preferences
 export async function updateNotificationPreferences(data: UpdateNotificationPreferencesDto): Promise<NotificationPreferences> {
   const response = await apiClient('/notifications/preferences', {

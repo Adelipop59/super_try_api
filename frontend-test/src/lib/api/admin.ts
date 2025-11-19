@@ -16,7 +16,10 @@ export interface DashboardStats {
 export interface Dispute {
   id: string;
   sessionId: string;
+  testerId: string;
+  sellerId: string;
   reason: string;
+  description?: string;
   status: 'PENDING' | 'RESOLVED';
   createdAt: string;
   resolvedAt?: string;
@@ -25,7 +28,8 @@ export interface Dispute {
 }
 
 export interface ResolveDisputeDto {
-  resolution: string;
+  resolution: 'FAVOR_TESTER' | 'FAVOR_SELLER' | 'PARTIAL' | string;
+  resolutionNotes?: string;
 }
 
 export interface BroadcastDto {

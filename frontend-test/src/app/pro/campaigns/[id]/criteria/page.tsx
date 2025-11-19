@@ -49,7 +49,7 @@ export default function CampaignCriteriaPage() {
       setCategories(categoriesData.filter(c => c.isActive));
 
       // Pre-fill if criteria already exists
-      if (campaignData.criteria) {
+      if (campaignData && campaignData.criteria) {
         setCriteria({
           minAge: campaignData.criteria.minAge?.toString() || '',
           maxAge: campaignData.criteria.maxAge?.toString() || '',

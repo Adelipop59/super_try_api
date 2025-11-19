@@ -3,7 +3,9 @@ import { apiClient } from './client';
 export interface Session {
   id: string;
   campaignId: string;
+  productId?: string;
   testerId: string;
+  userId: string;
   status: 'PENDING' | 'ACCEPTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'DISPUTED';
   applicationMessage?: string;
   appliedAt: string;
@@ -12,6 +14,7 @@ export interface Session {
   validatedProductPrice?: number;
   submittedAt?: string;
   completedAt?: string;
+  createdAt: string;
   rating?: number;
   campaign?: any;
   tester?: any;

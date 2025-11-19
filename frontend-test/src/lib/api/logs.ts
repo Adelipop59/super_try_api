@@ -1,9 +1,12 @@
 import { apiClient } from './client';
 
+export type LogLevel = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'DEBUG';
+export type LogCategory = 'AUTH' | 'USER' | 'PRODUCT' | 'CAMPAIGN' | 'SESSION' | 'WALLET' | 'NOTIFICATION' | 'ADMIN' | 'SYSTEM';
+
 export interface SystemLog {
   id: string;
-  level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'DEBUG';
-  category: 'AUTH' | 'USER' | 'PRODUCT' | 'CAMPAIGN' | 'SESSION' | 'WALLET' | 'NOTIFICATION' | 'ADMIN' | 'SYSTEM';
+  level: LogLevel;
+  category: LogCategory;
   message: string;
   details?: any;
   userId?: string;
@@ -16,9 +19,13 @@ export interface SystemLog {
   createdAt: string;
 }
 
+// Alias for backwards compatibility
+export type Log = SystemLog;
+
 export interface LogFilters {
-  level?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'DEBUG';
-  category?: 'AUTH' | 'USER' | 'PRODUCT' | 'CAMPAIGN' | 'SESSION' | 'WALLET' | 'NOTIFICATION' | 'ADMIN' | 'SYSTEM';
+  level?: LogLevel;
+  category?: LogCategory;
+  search?: string;
   startDate?: string;
   endDate?: string;
   userId?: string;
@@ -26,24 +33,33 @@ export interface LogFilters {
   limit?: number;
 }
 
+export interface PaginatedLogs {
+  logs: SystemLog[];
+  totalPages: number;
+  currentPage: number;
+  totalLogs: number;
+}
+
 export interface LogStats {
   totalLogs: number;
   byLevel: Record<string, number>;
   byCategory: Record<string, number>;
   errorsByEndpoint: Array<{ endpoint: string; count: number }>;
+  topErrorEndpoints?: Array<{ endpoint: string; method?: string; count: number }>;
   activityByHour: Array<{ hour: number; count: number }>;
 }
 
 export interface CleanupLogsDto {
   beforeDate?: string;
-  level?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'DEBUG';
+  level?: LogLevel;
 }
 
 // Get logs with filters
-export async function getLogs(filters?: LogFilters): Promise<SystemLog[]> {
+export async function getLogs(filters?: LogFilters): Promise<PaginatedLogs> {
   const params = new URLSearchParams();
   if (filters?.level) params.append('level', filters.level);
   if (filters?.category) params.append('category', filters.category);
+  if (filters?.search) params.append('search', filters.search);
   if (filters?.startDate) params.append('startDate', filters.startDate);
   if (filters?.endDate) params.append('endDate', filters.endDate);
   if (filters?.userId) params.append('userId', filters.userId);

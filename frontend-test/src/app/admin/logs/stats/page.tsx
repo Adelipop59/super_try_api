@@ -235,24 +235,24 @@ export default function LogStatsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {Object.entries(stats.activityByHour)
-                  .sort(([a], [b]) => parseInt(b) - parseInt(a))
+                {stats.activityByHour
+                  .sort((a, b) => b.hour - a.hour)
                   .slice(0, 24)
-                  .map(([hour, count]) => {
-                    const maxCount = Math.max(...Object.values(stats.activityByHour!));
-                    const percentage = (count / maxCount) * 100;
+                  .map((item) => {
+                    const maxCount = Math.max(...stats.activityByHour!.map(h => h.count));
+                    const percentage = (item.count / maxCount) * 100;
 
                     return (
-                      <div key={hour} className="flex items-center gap-3">
-                        <div className="w-16 text-sm text-muted-foreground">{hour}h</div>
+                      <div key={item.hour} className="flex items-center gap-3">
+                        <div className="w-16 text-sm text-muted-foreground">{item.hour}h</div>
                         <div className="flex-1 h-8 bg-gray-200 rounded overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center px-2"
                             style={{ width: `${percentage}%` }}
                           >
-                            {count > 0 && (
+                            {item.count > 0 && (
                               <span className="text-xs text-white font-medium">
-                                {count}
+                                {item.count}
                               </span>
                             )}
                           </div>

@@ -657,7 +657,7 @@ export default function AdminUserDetailPage() {
                             {new Date(campaign.startDate).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {new Date(campaign.endDate).toLocaleDateString()}
+                            {campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : '-'}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button

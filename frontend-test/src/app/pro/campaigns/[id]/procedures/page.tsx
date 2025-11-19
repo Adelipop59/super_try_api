@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getCampaign, changeCampaignStatus, Campaign } from '@/lib/api/campaigns';
+import { getCampaign, updateCampaignStatus, Campaign } from '@/lib/api/campaigns';
 import {
   getProcedures,
   createProcedure,
@@ -203,7 +203,7 @@ export default function CampaignProceduresPage() {
 
     setSubmitting(true);
     try {
-      await changeCampaignStatus(campaignId, 'ACTIVE');
+      await updateCampaignStatus(campaignId, 'ACTIVE');
       toast.success('Campagne activée avec succès !');
       router.push('/pro/campaigns');
     } catch (error: any) {

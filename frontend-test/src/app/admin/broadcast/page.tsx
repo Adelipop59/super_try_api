@@ -20,7 +20,7 @@ export default function BroadcastPage() {
   const [sending, setSending] = useState(false);
 
   // Form state
-  const [target, setTarget] = useState<'ALL' | 'USER' | 'PRO'>('ALL');
+  const [target, setTarget] = useState<'ALL' | 'USER' | 'PRO' | 'CUSTOM'>('ALL');
   const [userIds, setUserIds] = useState('');
   const [type, setType] = useState('INFO');
   const [title, setTitle] = useState('');
@@ -58,16 +58,20 @@ export default function BroadcastPage() {
 
     setSending(true);
     try {
-      const result = await sendBroadcast({
-        target,
-        userIds: targetUserIds,
-        type,
+      const recipients: 'ALL' | 'USER' | 'PRO' | 'ADMIN' | string[] =
+        target === 'CUSTOM' && targetUserIds && targetUserIds.length > 0
+          ? targetUserIds
+          : (target as 'ALL' | 'USER' | 'PRO');
+
+      await sendBroadcast({
+        recipients,
+        type: type || 'INFO',
         title: title.trim(),
         message: message.trim(),
-        channels,
+        channels: channels.length > 0 ? channels : ['IN_APP'],
       });
 
-      toast.success(`Message envoyé à ${result.sentCount} utilisateur(s)`);
+      toast.success('Message envoyé avec succès !');
 
       // Reset form
       setTitle('');

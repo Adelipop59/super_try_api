@@ -83,7 +83,7 @@ export default function LogDetailPage() {
           <Badge variant="outline">{log.category}</Badge>
         </div>
         <p className="text-muted-foreground">
-          {new Date(log.timestamp).toLocaleString('fr-FR', {
+          {new Date(log.createdAt).toLocaleString('fr-FR', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
@@ -120,7 +120,7 @@ export default function LogDetailPage() {
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">Timestamp</div>
                 <div className="font-mono text-sm">
-                  {new Date(log.timestamp).toISOString()}
+                  {new Date(log.createdAt).toISOString()}
                 </div>
               </div>
 
@@ -173,12 +173,12 @@ export default function LogDetailPage() {
                 </div>
               )}
 
-              {log.ip && (
+              {log.ipAddress && (
                 <div>
                   <div className="text-sm font-medium text-muted-foreground mb-1">
                     Adresse IP
                   </div>
-                  <div className="font-mono text-sm">{log.ip}</div>
+                  <div className="font-mono text-sm">{log.ipAddress}</div>
                 </div>
               )}
 

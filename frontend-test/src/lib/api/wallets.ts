@@ -19,6 +19,7 @@ export interface Transaction {
   type: 'CREDIT' | 'DEBIT';
   amount: number;
   reason: string;
+  description?: string;
   sessionId?: string;
   bonusTaskId?: string;
   withdrawalId?: string;
@@ -34,8 +35,13 @@ export interface Withdrawal {
   method: 'BANK_TRANSFER' | 'GIFT_CARD';
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   paymentDetails: any;
+  iban?: string;
+  giftCardType?: string;
+  adminNotes?: string;
   requestedAt: string;
+  createdAt: string;
   processedAt?: string;
+  completedAt?: string;
   processedBy?: string;
 }
 
@@ -95,4 +101,13 @@ export async function cancelWithdrawal(withdrawalId: string): Promise<void> {
   await apiClient(`/wallets/me/withdrawals/${withdrawalId}`, {
     method: 'DELETE',
   });
+}
+
+// Process withdrawal (admin function)
+export async function processWithdrawal(withdrawalId: string, data: { status: string; adminNotes: string }): Promise<void> {
+  // TODO: Implement actual API call
+  // await apiClient(`/admin/withdrawals/${withdrawalId}/process`, {
+  //   method: 'POST',
+  //   body: JSON.stringify(data),
+  // });
 }

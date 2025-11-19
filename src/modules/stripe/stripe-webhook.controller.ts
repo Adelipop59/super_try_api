@@ -2,13 +2,13 @@ import {
   Controller,
   Post,
   Headers,
-  RawBodyRequest,
   Req,
   Logger,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { RawBodyRequest } from '@nestjs/common';
+import type { Request } from 'express';
 import { StripeService } from './stripe.service';
 import Stripe from 'stripe';
 
@@ -90,10 +90,6 @@ export class StripeWebhookController {
       // Événements de transfert
       case 'transfer.created':
         await this.handleTransferCreated(event.data.object as Stripe.Transfer);
-        break;
-
-      case 'transfer.failed':
-        await this.handleTransferFailed(event.data.object as Stripe.Transfer);
         break;
 
       // Événements de méthode de paiement
@@ -205,15 +201,6 @@ export class StripeWebhookController {
     );
 
     // TODO: Enregistrer le transfert dans la base de données
-  }
-
-  /**
-   * Échec de transfert
-   */
-  private async handleTransferFailed(transfer: Stripe.Transfer): Promise<void> {
-    this.logger.error(`Transfer failed: ${transfer.id}`);
-
-    // TODO: Gérer l'échec du transfert
   }
 
   /**

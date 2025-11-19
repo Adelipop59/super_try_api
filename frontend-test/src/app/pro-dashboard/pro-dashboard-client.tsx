@@ -193,7 +193,7 @@ export default function ProDashboardClient() {
             <CardHeader className="pb-3">
               <CardDescription>Campagnes Actives</CardDescription>
               <CardTitle className="text-3xl">
-                {campaigns.filter((c) => c.status === "active").length}
+                {campaigns.filter((c) => c.status === "ACTIVE").length}
               </CardTitle>
             </CardHeader>
           </Card>

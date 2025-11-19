@@ -251,9 +251,11 @@ export default function AdminCampaignsPage() {
                       </TableCell>
                       <TableCell className="text-sm">
                         <div>{new Date(campaign.startDate).toLocaleDateString()}</div>
-                        <div className="text-muted-foreground">
-                          au {new Date(campaign.endDate).toLocaleDateString()}
-                        </div>
+                        {campaign.endDate && (
+                          <div className="text-muted-foreground">
+                            au {new Date(campaign.endDate).toLocaleDateString()}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         {campaign.totalBonus ? (

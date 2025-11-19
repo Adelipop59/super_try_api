@@ -62,7 +62,7 @@ export default function CampaignProductsPage() {
       setProducts(productsData.filter(p => p.isActive));
 
       // Pre-fill first product if available
-      if (productsData.length > 0 && !campaignData.offers?.length) {
+      if (campaignData && productsData.length > 0 && !campaignData.offers?.length) {
         const firstProduct = productsData[0];
         setOfferForm(prev => ({
           ...prev,

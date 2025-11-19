@@ -45,7 +45,7 @@ export default function MessagesPage() {
       const filtered = sessionsWithMessages.filter(
         (sw) =>
           sw.session.campaignId.toLowerCase().includes(query) ||
-          sw.session.productId.toLowerCase().includes(query) ||
+          sw.session.productId?.toLowerCase().includes(query) ||
           sw.lastMessage?.content.toLowerCase().includes(query)
       );
       setFilteredSessions(filtered);
@@ -208,7 +208,7 @@ export default function MessagesPage() {
 
                         {/* Product */}
                         <div className="text-sm text-muted-foreground mb-2">
-                          Produit: {session.productId.substring(0, 40)}...
+                          Produit: {session.productId?.substring(0, 40) || 'N/A'}...
                         </div>
 
                         {/* Last message preview */}

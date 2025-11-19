@@ -296,8 +296,8 @@ export default function CampaignDistributionsPage() {
                         onChange={(e) =>
                           setDistForm(prev => ({ ...prev, specificDate: e.target.value }))
                         }
-                        min={campaign.startDate?.split('T')[0]}
-                        max={campaign.endDate?.split('T')[0]}
+                        min={campaign.startDate ? new Date(campaign.startDate).toISOString().split('T')[0] : undefined}
+                        max={campaign.endDate ? new Date(campaign.endDate).toISOString().split('T')[0] : undefined}
                       />
                     </div>
                   </TabsContent>

@@ -84,7 +84,7 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: 'long',

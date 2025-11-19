@@ -58,7 +58,7 @@ export default function ProCampaignDetailPage() {
       setSessions(sessionsData.filter(s => s.campaignId === campaignId));
 
       // Load products from campaign offers
-      if (campaignData.offers && campaignData.offers.length > 0) {
+      if (campaignData && campaignData.offers && campaignData.offers.length > 0) {
         const productIds = campaignData.offers.map(o => o.productId);
         // In real app, would fetch products by IDs
         // For now, using offers data
@@ -325,7 +325,7 @@ export default function ProCampaignDetailPage() {
                   <div className="text-sm font-medium text-muted-foreground mb-1">Date fin</div>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{new Date(campaign.endDate).toLocaleDateString()}</span>
+                    <span>{campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : '-'}</span>
                   </div>
                 </div>
 
@@ -467,7 +467,7 @@ export default function ProCampaignDetailPage() {
                     <div>
                       <span className="text-sm font-medium">Localisations :</span>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {campaign.criteria.requiredLocations.map((loc) => (
+                        {campaign.criteria.requiredLocations.map((loc: string) => (
                           <Badge key={loc} variant="outline">{loc}</Badge>
                         ))}
                       </div>
@@ -477,7 +477,7 @@ export default function ProCampaignDetailPage() {
                     <div>
                       <span className="text-sm font-medium">Catégories :</span>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {campaign.criteria.requiredCategories.map((cat) => (
+                        {campaign.criteria.requiredCategories.map((cat: string) => (
                           <Badge key={cat} variant="outline">{cat}</Badge>
                         ))}
                       </div>
