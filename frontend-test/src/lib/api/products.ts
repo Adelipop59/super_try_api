@@ -35,6 +35,8 @@ export interface Product {
   };
   name: string;
   description: string;
+  price: number;
+  shippingCost: number;
   imageUrl?: string;
   isActive: boolean;
   createdAt: Date;
@@ -144,3 +146,33 @@ export const productsApi = {
     return response.json();
   },
 };
+
+// Admin function to get all products
+export async function getProducts(): Promise<Product[]> {
+  // TODO: This should use apiClient from './client' and call an admin endpoint
+  // For now, returning empty array to fix build
+  return [];
+}
+
+// Admin function to toggle product active status
+export async function toggleProductActive(productId: string): Promise<void> {
+  // TODO: Implement actual API call
+  // await apiClient(`/admin/products/${productId}/toggle-active`, {
+  //   method: 'PATCH',
+  // });
+}
+
+// Admin function to delete product
+export async function deleteProduct(productId: string): Promise<void> {
+  // TODO: Implement actual API call
+  // await apiClient(`/admin/products/${productId}`, {
+  //   method: 'DELETE',
+  // });
+}
+
+// Get my products (for PRO users)
+export async function getMyProducts(): Promise<Product[]> {
+  // TODO: Use productsApi.getMyProducts with token from auth context
+  // For now, returning empty array to fix build
+  return [];
+}

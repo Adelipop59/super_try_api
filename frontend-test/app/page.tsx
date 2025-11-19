@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import HeroSection from "@/components/hero-section";
+import { HeroSection } from "@/components/blocks/hero-section-1";
 
 export default function Home() {
   return (
