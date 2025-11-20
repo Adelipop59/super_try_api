@@ -56,22 +56,6 @@ export class CampaignProductDto {
   shippingCost?: number;
 
   @ApiProperty({
-    description: 'Prix minimum de la tranche montrée au testeur pour validation',
-    example: 1180.0,
-  })
-  @IsNumber()
-  @IsNotEmpty()
-  priceRangeMin!: number;
-
-  @ApiProperty({
-    description: 'Prix maximum de la tranche montrée au testeur pour validation',
-    example: 1220.0,
-  })
-  @IsNumber()
-  @IsNotEmpty()
-  priceRangeMax!: number;
-
-  @ApiProperty({
     description: 'Le prix du produit est-il remboursé ?',
     example: true,
     default: true,

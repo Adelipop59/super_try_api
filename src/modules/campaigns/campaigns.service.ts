@@ -104,19 +104,23 @@ export class CampaignsService {
         availableSlots: campaignData.totalSlots,
         sellerId,
         offers: {
-          create: products.map((p) => ({
-            productId: p.productId,
-            quantity: p.quantity,
-            expectedPrice: p.expectedPrice,
-            shippingCost: p.shippingCost ?? 0,
-            priceRangeMin: p.priceRangeMin,
-            priceRangeMax: p.priceRangeMax,
-            reimbursedPrice: p.reimbursedPrice ?? true,
-            reimbursedShipping: p.reimbursedShipping ?? true,
-            maxReimbursedPrice: p.maxReimbursedPrice,
-            maxReimbursedShipping: p.maxReimbursedShipping,
-            bonus: p.bonus ?? 0,
-          })),
+          create: products.map((p) => {
+            const { priceRangeMin, priceRangeMax } =
+              this.calculatePriceRange(p.expectedPrice);
+            return {
+              productId: p.productId,
+              quantity: p.quantity,
+              expectedPrice: p.expectedPrice,
+              shippingCost: p.shippingCost ?? 0,
+              priceRangeMin,
+              priceRangeMax,
+              reimbursedPrice: p.reimbursedPrice ?? true,
+              reimbursedShipping: p.reimbursedShipping ?? true,
+              maxReimbursedPrice: p.maxReimbursedPrice,
+              maxReimbursedShipping: p.maxReimbursedShipping,
+              bonus: p.bonus ?? 0,
+            };
+          }),
         },
       },
       include: {
@@ -459,20 +463,24 @@ export class CampaignsService {
 
     // Add products to campaign
     await this.prismaService.offer.createMany({
-      data: addProductsDto.products.map((p) => ({
-        campaignId: id,
-        productId: p.productId,
-        quantity: p.quantity,
-        expectedPrice: p.expectedPrice,
-        shippingCost: p.shippingCost ?? 0,
-        priceRangeMin: p.priceRangeMin,
-        priceRangeMax: p.priceRangeMax,
-        reimbursedPrice: p.reimbursedPrice ?? true,
-        reimbursedShipping: p.reimbursedShipping ?? true,
-        maxReimbursedPrice: p.maxReimbursedPrice,
-        maxReimbursedShipping: p.maxReimbursedShipping,
-        bonus: p.bonus ?? 0,
-      })),
+      data: addProductsDto.products.map((p) => {
+        const { priceRangeMin, priceRangeMax } =
+          this.calculatePriceRange(p.expectedPrice);
+        return {
+          campaignId: id,
+          productId: p.productId,
+          quantity: p.quantity,
+          expectedPrice: p.expectedPrice,
+          shippingCost: p.shippingCost ?? 0,
+          priceRangeMin,
+          priceRangeMax,
+          reimbursedPrice: p.reimbursedPrice ?? true,
+          reimbursedShipping: p.reimbursedShipping ?? true,
+          maxReimbursedPrice: p.maxReimbursedPrice,
+          maxReimbursedShipping: p.maxReimbursedShipping,
+          bonus: p.bonus ?? 0,
+        };
+      }),
     });
 
     return this.findOne(id);
@@ -618,6 +626,37 @@ export class CampaignsService {
     });
 
     return { message: 'Campaign deleted successfully' };
+  }
+
+  /**
+   * Calculate price range based on expected price
+   * - Price < 100€: range of 10€
+   * - Price 100-500€: range of 50€
+   * - Price > 500€: range of 200€
+   * The price is rounded down to the nearest multiple of 5
+   */
+  private calculatePriceRange(expectedPrice: number): {
+    priceRangeMin: number;
+    priceRangeMax: number;
+  } {
+    // Round down to nearest multiple of 5
+    const roundedPrice = Math.floor(expectedPrice / 5) * 5;
+
+    // Determine range based on price
+    let range: number;
+    if (expectedPrice < 100) {
+      range = 10;
+    } else if (expectedPrice <= 500) {
+      range = 50;
+    } else {
+      range = 200;
+    }
+
+    const halfRange = range / 2;
+    const priceRangeMin = Math.max(0, roundedPrice - halfRange);
+    const priceRangeMax = roundedPrice + halfRange;
+
+    return { priceRangeMin, priceRangeMax };
   }
 
   /**
