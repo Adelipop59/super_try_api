@@ -30,6 +30,16 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true, // Convert primitive types automatically
       },
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => {
+          const constraints = error.constraints
+            ? Object.values(error.constraints).join(', ')
+            : 'Unknown validation error';
+          return `${error.property}: ${constraints}`;
+        });
+        logger.error(`Validation failed: ${messages.join('; ')}`);
+        return new (require('@nestjs/common').BadRequestException)(messages);
+      },
     }),
   );
 

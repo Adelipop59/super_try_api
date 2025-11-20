@@ -1,8 +1,0 @@
-export function Logo() {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-2xl">🧪</span>
-      <span className="text-xl font-bold">Super Try</span>
-    </div>
-  );
-}
