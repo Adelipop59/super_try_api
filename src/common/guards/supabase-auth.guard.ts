@@ -67,13 +67,17 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('User account is inactive');
     }
 
-    // Attach user to request
+    // Attach user to request (minimal data for auth checks)
     request.user = {
       id: profile.id,
       supabaseUserId: profile.supabaseUserId,
       email: profile.email,
       role: profile.role,
     };
+
+    // Attach full profile to request (for endpoints that need all profile data)
+    // This avoids duplicate queries when the full profile is needed
+    (request as any).profile = profile;
 
     return true;
   }
