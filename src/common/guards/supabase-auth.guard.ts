@@ -30,6 +30,13 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
+
+    // Skip if already authenticated by a previous guard execution
+    // This prevents duplicate queries when guards are registered both globally and at controller level
+    if (request.user) {
+      return true;
+    }
+
     const authHeader = request.headers.authorization;
 
     if (!authHeader) {
