@@ -47,7 +47,8 @@ export class CampaignsService {
   constructor(private prismaService: PrismaService) {}
 
   /**
-   * Create a new campaign
+   * Create a new campaign (draft mode)
+   * Only title is required. Other fields can be added progressively.
    */
   async create(
     sellerId: string,
@@ -55,73 +56,86 @@ export class CampaignsService {
   ): Promise<CampaignResponseDto> {
     const { products, ...campaignData } = createCampaignDto;
 
-    // Validate dates
-    const startDate = new Date(campaignData.startDate);
+    // Validate dates if provided
+    const startDate = campaignData.startDate
+      ? new Date(campaignData.startDate)
+      : null;
     const endDate = campaignData.endDate
       ? new Date(campaignData.endDate)
       : null;
 
-    if (endDate && endDate <= startDate) {
+    if (startDate && endDate && endDate <= startDate) {
       throw new BadRequestException('End date must be after start date');
     }
 
-    // Verify all products exist and belong to the seller
-    const productIds = products.map((p) => p.productId);
-    const existingProducts = await this.prismaService.product.findMany({
-      where: {
-        id: { in: productIds },
-      },
-    });
+    // If products are provided, validate them
+    let offersData: any[] = [];
+    if (products && products.length > 0) {
+      const productIds = products.map((p) => p.productId);
+      const existingProducts = await this.prismaService.product.findMany({
+        where: {
+          id: { in: productIds },
+        },
+      });
 
-    if (existingProducts.length !== productIds.length) {
-      throw new NotFoundException('One or more products not found');
-    }
+      if (existingProducts.length !== productIds.length) {
+        throw new NotFoundException('One or more products not found');
+      }
 
-    // Check that all products belong to the seller
-    const notOwnedProducts = existingProducts.filter(
-      (p) => p.sellerId !== sellerId,
-    );
-    if (notOwnedProducts.length > 0) {
-      throw new ForbiddenException(
-        'You can only add your own products to a campaign',
+      // Check that all products belong to the seller
+      const notOwnedProducts = existingProducts.filter(
+        (p) => p.sellerId !== sellerId,
       );
+      if (notOwnedProducts.length > 0) {
+        throw new ForbiddenException(
+          'You can only add your own products to a campaign',
+        );
+      }
+
+      // Check that products are active
+      const inactiveProducts = existingProducts.filter((p) => !p.isActive);
+      if (inactiveProducts.length > 0) {
+        throw new BadRequestException(
+          `Cannot add inactive products to campaign: ${inactiveProducts.map((p) => p.name).join(', ')}`,
+        );
+      }
+
+      offersData = products.map((p) => {
+        const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(
+          p.expectedPrice,
+        );
+        return {
+          productId: p.productId,
+          quantity: p.quantity,
+          expectedPrice: p.expectedPrice,
+          shippingCost: p.shippingCost ?? 0,
+          priceRangeMin,
+          priceRangeMax,
+          reimbursedPrice: p.reimbursedPrice ?? true,
+          reimbursedShipping: p.reimbursedShipping ?? true,
+          maxReimbursedPrice: p.maxReimbursedPrice,
+          maxReimbursedShipping: p.maxReimbursedShipping,
+          bonus: p.bonus ?? 0,
+        };
+      });
     }
 
-    // Check that products are active
-    const inactiveProducts = existingProducts.filter((p) => !p.isActive);
-    if (inactiveProducts.length > 0) {
-      throw new BadRequestException(
-        `Cannot add inactive products to campaign: ${inactiveProducts.map((p) => p.name).join(', ')}`,
-      );
-    }
-
-    // Create campaign with products
+    // Create campaign with optional data
     const campaign = await this.prismaService.campaign.create({
       data: {
-        ...campaignData,
-        startDate,
+        title: campaignData.title,
+        description: campaignData.description ?? '',
+        startDate: startDate ?? new Date(),
         endDate,
-        availableSlots: campaignData.totalSlots,
+        totalSlots: campaignData.totalSlots ?? 0,
+        availableSlots: campaignData.totalSlots ?? 0,
         sellerId,
-        offers: {
-          create: products.map((p) => {
-            const { priceRangeMin, priceRangeMax } =
-              this.calculatePriceRange(p.expectedPrice);
-            return {
-              productId: p.productId,
-              quantity: p.quantity,
-              expectedPrice: p.expectedPrice,
-              shippingCost: p.shippingCost ?? 0,
-              priceRangeMin,
-              priceRangeMax,
-              reimbursedPrice: p.reimbursedPrice ?? true,
-              reimbursedShipping: p.reimbursedShipping ?? true,
-              maxReimbursedPrice: p.maxReimbursedPrice,
-              maxReimbursedShipping: p.maxReimbursedShipping,
-              bonus: p.bonus ?? 0,
-            };
-          }),
-        },
+        offers:
+          offersData.length > 0
+            ? {
+                create: offersData,
+              }
+            : undefined,
       },
       include: {
         seller: {
@@ -540,6 +554,8 @@ export class CampaignsService {
       where: { id },
       include: {
         offers: true,
+        procedures: true,
+        distributions: true,
       },
     });
 
@@ -553,6 +569,11 @@ export class CampaignsService {
 
     // Validate status transitions
     this.validateStatusTransition(campaign.status, newStatus);
+
+    // Full validation before PENDING_PAYMENT
+    if (newStatus === CampaignStatus.PENDING_PAYMENT) {
+      this.validateCampaignForPublication(campaign);
+    }
 
     // Check if campaign has offers before activating
     if (newStatus === CampaignStatus.ACTIVE && campaign.offers.length === 0) {
@@ -626,6 +647,60 @@ export class CampaignsService {
     });
 
     return { message: 'Campaign deleted successfully' };
+  }
+
+  /**
+   * Validate campaign has all required data before publication (PENDING_PAYMENT)
+   */
+  private validateCampaignForPublication(campaign: {
+    title: string;
+    description: string;
+    startDate: Date;
+    totalSlots: number;
+    offers: any[];
+    procedures: any[];
+    distributions: any[];
+  }): void {
+    const errors: string[] = [];
+
+    // Validate basic info
+    if (!campaign.title || campaign.title.length < 5) {
+      errors.push('Title is required (minimum 5 characters)');
+    }
+
+    if (!campaign.description || campaign.description.length < 20) {
+      errors.push('Description is required (minimum 20 characters)');
+    }
+
+    if (!campaign.startDate) {
+      errors.push('Start date is required');
+    }
+
+    if (!campaign.totalSlots || campaign.totalSlots < 1) {
+      errors.push('Total slots must be at least 1');
+    }
+
+    // Validate offers (products)
+    if (!campaign.offers || campaign.offers.length === 0) {
+      errors.push('At least one product is required');
+    }
+
+    // Validate procedures
+    if (!campaign.procedures || campaign.procedures.length === 0) {
+      errors.push('At least one procedure is required');
+    }
+
+    // Validate distributions
+    if (!campaign.distributions || campaign.distributions.length === 0) {
+      errors.push('At least one distribution schedule is required');
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Campaign is incomplete and cannot be published',
+        errors,
+      });
+    }
   }
 
   /**

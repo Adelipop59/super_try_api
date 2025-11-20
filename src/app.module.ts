@@ -14,6 +14,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { ProceduresModule } from './modules/procedures/procedures.module';
+import { ProcedureTemplatesModule } from './modules/procedure-templates/procedure-templates.module';
 import { StepsModule } from './modules/steps/steps.module';
 import { DistributionsModule } from './modules/distributions/distributions.module';
 import { TestingModule } from './modules/testing/testing.module';
@@ -51,6 +52,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CampaignsModule,
     LogsModule,
     ProceduresModule,
+    ProcedureTemplatesModule,
     StepsModule,
     DistributionsModule,
     SessionsModule,

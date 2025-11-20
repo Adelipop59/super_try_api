@@ -167,6 +167,7 @@ model Profile {
   requestedBonusTasks     BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
   wallet                  Wallet? // Portefeuille financier (pour les testeurs)
   withdrawals             Withdrawal[] // Demandes de retrait (pour les testeurs)
+  procedureTemplates      ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -435,6 +436,55 @@ model Step {
   @@index([procedureId])
   @@index([order])
   @@map("steps")
+}
+
+// ProcedureTemplate table - Templates de procédures réutilisables
+model ProcedureTemplate {
+  id String @id @default(uuid())
+
+  // Relation with seller (owner of the template)
+  sellerId String  @map("seller_id")
+  seller   Profile @relation("SellerProcedureTemplates", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Template info
+  name        String // Nom du template pour le vendeur
+  title       String // Titre qui sera copié dans la procédure
+  description String @db.Text
+
+  // Relations
+  steps StepTemplate[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("procedure_templates")
+}
+
+// StepTemplate table - Étapes d'un template de procédure
+model StepTemplate {
+  id String @id @default(uuid())
+
+  // Relation with procedure template
+  procedureTemplateId String            @map("procedure_template_id")
+  procedureTemplate   ProcedureTemplate @relation(fields: [procedureTemplateId], references: [id], onDelete: Cascade)
+
+  // Step info
+  title       String
+  description String?  @db.Text
+  type        StepType @default(TEXT)
+  order       Int
+  isRequired  Boolean  @default(true) @map("is_required")
+
+  // For CHECKLIST type
+  checklistItems Json? @map("checklist_items")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([procedureTemplateId])
+  @@index([order])
+  @@map("step_templates")
 }
 
 // SessionStepProgress table - Tracking de la progression des testeurs dans les steps

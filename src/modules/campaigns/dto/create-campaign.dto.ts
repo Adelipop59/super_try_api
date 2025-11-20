@@ -10,7 +10,6 @@ import {
   MaxLength,
   IsArray,
   ValidateNested,
-  ArrayMinSize,
   IsBoolean,
   IsNumber,
 } from 'class-validator';
@@ -105,7 +104,10 @@ export class CampaignProductDto {
 }
 
 /**
- * DTO pour créer une nouvelle campagne
+ * DTO pour créer une nouvelle campagne (mode draft progressif)
+ * Seul le titre est obligatoire à la création.
+ * Les autres champs peuvent être ajoutés progressivement.
+ * Tous les champs seront validés lors du passage à PENDING_PAYMENT.
  */
 export class CreateCampaignDto {
   @ApiProperty({
@@ -124,18 +126,21 @@ export class CreateCampaignDto {
     description: 'Description détaillée de la campagne',
     example:
       'Nous recherchons des testeurs pour notre nouveau iPhone 15 Pro. Testez les fonctionnalités photo et vidéo.',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MinLength(20)
-  description!: string;
+  description?: string;
 
   @ApiProperty({
     description: 'Date de début de la campagne (ISO 8601)',
     example: '2025-02-01T00:00:00Z',
+    required: false,
   })
   @IsDateString()
-  startDate!: string;
+  @IsOptional()
+  startDate?: string;
 
   @ApiProperty({
     description:
@@ -151,10 +156,12 @@ export class CreateCampaignDto {
     description: 'Nombre total de slots de test disponibles',
     example: 100,
     minimum: 1,
+    required: false,
   })
   @IsInt()
   @Min(1)
-  totalSlots!: number;
+  @IsOptional()
+  totalSlots?: number;
 
   @ApiProperty({
     description: 'Liste des produits à inclure dans la campagne',
@@ -163,10 +170,11 @@ export class CreateCampaignDto {
       { productId: '123e4567-e89b-12d3-a456-426614174000', quantity: 50 },
       { productId: '123e4567-e89b-12d3-a456-426614174001', quantity: 30 },
     ],
+    required: false,
   })
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CampaignProductDto)
-  products!: CampaignProductDto[];
+  @IsOptional()
+  products?: CampaignProductDto[];
 }

@@ -60,7 +60,9 @@ export class DistributionsService {
         campaignId,
         type: createDistributionDto.type,
         dayOfWeek: createDistributionDto.dayOfWeek ?? 0,
-        specificDate: createDistributionDto.specificDate ?? null,
+        specificDate: createDistributionDto.specificDate
+          ? new Date(createDistributionDto.specificDate)
+          : null,
         maxUnits: createDistributionDto.maxUnits,
         isActive: createDistributionDto.isActive ?? true,
       },
@@ -146,7 +148,9 @@ export class DistributionsService {
       data: {
         type: updateDistributionDto.type,
         dayOfWeek: updateDistributionDto.dayOfWeek ?? undefined,
-        specificDate: updateDistributionDto.specificDate ?? undefined,
+        specificDate: updateDistributionDto.specificDate
+          ? new Date(updateDistributionDto.specificDate)
+          : undefined,
         isActive: updateDistributionDto.isActive,
       },
     });
@@ -234,7 +238,9 @@ export class DistributionsService {
             campaignId,
             type: dto.type,
             dayOfWeek: dto.dayOfWeek ?? 0,
-            specificDate: dto.specificDate ?? null,
+            specificDate: dto.specificDate
+              ? new Date(dto.specificDate)
+              : null,
             maxUnits: dto.maxUnits,
             isActive: dto.isActive ?? true,
           },
