@@ -9,6 +9,12 @@ import { LogsService } from '../logs/logs.service';
 import { CreateDistributionDto } from './dto/create-distribution.dto';
 import { UpdateDistributionDto } from './dto/update-distribution.dto';
 import { DistributionResponseDto } from './dto/distribution-response.dto';
+import {
+  ValidateDistributionsRequestDto,
+  ValidateDistributionsResponseDto,
+  DistributionValidationResult,
+  DistributionValidationError,
+} from './dto/validate-distributions.dto';
 import { LogCategory, DistributionType } from '@prisma/client';
 import {
   PaginatedResponse,
@@ -58,6 +64,14 @@ export class DistributionsService {
 
     // Validation selon le type
     this.validateDistributionDto(createDistributionDto);
+
+    // Validation des règles de sécurité (dates et maxUnits)
+    const existingMaxUnits = await this.getExistingMaxUnitsSum(campaignId);
+    await this.validateSingleDistributionAgainstCampaign(
+      campaign,
+      createDistributionDto,
+      existingMaxUnits,
+    );
 
     // Créer la distribution
     const distribution = await this.prismaService.distribution.create({
@@ -166,6 +180,30 @@ export class DistributionsService {
       );
     }
 
+    // Construire le DTO complet pour validation
+    const dtoForValidation: CreateDistributionDto = {
+      type: updateDistributionDto.type ?? distribution.type,
+      dayOfWeek: updateDistributionDto.dayOfWeek ?? distribution.dayOfWeek ?? undefined,
+      specificDate: updateDistributionDto.specificDate
+        ? new Date(updateDistributionDto.specificDate)
+        : distribution.specificDate ?? undefined,
+      maxUnits: updateDistributionDto.maxUnits ?? distribution.maxUnits,
+      isActive: updateDistributionDto.isActive ?? distribution.isActive,
+    };
+
+    // Validation des règles de sécurité (dates et maxUnits)
+    // Exclure cette distribution du calcul des maxUnits existants
+    const existingMaxUnits = await this.getExistingMaxUnitsSum(
+      distribution.campaignId,
+      [id],
+    );
+    await this.validateSingleDistributionAgainstCampaign(
+      distribution.campaign,
+      dtoForValidation,
+      existingMaxUnits,
+      id,
+    );
+
     const updated = await this.prismaService.distribution.update({
       where: { id },
       data: {
@@ -174,6 +212,7 @@ export class DistributionsService {
         specificDate: updateDistributionDto.specificDate
           ? new Date(updateDistributionDto.specificDate)
           : undefined,
+        maxUnits: updateDistributionDto.maxUnits,
         isActive: updateDistributionDto.isActive,
       },
     });
@@ -250,8 +289,63 @@ export class DistributionsService {
       );
     }
 
-    // Valider toutes les distributions
+    // Valider toutes les distributions selon leur type
     distributions.forEach((dto) => this.validateDistributionDto(dto));
+
+    // Validation des règles de sécurité pour toutes les distributions
+    const existingMaxUnits = await this.getExistingMaxUnitsSum(campaignId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let accumulatedMaxUnits = existingMaxUnits;
+
+    for (let i = 0; i < distributions.length; i++) {
+      const dto = distributions[i];
+
+      // Validation pour SPECIFIC_DATE
+      if (dto.type === DistributionType.SPECIFIC_DATE && dto.specificDate) {
+        const specificDate = new Date(dto.specificDate);
+        specificDate.setHours(0, 0, 0, 0);
+
+        // Règle 1: Date pas dans le passé
+        if (specificDate < today) {
+          throw new BadRequestException(
+            `Distribution ${i + 1}: La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
+          );
+        }
+
+        // Règle 2: Date dans la période de la campagne
+        const campaignStartDate = new Date(campaign.startDate);
+        campaignStartDate.setHours(0, 0, 0, 0);
+
+        if (specificDate < campaignStartDate) {
+          throw new BadRequestException(
+            `Distribution ${i + 1}: La date ${specificDate.toLocaleDateString('fr-FR')} est avant le début de la campagne (${campaignStartDate.toLocaleDateString('fr-FR')}).`,
+          );
+        }
+
+        if (campaign.endDate) {
+          const campaignEndDate = new Date(campaign.endDate);
+          campaignEndDate.setHours(0, 0, 0, 0);
+
+          if (specificDate > campaignEndDate) {
+            throw new BadRequestException(
+              `Distribution ${i + 1}: La date ${specificDate.toLocaleDateString('fr-FR')} est après la fin de la campagne (${campaignEndDate.toLocaleDateString('fr-FR')}).`,
+            );
+          }
+        }
+      }
+
+      // Accumuler les maxUnits
+      accumulatedMaxUnits += dto.maxUnits;
+    }
+
+    // Règle 3: Vérifier la somme totale des maxUnits
+    if (accumulatedMaxUnits > campaign.totalSlots) {
+      throw new BadRequestException(
+        `La somme des maxUnits (${accumulatedMaxUnits}) dépasse le nombre total de slots de la campagne (${campaign.totalSlots}). Existants: ${existingMaxUnits}, Nouveaux: ${accumulatedMaxUnits - existingMaxUnits}.`,
+      );
+    }
 
     // Créer toutes les distributions
     const results = await Promise.all(
@@ -331,9 +425,234 @@ export class DistributionsService {
           ? this.dayNames[distribution.dayOfWeek]
           : null,
       specificDate: distribution.specificDate,
+      maxUnits: distribution.maxUnits,
       isActive: distribution.isActive,
       createdAt: distribution.createdAt,
       updatedAt: distribution.updatedAt,
     };
+  }
+
+  /**
+   * Valider les distributions pour une campagne
+   * Vérifie les règles critiques:
+   * - Date dans la période de la campagne (startDate <= specificDate <= endDate)
+   * - Date pas dans le passé (specificDate >= aujourd'hui)
+   * - Somme des maxUnits ne dépasse pas totalSlots
+   */
+  async validateDistributions(
+    request: ValidateDistributionsRequestDto,
+  ): Promise<ValidateDistributionsResponseDto> {
+    const { campaignId, distributions, includeExistingDistributions = true } = request;
+
+    // Récupérer la campagne
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        distributions: includeExistingDistributions,
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID ${campaignId} not found`);
+    }
+
+    const results: DistributionValidationResult[] = [];
+    const globalErrors: DistributionValidationError[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let totalMaxUnits = 0;
+    let existingDistributionsMaxUnits = 0;
+
+    // Calculer les maxUnits des distributions existantes
+    if (includeExistingDistributions && campaign.distributions) {
+      existingDistributionsMaxUnits = campaign.distributions.reduce(
+        (sum, dist) => sum + dist.maxUnits,
+        0,
+      );
+    }
+
+    // Valider chaque distribution
+    for (let i = 0; i < distributions.length; i++) {
+      const dto = distributions[i];
+      const errors: DistributionValidationError[] = [];
+
+      // Validation de base selon le type
+      try {
+        this.validateDistributionDto(dto);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          errors.push({
+            index: i,
+            field: 'type',
+            code: 'INVALID_TYPE',
+            message: error.message,
+            severity: 'CRITICAL',
+          });
+        }
+      }
+
+      // Validation spécifique pour SPECIFIC_DATE
+      if (dto.type === DistributionType.SPECIFIC_DATE && dto.specificDate) {
+        const specificDate = new Date(dto.specificDate);
+        specificDate.setHours(0, 0, 0, 0);
+
+        // Règle 1: Date pas dans le passé
+        if (specificDate < today) {
+          errors.push({
+            index: i,
+            field: 'specificDate',
+            code: 'DATE_IN_PAST',
+            message: `La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
+            severity: 'CRITICAL',
+          });
+        }
+
+        // Règle 2: Date dans la période de la campagne
+        const campaignStartDate = new Date(campaign.startDate);
+        campaignStartDate.setHours(0, 0, 0, 0);
+
+        if (specificDate < campaignStartDate) {
+          errors.push({
+            index: i,
+            field: 'specificDate',
+            code: 'DATE_OUT_OF_CAMPAIGN_PERIOD',
+            message: `La date ${specificDate.toLocaleDateString('fr-FR')} est avant le début de la campagne (${campaignStartDate.toLocaleDateString('fr-FR')}).`,
+            severity: 'CRITICAL',
+          });
+        }
+
+        if (campaign.endDate) {
+          const campaignEndDate = new Date(campaign.endDate);
+          campaignEndDate.setHours(0, 0, 0, 0);
+
+          if (specificDate > campaignEndDate) {
+            errors.push({
+              index: i,
+              field: 'specificDate',
+              code: 'DATE_OUT_OF_CAMPAIGN_PERIOD',
+              message: `La date ${specificDate.toLocaleDateString('fr-FR')} est après la fin de la campagne (${campaignEndDate.toLocaleDateString('fr-FR')}).`,
+              severity: 'CRITICAL',
+            });
+          }
+        }
+      }
+
+      // Accumuler les maxUnits si la distribution n'a pas d'erreurs critiques
+      if (errors.length === 0) {
+        totalMaxUnits += dto.maxUnits;
+      }
+
+      results.push({
+        index: i,
+        isValid: errors.length === 0,
+        errors,
+      });
+    }
+
+    // Règle 3: Vérifier que la somme des maxUnits ne dépasse pas totalSlots
+    const combinedMaxUnits = totalMaxUnits + existingDistributionsMaxUnits;
+    if (combinedMaxUnits > campaign.totalSlots) {
+      globalErrors.push({
+        index: -1,
+        field: 'maxUnits',
+        code: 'MAX_UNITS_EXCEEDED',
+        message: `La somme des maxUnits (${combinedMaxUnits}) dépasse le nombre total de slots de la campagne (${campaign.totalSlots}). Nouvelles distributions: ${totalMaxUnits}, Existantes: ${existingDistributionsMaxUnits}.`,
+        severity: 'CRITICAL',
+      });
+    }
+
+    const hasErrors = results.some((r) => !r.isValid) || globalErrors.length > 0;
+
+    return {
+      isValid: !hasErrors,
+      results,
+      globalErrors,
+      totalMaxUnits,
+      campaignTotalSlots: campaign.totalSlots,
+      existingDistributionsMaxUnits,
+    };
+  }
+
+  /**
+   * Valider une seule distribution contre les règles de la campagne
+   * Utilisé en interne lors de create/update
+   */
+  private async validateSingleDistributionAgainstCampaign(
+    campaign: {
+      startDate: Date;
+      endDate: Date | null;
+      totalSlots: number;
+    },
+    dto: CreateDistributionDto,
+    existingMaxUnitsSum: number = 0,
+    excludeDistributionId?: string,
+  ): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Validation pour SPECIFIC_DATE
+    if (dto.type === DistributionType.SPECIFIC_DATE && dto.specificDate) {
+      const specificDate = new Date(dto.specificDate);
+      specificDate.setHours(0, 0, 0, 0);
+
+      // Règle 1: Date pas dans le passé
+      if (specificDate < today) {
+        throw new BadRequestException(
+          `La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
+        );
+      }
+
+      // Règle 2: Date dans la période de la campagne
+      const campaignStartDate = new Date(campaign.startDate);
+      campaignStartDate.setHours(0, 0, 0, 0);
+
+      if (specificDate < campaignStartDate) {
+        throw new BadRequestException(
+          `La date ${specificDate.toLocaleDateString('fr-FR')} est avant le début de la campagne (${campaignStartDate.toLocaleDateString('fr-FR')}).`,
+        );
+      }
+
+      if (campaign.endDate) {
+        const campaignEndDate = new Date(campaign.endDate);
+        campaignEndDate.setHours(0, 0, 0, 0);
+
+        if (specificDate > campaignEndDate) {
+          throw new BadRequestException(
+            `La date ${specificDate.toLocaleDateString('fr-FR')} est après la fin de la campagne (${campaignEndDate.toLocaleDateString('fr-FR')}).`,
+          );
+        }
+      }
+    }
+
+    // Règle 3: Vérifier la somme des maxUnits
+    const newTotalMaxUnits = existingMaxUnitsSum + dto.maxUnits;
+    if (newTotalMaxUnits > campaign.totalSlots) {
+      throw new BadRequestException(
+        `La somme des maxUnits (${newTotalMaxUnits}) dépasse le nombre total de slots de la campagne (${campaign.totalSlots}).`,
+      );
+    }
+  }
+
+  /**
+   * Calculer la somme des maxUnits existants pour une campagne
+   */
+  private async getExistingMaxUnitsSum(
+    campaignId: string,
+    excludeDistributionIds: string[] = [],
+  ): Promise<number> {
+    const distributions = await this.prismaService.distribution.findMany({
+      where: {
+        campaignId,
+        id: {
+          notIn: excludeDistributionIds,
+        },
+      },
+      select: {
+        maxUnits: true,
+      },
+    });
+
+    return distributions.reduce((sum, dist) => sum + dist.maxUnits, 0);
   }
 }

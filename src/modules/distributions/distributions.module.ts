@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { DistributionsService } from './distributions.service';
 import { DistributionsController } from './distributions.controller';
+import { DistributionsValidationController } from './distributions-validation.controller';
 import { PrismaModule } from '../../database/prisma.module';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [DistributionsController],
+  controllers: [DistributionsController, DistributionsValidationController],
   providers: [DistributionsService],
   exports: [DistributionsService],
 })
