@@ -10,6 +10,11 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { Prisma } from '@prisma/client';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+  calculateOffset,
+} from '../../common/dto/pagination.dto';
 
 // Type for product with all includes
 type ProductWithIncludes = Prisma.ProductGetPayload<{
@@ -72,10 +77,12 @@ export class ProductsService {
   }
 
   /**
-   * Find all products with filters (ADMIN only)
+   * Find all products with filters and pagination (ADMIN only)
    */
-  async findAll(filters: ProductFilterDto): Promise<ProductResponseDto[]> {
-    const { sellerId, category, isActive } = filters;
+  async findAll(
+    filters: ProductFilterDto,
+  ): Promise<PaginatedResponse<ProductResponseDto>> {
+    const { sellerId, category, isActive, page = 1, limit = 20 } = filters;
 
     const where: any = {};
 
@@ -83,31 +90,40 @@ export class ProductsService {
     if (category) where.category = category;
     if (isActive !== undefined) where.isActive = isActive;
 
-    const products = await this.prismaService.product.findMany({
-      where,
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-            companyName: true,
-          },
-        },
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            icon: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const offset = calculateOffset(page, limit);
 
-    return products.map((product) => this.formatProductResponse(product));
+    const [products, total] = await Promise.all([
+      this.prismaService.product.findMany({
+        where,
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              companyName: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.product.count({ where }),
+    ]);
+
+    const data = products.map((product) => this.formatProductResponse(product));
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   /**
@@ -143,34 +159,48 @@ export class ProductsService {
   }
 
   /**
-   * Find products by seller ID
+   * Find products by seller ID with pagination
    */
-  async findBySeller(sellerId: string): Promise<ProductResponseDto[]> {
-    const products = await this.prismaService.product.findMany({
-      where: { sellerId },
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-            companyName: true,
-          },
-        },
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            icon: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+  async findBySeller(
+    sellerId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedResponse<ProductResponseDto>> {
+    const where = { sellerId };
+    const offset = calculateOffset(page, limit);
 
-    return products.map((product) => this.formatProductResponse(product));
+    const [products, total] = await Promise.all([
+      this.prismaService.product.findMany({
+        where,
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              companyName: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.product.count({ where }),
+    ]);
+
+    const data = products.map((product) => this.formatProductResponse(product));
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   /**

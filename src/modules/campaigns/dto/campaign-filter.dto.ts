@@ -1,11 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { CampaignStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 /**
- * DTO pour filtrer les campagnes
+ * DTO pour filtrer les campagnes avec pagination
  */
-export class CampaignFilterDto {
+export class CampaignFilterDto extends PaginationDto {
   @ApiPropertyOptional({
     description: 'Filtrer par ID du vendeur',
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -44,5 +46,7 @@ export class CampaignFilterDto {
     example: true,
   })
   @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
   hasAvailableSlots?: boolean;
 }

@@ -12,6 +12,11 @@ import { CampaignFilterDto } from './dto/campaign-filter.dto';
 import { CampaignResponseDto } from './dto/campaign-response.dto';
 import { AddProductsToCampaignDto } from './dto/add-products-to-campaign.dto';
 import { CampaignStatus, Prisma } from '@prisma/client';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+  calculateOffset,
+} from '../../common/dto/pagination.dto';
 
 // Type for campaign with all includes used in this service
 type CampaignWithIncludes = Prisma.CampaignGetPayload<{
@@ -168,11 +173,20 @@ export class CampaignsService {
   }
 
   /**
-   * Find all campaigns with filters
+   * Find all campaigns with filters and pagination
    */
-  async findAll(filters: CampaignFilterDto): Promise<CampaignResponseDto[]> {
-    const { sellerId, status, startDateFrom, startDateTo, hasAvailableSlots } =
-      filters;
+  async findAll(
+    filters: CampaignFilterDto,
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
+    const {
+      sellerId,
+      status,
+      startDateFrom,
+      startDateTo,
+      hasAvailableSlots,
+      page = 1,
+      limit = 20,
+    } = filters;
 
     const where: any = {};
 
@@ -191,39 +205,50 @@ export class CampaignsService {
       where.availableSlots = { gt: 0 };
     }
 
-    const campaigns = await this.prismaService.campaign.findMany({
-      where,
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-            companyName: true,
+    const offset = calculateOffset(page, limit);
+
+    const [campaigns, total] = await Promise.all([
+      this.prismaService.campaign.findMany({
+        where,
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              companyName: true,
+            },
           },
-        },
-        offers: {
-          include: {
-            product: {
-              include: {
-                category: {
-                  select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    icon: true,
+          offers: {
+            include: {
+              product: {
+                include: {
+                  category: {
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      icon: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.campaign.count({ where }),
+    ]);
 
-    return campaigns.map((campaign) => this.formatCampaignResponse(campaign));
+    const data = campaigns.map((campaign) =>
+      this.formatCampaignResponse(campaign),
+    );
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   /**
@@ -231,7 +256,7 @@ export class CampaignsService {
    */
   async findAllActive(
     filters: CampaignFilterDto,
-  ): Promise<CampaignResponseDto[]> {
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
     return this.findAll({ ...filters, status: CampaignStatus.ACTIVE });
   }
 
@@ -276,42 +301,58 @@ export class CampaignsService {
   }
 
   /**
-   * Find campaigns by seller ID
+   * Find campaigns by seller ID with pagination
    */
-  async findBySeller(sellerId: string): Promise<CampaignResponseDto[]> {
-    const campaigns = await this.prismaService.campaign.findMany({
-      where: { sellerId },
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-            companyName: true,
+  async findBySeller(
+    sellerId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
+    const where = { sellerId };
+    const offset = calculateOffset(page, limit);
+
+    const [campaigns, total] = await Promise.all([
+      this.prismaService.campaign.findMany({
+        where,
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              companyName: true,
+            },
           },
-        },
-        offers: {
-          include: {
-            product: {
-              include: {
-                category: {
-                  select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    icon: true,
+          offers: {
+            include: {
+              product: {
+                include: {
+                  category: {
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      icon: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.campaign.count({ where }),
+    ]);
 
-    return campaigns.map((campaign) => this.formatCampaignResponse(campaign));
+    const data = campaigns.map((campaign) =>
+      this.formatCampaignResponse(campaign),
+    );
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   /**

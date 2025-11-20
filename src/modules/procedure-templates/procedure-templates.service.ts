@@ -9,6 +9,11 @@ import { CreateProcedureTemplateDto } from './dto/create-procedure-template.dto'
 import { UpdateProcedureTemplateDto } from './dto/update-procedure-template.dto';
 import { ProcedureTemplateResponseDto } from './dto/procedure-template-response.dto';
 import { CampaignStatus } from '@prisma/client';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+  calculateOffset,
+} from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ProcedureTemplatesService {
@@ -51,22 +56,32 @@ export class ProcedureTemplatesService {
   }
 
   /**
-   * Find all templates for a seller
+   * Find all templates for a seller with pagination
    */
   async findAllBySeller(
     sellerId: string,
-  ): Promise<ProcedureTemplateResponseDto[]> {
-    const templates = await this.prismaService.procedureTemplate.findMany({
-      where: { sellerId },
-      include: {
-        steps: {
-          orderBy: { order: 'asc' },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedResponse<ProcedureTemplateResponseDto>> {
+    const where = { sellerId };
+    const offset = calculateOffset(page, limit);
 
-    return templates;
+    const [templates, total] = await Promise.all([
+      this.prismaService.procedureTemplate.findMany({
+        where,
+        include: {
+          steps: {
+            orderBy: { order: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.procedureTemplate.count({ where }),
+    ]);
+
+    return createPaginatedResponse(templates, total, page, limit);
   }
 
   /**

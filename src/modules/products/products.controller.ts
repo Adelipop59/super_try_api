@@ -29,6 +29,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import type { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @ApiTags('products')
 @Controller('products')
@@ -65,7 +66,7 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Liste de tous les produits (Admin)',
     description:
-      'Récupère tous les produits (actifs et inactifs) avec filtres optionnels',
+      'Récupère tous les produits (actifs et inactifs) avec filtres optionnels et pagination',
   })
   @ApiQuery({
     name: 'sellerId',
@@ -83,16 +84,27 @@ export class ProductsController {
     type: Boolean,
     description: 'Filtrer par statut actif',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste de tous les produits',
-    type: [ProductResponseDto],
+    description: 'Liste paginée de tous les produits',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle admin requis' })
   findAllAdmin(
     @Query() filters: ProductFilterDto,
-  ): Promise<ProductResponseDto[]> {
+  ): Promise<PaginatedResponse<ProductResponseDto>> {
     return this.productsService.findAll(filters);
   }
 
@@ -101,19 +113,36 @@ export class ProductsController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Mes produits',
-    description: 'Récupère la liste de mes produits (vendeur connecté)',
+    description:
+      'Récupère la liste de mes produits avec pagination (vendeur connecté)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste de mes produits',
-    type: [ProductResponseDto],
+    description: 'Liste paginée de mes produits',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle PRO ou ADMIN requis' })
   findMyProducts(
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<ProductResponseDto[]> {
-    return this.productsService.findBySeller(user.id);
+    @Query() filters: ProductFilterDto,
+  ): Promise<PaginatedResponse<ProductResponseDto>> {
+    return this.productsService.findBySeller(
+      user.id,
+      filters.page,
+      filters.limit,
+    );
   }
 
   @Roles('PRO', 'ADMIN')

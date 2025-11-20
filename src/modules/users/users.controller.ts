@@ -28,6 +28,7 @@ import { CurrentUser, CurrentProfile } from '../../common/decorators/current-use
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import type { Profile } from '@prisma/client';
 import { ProfileResponseDto } from './dto/profile.dto';
+import type { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -40,7 +41,7 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Liste des profils (Admin)',
-    description: 'Récupère tous les profils avec filtres optionnels',
+    description: 'Récupère tous les profils avec filtres optionnels et pagination',
   })
   @ApiQuery({
     name: 'role',
@@ -60,10 +61,21 @@ export class UsersController {
     type: Boolean,
     description: 'Filtrer par vérification',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste des profils',
-    type: [ProfileResponseDto],
+    description: 'Liste paginée des profils',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle admin requis' })
@@ -71,7 +83,9 @@ export class UsersController {
     @Query('role') role?: string,
     @Query('isActive') isActive?: string,
     @Query('isVerified') isVerified?: string,
-  ) {
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<PaginatedResponse<Profile>> {
     return this.usersService.getAllProfiles({
       role,
       isActive:
@@ -82,6 +96,8 @@ export class UsersController {
           : isVerified === 'false'
             ? false
             : undefined,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 
