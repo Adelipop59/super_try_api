@@ -37,6 +37,12 @@ export class DistributionResponseDto {
   })
   specificDate?: Date | null;
 
+  @ApiProperty({
+    example: 10,
+    description: 'Nombre maximum d\'unités à distribuer pour ce jour',
+  })
+  maxUnits!: number;
+
   @ApiProperty({ example: true })
   isActive!: boolean;
 
