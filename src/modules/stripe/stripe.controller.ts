@@ -14,7 +14,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, Profile } from '@prisma/client';
+import { UserRole } from '@prisma/client';
+import type { Profile } from '@prisma/client';
 
 // DTOs
 class CreatePaymentIntentDto {
