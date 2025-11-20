@@ -5,15 +5,16 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
   Query,
   BadRequestException,
 } from '@nestjs/common';
 import { StripeService } from './stripe.service';
-import { AuthGuard } from '@nestjs/passport';
+import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from '@prisma/client';
+import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { UserRole, Profile } from '@prisma/client';
 
 // DTOs
 class CreatePaymentIntentDto {
@@ -37,7 +38,7 @@ class AttachPaymentMethodDto {
 }
 
 @Controller('stripe')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(SupabaseAuthGuard, RolesGuard)
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
@@ -60,9 +61,9 @@ export class StripeController {
   @Roles(UserRole.PRO, UserRole.ADMIN)
   async createPaymentIntent(
     @Body() dto: CreatePaymentIntentDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
+    const userId = user.id;
 
     // Vérifier que le montant est valide
     if (dto.amount <= 0) {
@@ -95,9 +96,9 @@ export class StripeController {
   @Roles(UserRole.PRO)
   async createConnectedAccount(
     @Body() dto: CreateConnectedAccountDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = req.user.id;
+    const userId = user.id;
 
     // TODO: Vérifier que l'utilisateur n'a pas déjà un compte connecté
 
@@ -170,18 +171,16 @@ export class StripeController {
    */
   @Post('customers')
   @Roles(UserRole.USER, UserRole.ADMIN)
-  async createCustomer(@Request() req: any) {
-    const user = req.user;
-
+  async createCustomer(@CurrentProfile() profile: Profile) {
     // TODO: Vérifier que l'utilisateur n'a pas déjà un customer ID
 
     const customer = await this.stripeService.createCustomer({
-      email: user.email,
-      name: user.firstName && user.lastName
-        ? `${user.firstName} ${user.lastName}`
+      email: profile.email,
+      name: profile.firstName && profile.lastName
+        ? `${profile.firstName} ${profile.lastName}`
         : undefined,
       metadata: {
-        userId: user.id,
+        userId: profile.id,
       },
     });
 
@@ -198,11 +197,10 @@ export class StripeController {
    */
   @Post('setup-intents')
   @Roles(UserRole.USER, UserRole.PRO)
-  async createSetupIntent(@Request() req: any) {
-    const user = req.user;
-
-    // TODO: Récupérer le customer ID depuis la base de données
-    const customerId = user.stripeCustomerId;
+  async createSetupIntent(@CurrentUser() user: AuthenticatedUser) {
+    // TODO: Récupérer le customer ID depuis la base de données (ajouter stripeCustomerId au Profile)
+    // Pour l'instant, cette fonctionnalité n'est pas implémentée
+    const customerId = null; // À remplacer par: profile.stripeCustomerId
 
     if (!customerId) {
       throw new BadRequestException(
@@ -225,12 +223,10 @@ export class StripeController {
   @Roles(UserRole.USER, UserRole.PRO)
   async attachPaymentMethod(
     @Body() dto: AttachPaymentMethodDto,
-    @Request() req: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const user = req.user;
-
-    // TODO: Récupérer le customer ID depuis la base de données
-    const customerId = user.stripeCustomerId;
+    // TODO: Récupérer le customer ID depuis la base de données (ajouter stripeCustomerId au Profile)
+    const customerId = null; // À remplacer par: profile.stripeCustomerId
 
     if (!customerId) {
       throw new BadRequestException('No Stripe customer found');
@@ -254,7 +250,10 @@ export class StripeController {
    */
   @Post('payouts')
   @Roles(UserRole.ADMIN)
-  async createPayout(@Body() dto: CreatePayoutDto, @Request() req: any) {
+  async createPayout(
+    @Body() dto: CreatePayoutDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     // Vérifier que le montant est valide
     if (dto.amount <= 0) {
       throw new BadRequestException('Amount must be positive');
@@ -270,7 +269,7 @@ export class StripeController {
       description: `Withdrawal ${dto.withdrawalId}`,
       metadata: {
         withdrawalId: dto.withdrawalId,
-        adminId: req.user.id,
+        adminId: user.id,
       },
     });
 
