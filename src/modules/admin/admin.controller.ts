@@ -88,24 +88,30 @@ export class AdminController {
   @Get('users')
   @ApiOperation({
     summary: 'Lister tous les utilisateurs',
-    description: 'Récupère la liste de tous les utilisateurs avec filtres',
+    description: 'Récupère la liste de tous les utilisateurs avec filtres et pagination',
   })
   @ApiQuery({ name: 'role', required: false, enum: ['USER', 'PRO', 'ADMIN'] })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiQuery({ name: 'isVerified', required: false, type: Boolean })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Numéro de page (défaut: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Résultats par page (défaut: 20)' })
   @ApiResponse({
     status: 200,
-    description: 'Liste des utilisateurs',
+    description: 'Liste paginée des utilisateurs',
   })
   async getAllUsers(
     @Query('role') role?: string,
     @Query('isActive') isActive?: boolean,
     @Query('isVerified') isVerified?: boolean,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
     return await this.usersService.getAllProfiles({
       role,
       isActive,
       isVerified,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 
@@ -240,16 +246,24 @@ export class AdminController {
   @Get('campaigns')
   @ApiOperation({
     summary: 'Lister toutes les campagnes',
-    description: 'Récupère toutes les campagnes de tous les vendeurs',
+    description: 'Récupère toutes les campagnes de tous les vendeurs avec pagination',
   })
   @ApiQuery({ name: 'status', required: false, enum: CampaignStatus })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Numéro de page (défaut: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Résultats par page (défaut: 20)' })
   @ApiResponse({
     status: 200,
-    description: 'Liste des campagnes',
+    description: 'Liste paginée des campagnes',
   })
-  async getAllCampaigns(@Query('status') status?: CampaignStatus) {
+  async getAllCampaigns(
+    @Query('status') status?: CampaignStatus,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
     return await this.campaignsService.findAll({
       status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 
@@ -520,21 +534,27 @@ export class AdminController {
   @Get('products')
   @ApiOperation({
     summary: 'Lister tous les produits',
-    description: 'Récupère tous les produits de tous les vendeurs',
+    description: 'Récupère tous les produits de tous les vendeurs avec pagination',
   })
   @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Numéro de page (défaut: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Résultats par page (défaut: 20)' })
   @ApiResponse({
     status: 200,
-    description: 'Liste des produits',
+    description: 'Liste paginée des produits',
   })
   async getAllProducts(
     @Query('category') category?: string,
     @Query('isActive') isActive?: boolean,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
     return await this.productsService.findAll({
       category,
       isActive,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 

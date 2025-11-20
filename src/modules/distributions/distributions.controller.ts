@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,6 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { DistributionsService } from './distributions.service';
 import { CreateDistributionDto } from './dto/create-distribution.dto';
@@ -25,6 +27,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  PaginationDto,
+  type PaginatedResponse,
+} from '../../common/dto/pagination.dto';
 
 @ApiTags('distributions')
 @Controller('campaigns/:campaignId/distributions')
@@ -119,22 +125,38 @@ export class DistributionsController {
   @ApiOperation({
     summary: "Lister les distributions d'une campagne",
     description:
-      'Récupère toutes les distributions configurées pour une campagne. Accessible publiquement.',
+      'Récupère toutes les distributions configurées pour une campagne avec pagination. Accessible publiquement.',
   })
   @ApiParam({
     name: 'campaignId',
     description: 'ID de la campagne',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste des distributions',
-    type: [DistributionResponseDto],
+    description: 'Liste paginée des distributions',
   })
   async findAll(
     @Param('campaignId') campaignId: string,
-  ): Promise<DistributionResponseDto[]> {
-    return this.distributionsService.findAll(campaignId);
+    @Query() pagination: PaginationDto,
+  ): Promise<PaginatedResponse<DistributionResponseDto>> {
+    return this.distributionsService.findAll(
+      campaignId,
+      pagination.page,
+      pagination.limit,
+    );
   }
 
   /**

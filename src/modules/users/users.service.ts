@@ -7,6 +7,11 @@ import { PrismaService } from '../../database/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { Profile, UserRole } from '@prisma/client';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+  calculateOffset,
+} from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class UsersService {
@@ -48,25 +53,40 @@ export class UsersService {
   }
 
   /**
-   * Get all profiles (admin only)
+   * Get all profiles with pagination (admin only)
    */
   async getAllProfiles(filters?: {
     role?: string;
     isActive?: boolean;
     isVerified?: boolean;
-  }): Promise<Profile[]> {
-    return this.prismaService.profile.findMany({
-      where: {
-        ...(filters?.role && { role: filters.role as any }),
-        ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
-        ...(filters?.isVerified !== undefined && {
-          isVerified: filters.isVerified,
-        }),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<Profile>> {
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 20;
+    const offset = calculateOffset(page, limit);
+
+    const where = {
+      ...(filters?.role && { role: filters.role as any }),
+      ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
+      ...(filters?.isVerified !== undefined && {
+        isVerified: filters.isVerified,
+      }),
+    };
+
+    const [profiles, total] = await Promise.all([
+      this.prismaService.profile.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.profile.count({ where }),
+    ]);
+
+    return createPaginatedResponse(profiles, total, page, limit);
   }
 
   /**

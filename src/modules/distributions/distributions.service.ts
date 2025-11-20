@@ -10,6 +10,11 @@ import { CreateDistributionDto } from './dto/create-distribution.dto';
 import { UpdateDistributionDto } from './dto/update-distribution.dto';
 import { DistributionResponseDto } from './dto/distribution-response.dto';
 import { LogCategory, DistributionType } from '@prisma/client';
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+  calculateOffset,
+} from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class DistributionsService {
@@ -84,15 +89,33 @@ export class DistributionsService {
   }
 
   /**
-   * Liste des distributions d'une campagne
+   * Liste des distributions d'une campagne avec pagination
    */
-  async findAll(campaignId: string): Promise<DistributionResponseDto[]> {
-    const distributions = await this.prismaService.distribution.findMany({
-      where: { campaignId },
-      orderBy: [{ type: 'asc' }, { dayOfWeek: 'asc' }, { specificDate: 'asc' }],
-    });
+  async findAll(
+    campaignId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedResponse<DistributionResponseDto>> {
+    const where = { campaignId };
+    const offset = calculateOffset(page, limit);
 
-    return distributions.map((d) => this.formatResponse(d));
+    const [distributions, total] = await Promise.all([
+      this.prismaService.distribution.findMany({
+        where,
+        orderBy: [
+          { type: 'asc' },
+          { dayOfWeek: 'asc' },
+          { specificDate: 'asc' },
+        ],
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.distribution.count({ where }),
+    ]);
+
+    const data = distributions.map((d) => this.formatResponse(d));
+
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   /**

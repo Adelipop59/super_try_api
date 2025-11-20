@@ -30,6 +30,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CampaignStatus } from '@prisma/client';
+import type { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @ApiTags('campaigns')
 @Controller('campaigns')
@@ -65,7 +66,7 @@ export class CampaignsController {
   @ApiOperation({
     summary: 'Liste des campagnes actives',
     description:
-      'Récupère toutes les campagnes actives avec filtres optionnels (accessible sans authentification)',
+      'Récupère toutes les campagnes actives avec filtres optionnels et pagination (accessible sans authentification)',
   })
   @ApiQuery({
     name: 'sellerId',
@@ -84,12 +85,25 @@ export class CampaignsController {
     type: Boolean,
     description: 'Seulement les campagnes avec des slots disponibles',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste des campagnes',
-    type: [CampaignResponseDto],
+    description: 'Liste paginée des campagnes',
   })
-  findAll(@Query() filters: CampaignFilterDto): Promise<CampaignResponseDto[]> {
+  findAll(
+    @Query() filters: CampaignFilterDto,
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
     return this.campaignsService.findAllActive(filters);
   }
 
@@ -99,7 +113,7 @@ export class CampaignsController {
   @ApiOperation({
     summary: 'Liste de toutes les campagnes (Admin)',
     description:
-      'Récupère toutes les campagnes (tous statuts) avec filtres optionnels',
+      'Récupère toutes les campagnes (tous statuts) avec filtres optionnels et pagination',
   })
   @ApiQuery({
     name: 'sellerId',
@@ -112,16 +126,27 @@ export class CampaignsController {
     enum: CampaignStatus,
     description: 'Filtrer par statut',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste de toutes les campagnes',
-    type: [CampaignResponseDto],
+    description: 'Liste paginée de toutes les campagnes',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle admin requis' })
   findAllAdmin(
     @Query() filters: CampaignFilterDto,
-  ): Promise<CampaignResponseDto[]> {
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
     return this.campaignsService.findAll(filters);
   }
 
@@ -130,19 +155,36 @@ export class CampaignsController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Mes campagnes',
-    description: 'Récupère la liste de mes campagnes (vendeur connecté)',
+    description:
+      'Récupère la liste de mes campagnes avec pagination (vendeur connecté)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste de mes campagnes',
-    type: [CampaignResponseDto],
+    description: 'Liste paginée de mes campagnes',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle PRO ou ADMIN requis' })
   findMyCampaigns(
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<CampaignResponseDto[]> {
-    return this.campaignsService.findBySeller(user.id);
+    @Query() filters: CampaignFilterDto,
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
+    return this.campaignsService.findBySeller(
+      user.id,
+      filters.page,
+      filters.limit,
+    );
   }
 
   @Public()

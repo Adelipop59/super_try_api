@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,6 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ProcedureTemplatesService } from './procedure-templates.service';
 import { CreateProcedureTemplateDto } from './dto/create-procedure-template.dto';
@@ -24,6 +26,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  PaginationDto,
+  type PaginatedResponse,
+} from '../../common/dto/pagination.dto';
 
 @ApiTags('procedure-templates')
 @Controller('procedure-templates')
@@ -60,18 +66,35 @@ export class ProcedureTemplatesController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Liste des templates du vendeur (PRO/ADMIN)',
-    description: 'Récupère tous les templates de procédure du vendeur connecté',
+    description:
+      'Récupère tous les templates de procédure du vendeur connecté avec pagination',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste des templates',
-    type: [ProcedureTemplateResponseDto],
+    description: 'Liste paginée des templates',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<ProcedureTemplateResponseDto[]> {
-    return this.procedureTemplatesService.findAllBySeller(user.id);
+    @Query() pagination: PaginationDto,
+  ): Promise<PaginatedResponse<ProcedureTemplateResponseDto>> {
+    return this.procedureTemplatesService.findAllBySeller(
+      user.id,
+      pagination.page,
+      pagination.limit,
+    );
   }
 
   @Roles('PRO', 'ADMIN')
