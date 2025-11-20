@@ -24,8 +24,9 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import type { Profile } from '@prisma/client';
 import { ProfileResponseDto } from './dto/profile.dto';
 
 @ApiTags('users')
@@ -97,8 +98,9 @@ export class UsersController {
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 404, description: 'Profil non trouvé' })
-  getMyProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.getProfileById(user.id);
+  getMyProfile(@CurrentProfile() profile: Profile) {
+    // Profile is already loaded by the auth guard, no extra query needed
+    return profile;
   }
 
   @Get('profiles/:id')
