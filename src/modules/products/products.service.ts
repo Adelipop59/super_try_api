@@ -401,6 +401,8 @@ export class ProductsService {
       name: product.name,
       description: product.description,
       imageUrl: product.imageUrl,
+      price: product.price.toNumber(),
+      shippingCost: product.shippingCost.toNumber(),
       isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,

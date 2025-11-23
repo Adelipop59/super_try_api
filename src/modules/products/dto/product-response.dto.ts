@@ -27,9 +27,6 @@ class CategoryInfo {
 
 /**
  * DTO for product response.
- * Note: Financial details (price, shipping, rewards) are not part of the product catalog.
- * They are defined per campaign via the Offer model, allowing the same product
- * to be used in multiple campaigns with different pricing structures.
  */
 export class ProductResponseDto {
   @ApiProperty({
@@ -58,6 +55,12 @@ export class ProductResponseDto {
 
   @ApiProperty({ description: "URL de l'image", required: false })
   imageUrl?: string | null;
+
+  @ApiProperty({ description: 'Prix du produit en euros', example: 99.99 })
+  price!: number;
+
+  @ApiProperty({ description: 'Frais de livraison en euros', example: 5.99 })
+  shippingCost!: number;
 
   @ApiProperty({ description: 'Produit actif', example: true })
   isActive!: boolean;

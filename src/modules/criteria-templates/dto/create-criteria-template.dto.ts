@@ -1,16 +1,31 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsString,
+  IsNotEmpty,
   IsOptional,
   IsInt,
   Min,
   Max,
   IsNumber,
-  IsString,
   IsArray,
   IsBoolean,
+  MinLength,
+  MaxLength,
 } from 'class-validator';
 
-export class CreateCampaignCriteriaDto {
+export class CreateCriteriaTemplateDto {
+  @ApiProperty({
+    description: 'Nom du template pour identification',
+    example: 'Testeurs premium Paris',
+    minLength: 3,
+    maxLength: 100,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(100)
+  name!: string;
+
   @ApiProperty({
     description: 'Âge minimum requis',
     example: 18,
@@ -156,7 +171,7 @@ export class CreateCampaignCriteriaDto {
   minCompletionRate?: number;
 
   @ApiProperty({
-    description: 'Taux d\'annulation maximum autorisé (%)',
+    description: "Taux d'annulation maximum autorisé (%)",
     example: 20.0,
     required: false,
   })

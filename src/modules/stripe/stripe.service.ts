@@ -1,6 +1,8 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { PrismaService } from '../../database/prisma.service';
+import { CampaignStatus, TransactionType, TransactionStatus } from '@prisma/client';
 
 export interface CreatePaymentIntentDto {
   amount: number; // En centimes (ex: 1050 = 10.50€)
@@ -39,7 +41,10 @@ export class StripeService {
   private readonly currency: string;
   private readonly platformFee: number;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prismaService: PrismaService,
+  ) {
     const apiKey = this.configService.get<string>('stripe.apiKey');
     if (!apiKey) {
       this.logger.warn('Stripe API key not configured');
@@ -363,5 +368,306 @@ export class StripeService {
    */
   isTestMode(): boolean {
     return this.configService.get<boolean>('stripe.testMode', false);
+  }
+
+  /**
+   * Créer une Checkout Session pour le paiement d'une campagne
+   * Cette méthode reçoit les données pré-validées par CampaignsService.validateCampaignForPayment
+   */
+  async createCampaignCheckoutSession(
+    validatedData: {
+      campaign: {
+        id: string;
+        title: string;
+        sellerId: string;
+        status: CampaignStatus;
+        offers: any[];
+      };
+      totalAmountCents: number;
+    },
+    userId: string,
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<{
+    checkoutUrl: string;
+    sessionId: string;
+    amount: number;
+    currency: string;
+    transactionId: string;
+  }> {
+    const { campaign, totalAmountCents } = validatedData;
+
+    // Vérifier s'il y a une transaction PENDING existante pour cette campagne
+    let existingTransaction = await this.prismaService.transaction.findFirst({
+      where: {
+        campaignId: campaign.id,
+        type: TransactionType.CAMPAIGN_PAYMENT,
+        status: TransactionStatus.PENDING,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Si une session Checkout existe déjà et est encore valide, vérifier le montant
+    if (existingTransaction && existingTransaction.stripeSessionId) {
+      try {
+        const existingSession = await this.stripe.checkout.sessions.retrieve(
+          existingTransaction.stripeSessionId,
+        );
+
+        // Vérifier si la session est ouverte
+        if (existingSession.status === 'open' && existingSession.url) {
+          // ✅ IMPORTANT : Vérifier que le montant correspond toujours
+          // Si le prix du produit a changé, on doit créer une nouvelle session
+          if (existingSession.amount_total === totalAmountCents) {
+            this.logger.log(
+              `Returning existing checkout session for campaign ${campaign.id}: ${existingSession.id} (amount matches: ${totalAmountCents})`,
+            );
+
+            return {
+              checkoutUrl: existingSession.url,
+              sessionId: existingSession.id,
+              amount: existingSession.amount_total,
+              currency: existingSession.currency || this.currency,
+              transactionId: existingTransaction.id,
+            };
+          } else {
+            this.logger.warn(
+              `Amount mismatch: existing session ${existingSession.amount_total} vs current ${totalAmountCents}. Creating new session.`,
+            );
+            // Expire l'ancienne session et on va en créer une nouvelle
+            await this.stripe.checkout.sessions.expire(existingSession.id);
+          }
+        }
+      } catch (error) {
+        // Session expirée ou invalide, on va créer une nouvelle session
+        this.logger.warn(`Previous checkout session expired or invalid: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    // Créer les line items pour la Checkout Session
+    // Si remboursé, utiliser le prix du produit (temps réel), sinon celui de l'offre
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = campaign.offers.map(
+      (offer: any) => {
+        const productPrice = offer.reimbursedPrice 
+          ? Number(offer.product.price)
+          : Number(offer.expectedPrice);
+          
+        const shippingCost = offer.reimbursedShipping
+          ? Number(offer.product.shippingCost)
+          : Number(offer.shippingCost);
+        
+        return {
+          price_data: {
+            currency: this.currency,
+            product_data: {
+              name: offer.product?.name || 'Produit',
+              description: `Campagne: ${campaign.title}`,
+            },
+            unit_amount: Math.round(
+              (productPrice + shippingCost + Number(offer.bonus)) * 100,
+            ),
+          },
+          quantity: offer.quantity,
+        };
+      },
+    );
+
+    // Créer la Checkout Session
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      metadata: {
+        type: 'campaign_payment',
+        campaignId: campaign.id,
+        sellerId: userId,
+      },
+      payment_intent_data: {
+        metadata: {
+          type: 'campaign_payment',
+          campaignId: campaign.id,
+          sellerId: userId,
+        },
+      },
+    });
+
+    // Créer ou mettre à jour la transaction en base de données
+    let transaction;
+    if (existingTransaction) {
+      // UPDATE la transaction existante avec le nouveau stripeSessionId
+      transaction = await this.prismaService.transaction.update({
+        where: { id: existingTransaction.id },
+        data: {
+          stripeSessionId: session.id,
+          amount: totalAmountCents / 100, // Convertir en euros
+          metadata: {
+            campaignTitle: campaign.title,
+            offersCount: campaign.offers.length,
+            totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+            updatedAt: new Date().toISOString(),
+            previousSessionId: existingTransaction.stripeSessionId,
+          },
+        },
+      });
+      this.logger.log(`Updated existing transaction ${transaction.id} with new checkout session`);
+    } else {
+      // CREATE une nouvelle transaction
+      transaction = await this.prismaService.transaction.create({
+        data: {
+          campaignId: campaign.id,
+          type: TransactionType.CAMPAIGN_PAYMENT,
+          amount: totalAmountCents / 100, // Convertir en euros
+          reason: `Paiement campagne "${campaign.title}"`,
+          status: TransactionStatus.PENDING,
+          stripeSessionId: session.id,
+          metadata: {
+            campaignTitle: campaign.title,
+            offersCount: campaign.offers.length,
+            totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+          },
+        },
+      });
+    }
+
+    // Mettre à jour le statut de la campagne
+    await this.prismaService.campaign.update({
+      where: { id: campaign.id },
+      data: { status: CampaignStatus.PENDING_PAYMENT },
+    });
+
+    this.logger.log(
+      `Checkout session created for campaign ${campaign.id}: ${session.id}, amount: ${totalAmountCents / 100}€`,
+    );
+
+    return {
+      checkoutUrl: session.url!,
+      sessionId: session.id,
+      amount: totalAmountCents,
+      currency: this.currency,
+      transactionId: transaction.id,
+    };
+  }
+
+  /**
+   * Récupérer une Checkout Session
+   */
+  async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    try {
+      return await this.stripe.checkout.sessions.retrieve(sessionId);
+    } catch (error) {
+      this.logger.error(`Failed to get checkout session: ${error.message}`);
+      throw new BadRequestException('Checkout session not found');
+    }
+  }
+
+  /**
+   * @deprecated Use createCampaignCheckoutSession instead
+   * Créer ou récupérer un Payment Intent pour le paiement d'une campagne
+   * Cette méthode reçoit les données pré-validées par CampaignsService.validateCampaignForPayment
+   */
+  async createCampaignPaymentIntent(
+    validatedData: {
+      campaign: {
+        id: string;
+        title: string;
+        sellerId: string;
+        status: CampaignStatus;
+        offers: any[];
+      };
+      totalAmountCents: number;
+    },
+    userId: string,
+  ): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    amount: number;
+    currency: string;
+    transactionId: string;
+  }> {
+    const { campaign, totalAmountCents } = validatedData;
+
+    // Si la campagne est déjà en PENDING_PAYMENT, récupérer le Payment Intent existant
+    if (campaign.status === CampaignStatus.PENDING_PAYMENT) {
+      const existingTransaction = await this.prismaService.transaction.findFirst({
+        where: {
+          campaignId: campaign.id,
+          type: TransactionType.CAMPAIGN_PAYMENT,
+          status: TransactionStatus.PENDING,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (existingTransaction && existingTransaction.stripePaymentIntentId) {
+        // Récupérer le Payment Intent existant depuis Stripe
+        const existingPaymentIntent = await this.getPaymentIntent(
+          existingTransaction.stripePaymentIntentId,
+        );
+
+        this.logger.log(
+          `Returning existing payment intent for campaign ${campaign.id}: ${existingPaymentIntent.id}`,
+        );
+
+        return {
+          clientSecret: existingPaymentIntent.client_secret!,
+          paymentIntentId: existingPaymentIntent.id,
+          amount: existingPaymentIntent.amount,
+          currency: existingPaymentIntent.currency,
+          transactionId: existingTransaction.id,
+        };
+      }
+    }
+
+    // Créer un nouveau Payment Intent
+    const paymentIntent = await this.createPaymentIntent({
+      amount: totalAmountCents,
+      currency: this.currency,
+      metadata: {
+        type: 'campaign_payment',
+        campaignId: campaign.id,
+        sellerId: userId,
+      },
+      description: `Paiement campagne "${campaign.title}"`,
+    });
+
+    // Créer la transaction en base de données
+    const transaction = await this.prismaService.transaction.create({
+      data: {
+        campaignId: campaign.id,
+        type: TransactionType.CAMPAIGN_PAYMENT,
+        amount: totalAmountCents / 100, // Convertir en euros
+        reason: `Paiement campagne "${campaign.title}"`,
+        status: TransactionStatus.PENDING,
+        stripePaymentIntentId: paymentIntent.id,
+        metadata: {
+          campaignTitle: campaign.title,
+          offersCount: campaign.offers.length,
+          totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+        },
+      },
+    });
+
+    // Mettre à jour le statut de la campagne
+    await this.prismaService.campaign.update({
+      where: { id: campaign.id },
+      data: { status: CampaignStatus.PENDING_PAYMENT },
+    });
+
+    this.logger.log(
+      `Payment intent created for campaign ${campaign.id}: ${paymentIntent.id}, amount: ${totalAmountCents / 100}€`,
+    );
+
+    return {
+      clientSecret: paymentIntent.client_secret!,
+      paymentIntentId: paymentIntent.id,
+      amount: totalAmountCents,
+      currency: this.currency,
+      transactionId: transaction.id,
+    };
   }
 }

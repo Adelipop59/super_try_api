@@ -13,6 +13,7 @@ import { StripeService } from './stripe.service';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CampaignStatus, TransactionStatus, NotificationType, NotificationChannel } from '@prisma/client';
+import { Public } from '../../common/decorators/public.decorator';
 import Stripe from 'stripe';
 
 @Controller('stripe/webhooks')
@@ -26,6 +27,7 @@ export class StripeWebhookController {
   ) {}
 
   @Post()
+  @Public()
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Headers('stripe-signature') signature: string,
@@ -58,6 +60,19 @@ export class StripeWebhookController {
 
   private async handleEvent(event: Stripe.Event): Promise<void> {
     switch (event.type) {
+      // Événements de Checkout Session
+      case 'checkout.session.completed':
+        await this.handleCheckoutSessionCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+
+      case 'checkout.session.expired':
+        await this.handleCheckoutSessionExpired(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+
       // Événements de paiement
       case 'payment_intent.succeeded':
         await this.handlePaymentIntentSucceeded(
@@ -108,6 +123,165 @@ export class StripeWebhookController {
 
       default:
         this.logger.log(`Unhandled event type: ${event.type}`);
+    }
+  }
+
+  /**
+   * Checkout Session complétée (paiement réussi)
+   */
+  private async handleCheckoutSessionCompleted(
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    this.logger.log(
+      `Checkout session completed: ${session.id}, amount: ${session.amount_total}`,
+    );
+
+    const metadata = session.metadata;
+    if (!metadata) {
+      this.logger.warn(`Checkout session ${session.id} has no metadata`);
+      return;
+    }
+
+    this.logger.log(`Checkout metadata: ${JSON.stringify(metadata)}`);
+
+    // Gérer les différents types de paiement
+    if (metadata.type === 'campaign_payment') {
+      await this.handleCampaignCheckoutCompleted(session);
+    } else {
+      this.logger.warn(`Unknown checkout type: ${metadata.type}`);
+    }
+  }
+
+  /**
+   * Paiement de campagne via Checkout complété - Active la campagne
+   */
+  private async handleCampaignCheckoutCompleted(
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    const { campaignId } = session.metadata || {};
+
+    if (!campaignId) {
+      this.logger.error('Checkout completed but no campaignId in metadata');
+      return;
+    }
+
+    try {
+      // Utiliser une transaction pour garantir la cohérence
+      await this.prismaService.$transaction(async (prisma) => {
+        // Trouver la transaction par stripeSessionId
+        const transaction = await prisma.transaction.findFirst({
+          where: {
+            stripeSessionId: session.id,
+          },
+        });
+
+        if (!transaction) {
+          this.logger.error(`Transaction not found for checkout session ${session.id}`);
+          return;
+        }
+
+        // Vérification d'idempotence - éviter le traitement en double
+        if (transaction.status === TransactionStatus.COMPLETED) {
+          this.logger.warn(`Transaction already completed for checkout session ${session.id}, skipping`);
+          return;
+        }
+
+        // Mettre à jour le statut de la transaction à COMPLETED
+        await prisma.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: TransactionStatus.COMPLETED,
+            stripePaymentIntentId: typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id || null,
+            metadata: {
+              ...(transaction.metadata as object || {}),
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        // Récupérer la campagne
+        const campaign = await prisma.campaign.findUnique({
+          where: { id: campaignId },
+        });
+
+        if (!campaign) {
+          this.logger.error(`Campaign ${campaignId} not found`);
+          return;
+        }
+
+        // Vérifier que la campagne est bien en PENDING_PAYMENT
+        if (campaign.status !== CampaignStatus.PENDING_PAYMENT) {
+          this.logger.warn(
+            `Campaign ${campaignId} is in status ${campaign.status}, expected PENDING_PAYMENT`,
+          );
+          // On continue quand même pour ne pas bloquer
+        }
+
+        // Activer la campagne
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: CampaignStatus.ACTIVE },
+        });
+
+        this.logger.log(
+          `Campaign ${campaignId} activated after successful checkout payment of ${(session.amount_total || 0) / 100}€`,
+        );
+
+        // Envoyer une notification au vendeur
+        try {
+          await this.notificationsService.send({
+            userId: campaign.sellerId,
+            type: NotificationType.PAYMENT_RECEIVED,
+            channel: NotificationChannel.IN_APP,
+            title: 'Campagne activée',
+            message: `Votre paiement de ${(session.amount_total || 0) / 100}€ a été confirmé. La campagne "${campaign.title}" est maintenant active et visible par les testeurs.`,
+            data: {
+              campaignId,
+              transactionId: transaction.id,
+              amount: (session.amount_total || 0) / 100,
+            },
+          });
+        } catch (notifError) {
+          // Ne pas bloquer le flow si la notification échoue
+          this.logger.error(`Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to process campaign checkout: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Checkout Session expirée
+   */
+  private async handleCheckoutSessionExpired(
+    session: Stripe.Checkout.Session,
+  ): Promise<void> {
+    this.logger.warn(`Checkout session expired: ${session.id}`);
+
+    // Marquer la transaction comme expirée
+    const transaction = await this.prismaService.transaction.findFirst({
+      where: {
+        stripeSessionId: session.id,
+      },
+    });
+
+    if (transaction) {
+      await this.prismaService.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: TransactionStatus.FAILED,
+          failureReason: 'Checkout session expired',
+          metadata: {
+            ...(transaction.metadata as object || {}),
+            expiredAt: new Date().toISOString(),
+          },
+        },
+      });
     }
   }
 

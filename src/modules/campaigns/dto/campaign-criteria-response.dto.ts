@@ -26,6 +26,12 @@ export class CampaignCriteriaResponseDto {
   requiredGender?: string | null;
 
   @ApiProperty({
+    example: ['France', 'Belgique'],
+    type: [String],
+  })
+  requiredCountries!: string[];
+
+  @ApiProperty({
     example: ['Paris', 'Lyon'],
     type: [String],
   })

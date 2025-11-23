@@ -13,7 +13,7 @@ export class CampaignCriteriaService {
   constructor(private readonly prismaService: PrismaService) {}
 
   /**
-   * Create campaign criteria
+   * Create or update campaign criteria (upsert)
    */
   async create(
     campaignId: string,
@@ -28,40 +28,50 @@ export class CampaignCriteriaService {
       throw new NotFoundException(`Campaign with ID ${campaignId} not found`);
     }
 
-    // Vérifier qu'il n'y a pas déjà de critères pour cette campagne
+    // Vérifier si des critères existent déjà
     const existing = await this.prismaService.campaignCriteria.findUnique({
       where: { campaignId },
     });
 
-    if (existing) {
-      throw new ConflictException(
-        `Criteria already exist for campaign ${campaignId}. Use update instead.`,
-      );
-    }
+    const criteriaData = {
+      minAge: dto.minAge,
+      maxAge: dto.maxAge,
+      minRating: dto.minRating,
+      maxRating: dto.maxRating,
+      minCompletedSessions: dto.minCompletedSessions,
+      requiredGender: dto.requiredGender,
+      requiredCountries: dto.requiredCountries ?? [],
+      requiredLocations: dto.requiredLocations ?? [],
+      excludedLocations: dto.excludedLocations ?? [],
+      requiredCategories: dto.requiredCategories ?? [],
+      noActiveSessionWithSeller: dto.noActiveSessionWithSeller ?? false,
+      maxSessionsPerWeek: dto.maxSessionsPerWeek,
+      maxSessionsPerMonth: dto.maxSessionsPerMonth,
+      minCompletionRate: dto.minCompletionRate,
+      maxCancellationRate: dto.maxCancellationRate,
+      minAccountAge: dto.minAccountAge,
+      lastActiveWithinDays: dto.lastActiveWithinDays,
+      requireVerified: dto.requireVerified ?? false,
+      requirePrime: dto.requirePrime ?? false,
+    };
 
-    const criteria = await this.prismaService.campaignCriteria.create({
-      data: {
-        campaignId,
-        minAge: dto.minAge,
-        maxAge: dto.maxAge,
-        minRating: dto.minRating,
-        maxRating: dto.maxRating,
-        minCompletedSessions: dto.minCompletedSessions,
-        requiredGender: dto.requiredGender,
-        requiredLocations: dto.requiredLocations ?? [],
-        excludedLocations: dto.excludedLocations ?? [],
-        requiredCategories: dto.requiredCategories ?? [],
-        noActiveSessionWithSeller: dto.noActiveSessionWithSeller ?? false,
-        maxSessionsPerWeek: dto.maxSessionsPerWeek,
-        maxSessionsPerMonth: dto.maxSessionsPerMonth,
-        minCompletionRate: dto.minCompletionRate,
-        maxCancellationRate: dto.maxCancellationRate,
-        minAccountAge: dto.minAccountAge,
-        lastActiveWithinDays: dto.lastActiveWithinDays,
-        requireVerified: dto.requireVerified ?? false,
-        requirePrime: dto.requirePrime ?? false,
-      },
-    });
+    let criteria;
+
+    if (existing) {
+      // Mettre à jour les critères existants
+      criteria = await this.prismaService.campaignCriteria.update({
+        where: { campaignId },
+        data: criteriaData,
+      });
+    } else {
+      // Créer de nouveaux critères
+      criteria = await this.prismaService.campaignCriteria.create({
+        data: {
+          campaignId,
+          ...criteriaData,
+        },
+      });
+    }
 
     return this.formatResponse(criteria);
   }
@@ -109,6 +119,7 @@ export class CampaignCriteriaService {
         maxRating: dto.maxRating,
         minCompletedSessions: dto.minCompletedSessions,
         requiredGender: dto.requiredGender,
+        requiredCountries: dto.requiredCountries,
         requiredLocations: dto.requiredLocations,
         excludedLocations: dto.excludedLocations,
         requiredCategories: dto.requiredCategories,
@@ -496,6 +507,7 @@ export class CampaignCriteriaService {
         : null,
       minCompletedSessions: criteria.minCompletedSessions,
       requiredGender: criteria.requiredGender,
+      requiredCountries: criteria.requiredCountries,
       requiredLocations: criteria.requiredLocations,
       excludedLocations: criteria.excludedLocations,
       requiredCategories: criteria.requiredCategories,

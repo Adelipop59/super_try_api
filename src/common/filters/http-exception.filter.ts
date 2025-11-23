@@ -21,13 +21,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message: string | object = 'Internal server error';
     let error = 'Internal Server Error';
 
+    let additionalData: Record<string, any> = {};
+
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        message = (exceptionResponse as any).message || message;
-        error = (exceptionResponse as any).error || error;
+        const { message: msg, error: err, statusCode, ...rest } = exceptionResponse as any;
+        message = msg || message;
+        error = err || error;
+        additionalData = rest; // Capture additional properties like 'errors'
       } else {
         message = exceptionResponse;
       }
@@ -43,6 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         method: request.method,
         message,
         error,
+        ...additionalData,
       })}`,
     );
 
@@ -54,6 +59,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       method: request.method,
       error,
       message,
+      ...additionalData, // Include additional properties like 'errors'
     });
   }
 }

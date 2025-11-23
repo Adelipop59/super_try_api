@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl, IsNumber, Min, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl, IsNumber, Min, IsUUID, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -68,4 +68,14 @@ export class CreateProductDto {
   @Min(0)
   @Type(() => Number)
   shippingCost!: number;
+
+  @ApiProperty({
+    description: 'Produit actif ou non',
+    example: true,
+    required: false,
+    default: true
+  })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

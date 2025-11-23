@@ -14,6 +14,7 @@ import {
   IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateCampaignCriteriaDto } from './create-campaign-criteria.dto';
 
 /**
  * DTO pour ajouter un produit à une campagne (Offer)
@@ -164,17 +165,26 @@ export class CreateCampaignDto {
   totalSlots?: number;
 
   @ApiProperty({
-    description: 'Liste des produits à inclure dans la campagne',
+    description: 'Produit à inclure dans la campagne (maximum 1)',
     type: [CampaignProductDto],
     example: [
-      { productId: '123e4567-e89b-12d3-a456-426614174000', quantity: 50 },
-      { productId: '123e4567-e89b-12d3-a456-426614174001', quantity: 30 },
+      { productId: '123e4567-e89b-12d3-a456-426614174000', quantity: 50, expectedPrice: 100, shippingCost: 5.99, bonus: 10 },
     ],
     required: false,
   })
+  @IsOptional()
+  @Type(() => CampaignProductDto)
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CampaignProductDto)
-  @IsOptional()
   products?: CampaignProductDto[];
+
+  @ApiProperty({
+    description: 'Critères d\'éligibilité pour les testeurs (tous les champs sont optionnels, null = non considéré)',
+    type: CreateCampaignCriteriaDto,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => CreateCampaignCriteriaDto)
+  @ValidateNested()
+  criteria?: CreateCampaignCriteriaDto;
 }

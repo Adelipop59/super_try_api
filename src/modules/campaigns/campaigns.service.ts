@@ -10,7 +10,6 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { CampaignFilterDto } from './dto/campaign-filter.dto';
 import { CampaignResponseDto } from './dto/campaign-response.dto';
-import { AddProductsToCampaignDto } from './dto/add-products-to-campaign.dto';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import {
   PaginatedResponse,
@@ -63,7 +62,7 @@ export class CampaignsService {
     sellerId: string,
     createCampaignDto: CreateCampaignDto,
   ): Promise<CampaignResponseDto> {
-    const { products, ...campaignData } = createCampaignDto;
+    const { products, criteria, ...campaignData } = createCampaignDto;
 
     // Validate dates if provided
     const startDate = campaignData.startDate
@@ -80,6 +79,11 @@ export class CampaignsService {
     // If products are provided, validate them
     let offersData: any[] = [];
     if (products && products.length > 0) {
+      // Validate single product limit
+      if (products.length > 1) {
+        throw new BadRequestException('Une campagne ne peut avoir qu\'un seul produit');
+      }
+
       const productIds = products.map((p) => p.productId);
       const existingProducts = await this.prismaService.product.findMany({
         where: {
@@ -110,18 +114,36 @@ export class CampaignsService {
       }
 
       offersData = products.map((p) => {
-        const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(
-          p.expectedPrice,
-        );
+        // Find the corresponding product to get its price and shipping
+        const product = existingProducts.find((prod) => prod.id === p.productId);
+        
+        if (!product) {
+          throw new NotFoundException(`Product ${p.productId} not found`);
+        }
+
+        // Use product price/shipping if reimbursed, otherwise use DTO values
+        const reimbursedPrice = p.reimbursedPrice ?? true;
+        const reimbursedShipping = p.reimbursedShipping ?? true;
+        
+        const expectedPrice = reimbursedPrice 
+          ? Number(product.price) 
+          : (p.expectedPrice ?? Number(product.price));
+          
+        const shippingCost = reimbursedShipping 
+          ? Number(product.shippingCost) 
+          : (p.shippingCost ?? Number(product.shippingCost));
+
+        const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(expectedPrice);
+        
         return {
           productId: p.productId,
           quantity: p.quantity,
-          expectedPrice: p.expectedPrice,
-          shippingCost: p.shippingCost ?? 0,
+          expectedPrice,
+          shippingCost,
           priceRangeMin,
           priceRangeMax,
-          reimbursedPrice: p.reimbursedPrice ?? true,
-          reimbursedShipping: p.reimbursedShipping ?? true,
+          reimbursedPrice,
+          reimbursedShipping,
           maxReimbursedPrice: p.maxReimbursedPrice,
           maxReimbursedShipping: p.maxReimbursedShipping,
           bonus: p.bonus ?? 0,
@@ -145,6 +167,11 @@ export class CampaignsService {
                 create: offersData,
               }
             : undefined,
+        criteria: criteria
+          ? {
+              create: criteria,
+            }
+          : undefined,
       },
       include: {
         seller: {
@@ -436,7 +463,7 @@ export class CampaignsService {
       );
     }
 
-    const { products, ...campaignData } = updateCampaignDto;
+    const { products, criteria, ...campaignData } = updateCampaignDto;
     const data: any = { ...campaignData };
 
     // Validate and convert dates
@@ -469,6 +496,11 @@ export class CampaignsService {
 
     // If products are provided, validate and replace them
     if (products && products.length > 0) {
+      // Validate single product limit
+      if (products.length > 1) {
+        throw new BadRequestException('Une campagne ne peut avoir qu\'un seul produit');
+      }
+
       const productIds = products.map((p) => p.productId);
       const existingProducts = await this.prismaService.product.findMany({
         where: {
@@ -505,24 +537,62 @@ export class CampaignsService {
 
       data.offers = {
         create: products.map((p) => {
-          const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(
-            p.expectedPrice,
-          );
+          // Find the corresponding product to get its price and shipping
+          const product = existingProducts.find((prod) => prod.id === p.productId);
+          
+          if (!product) {
+            throw new NotFoundException(`Product ${p.productId} not found`);
+          }
+
+          // Use product price/shipping if reimbursed, otherwise use DTO values
+          const reimbursedPrice = p.reimbursedPrice ?? true;
+          const reimbursedShipping = p.reimbursedShipping ?? true;
+          
+          const expectedPrice = reimbursedPrice 
+            ? Number(product.price) 
+            : (p.expectedPrice ?? Number(product.price));
+            
+          const shippingCost = reimbursedShipping 
+            ? Number(product.shippingCost) 
+            : (p.shippingCost ?? Number(product.shippingCost));
+
+          const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(expectedPrice);
+          
           return {
             productId: p.productId,
             quantity: p.quantity,
-            expectedPrice: p.expectedPrice,
-            shippingCost: p.shippingCost ?? 0,
+            expectedPrice,
+            shippingCost,
             priceRangeMin,
             priceRangeMax,
-            reimbursedPrice: p.reimbursedPrice ?? true,
-            reimbursedShipping: p.reimbursedShipping ?? true,
+            reimbursedPrice,
+            reimbursedShipping,
             maxReimbursedPrice: p.maxReimbursedPrice,
             maxReimbursedShipping: p.maxReimbursedShipping,
             bonus: p.bonus ?? 0,
           };
         }),
       };
+    }
+
+    // If criteria are provided, update or create them
+    if (criteria !== undefined) {
+      // Check if criteria already exist for this campaign
+      const existingCriteria = await this.prismaService.campaignCriteria.findUnique({
+        where: { campaignId: id },
+      });
+
+      if (existingCriteria) {
+        // Update existing criteria
+        data.criteria = {
+          update: criteria,
+        };
+      } else {
+        // Create new criteria
+        data.criteria = {
+          create: criteria,
+        };
+      }
     }
 
     const updatedCampaign = await this.prismaService.campaign.update({
@@ -561,135 +631,6 @@ export class CampaignsService {
   /**
    * Add products to an existing campaign
    */
-  async addProducts(
-    id: string,
-    sellerId: string,
-    addProductsDto: AddProductsToCampaignDto,
-    isAdmin: boolean = false,
-  ): Promise<CampaignResponseDto> {
-    const campaign = await this.prismaService.campaign.findUnique({
-      where: { id },
-      include: {
-        offers: true,
-      },
-    });
-
-    if (!campaign) {
-      throw new NotFoundException(`Campaign with ID ${id} not found`);
-    }
-
-    if (!isAdmin && campaign.sellerId !== sellerId) {
-      throw new ForbiddenException('You can only modify your own campaigns');
-    }
-
-    // Cannot modify COMPLETED or CANCELLED campaigns
-    if (
-      campaign.status === CampaignStatus.COMPLETED ||
-      campaign.status === CampaignStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        `Cannot modify ${campaign.status.toLowerCase()} campaign`,
-      );
-    }
-
-    // Verify products exist and belong to seller
-    const productIds = addProductsDto.products.map((p) => p.productId);
-    const existingProducts = await this.prismaService.product.findMany({
-      where: {
-        id: { in: productIds },
-      },
-    });
-
-    if (existingProducts.length !== productIds.length) {
-      throw new NotFoundException('One or more products not found');
-    }
-
-    const notOwnedProducts = existingProducts.filter(
-      (p) => p.sellerId !== sellerId,
-    );
-    if (notOwnedProducts.length > 0) {
-      throw new ForbiddenException(
-        'You can only add your own products to a campaign',
-      );
-    }
-
-    // Check for duplicates
-    const existingProductIds = campaign.offers.map((offer) => offer.productId);
-    const duplicates = productIds.filter((id) =>
-      existingProductIds.includes(id),
-    );
-    if (duplicates.length > 0) {
-      throw new ConflictException(
-        `Products already in campaign: ${duplicates.join(', ')}`,
-      );
-    }
-
-    // Add products to campaign
-    await this.prismaService.offer.createMany({
-      data: addProductsDto.products.map((p) => {
-        const { priceRangeMin, priceRangeMax } =
-          this.calculatePriceRange(p.expectedPrice);
-        return {
-          campaignId: id,
-          productId: p.productId,
-          quantity: p.quantity,
-          expectedPrice: p.expectedPrice,
-          shippingCost: p.shippingCost ?? 0,
-          priceRangeMin,
-          priceRangeMax,
-          reimbursedPrice: p.reimbursedPrice ?? true,
-          reimbursedShipping: p.reimbursedShipping ?? true,
-          maxReimbursedPrice: p.maxReimbursedPrice,
-          maxReimbursedShipping: p.maxReimbursedShipping,
-          bonus: p.bonus ?? 0,
-        };
-      }),
-    });
-
-    return this.findOne(id);
-  }
-
-  /**
-   * Remove product from campaign
-   */
-  async removeProduct(
-    campaignId: string,
-    productId: string,
-    sellerId: string,
-    isAdmin: boolean = false,
-  ): Promise<CampaignResponseDto> {
-    const campaign = await this.prismaService.campaign.findUnique({
-      where: { id: campaignId },
-    });
-
-    if (!campaign) {
-      throw new NotFoundException(`Campaign with ID ${campaignId} not found`);
-    }
-
-    if (!isAdmin && campaign.sellerId !== sellerId) {
-      throw new ForbiddenException('You can only modify your own campaigns');
-    }
-
-    // Cannot modify COMPLETED or CANCELLED campaigns
-    if (
-      campaign.status === CampaignStatus.COMPLETED ||
-      campaign.status === CampaignStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        `Cannot modify ${campaign.status.toLowerCase()} campaign`,
-      );
-    }
-
-    await this.prismaService.offer.deleteMany({
-      where: {
-        campaignId,
-        productId,
-      },
-    });
-
-    return this.findOne(campaignId);
-  }
-
   /**
    * Update campaign status
    */
@@ -799,7 +740,247 @@ export class CampaignsService {
   }
 
   /**
+   * Validate campaign has all required data before payment
+   * This is a public method that can be called by StripeService
+   */
+  async validateCampaignForPayment(
+    campaignId: string,
+    sellerId: string,
+  ): Promise<{
+    campaign: any;
+    totalAmountCents: number;
+    errors: string[];
+  }> {
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        offers: {
+          include: {
+            product: true,
+          },
+        },
+        procedures: {
+          include: {
+            steps: true,
+          },
+        },
+        distributions: true,
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    // Vérifier que l'utilisateur est le propriétaire
+    if (campaign.sellerId !== sellerId) {
+      throw new ForbiddenException('You are not the owner of this campaign');
+    }
+
+    // Vérifier que la campagne est en DRAFT ou PENDING_PAYMENT
+    if (campaign.status !== CampaignStatus.DRAFT && campaign.status !== CampaignStatus.PENDING_PAYMENT) {
+      throw new BadRequestException('Campaign must be in DRAFT or PENDING_PAYMENT status');
+    }
+
+    const errors: string[] = [];
+
+    // Validate basic info
+    if (!campaign.title || campaign.title.trim().length < 5) {
+      errors.push('Title is required (minimum 5 characters)');
+    }
+
+    if (!campaign.description || campaign.description.trim().length < 20) {
+      errors.push('Description is required (minimum 20 characters)');
+    }
+
+    if (!campaign.startDate) {
+      errors.push('Start date is required');
+    } else {
+      const now = new Date();
+      if (campaign.startDate < now) {
+        errors.push('Start date must be in the future');
+      }
+    }
+
+    if (campaign.endDate && campaign.endDate <= campaign.startDate) {
+      errors.push('End date must be after start date');
+    }
+
+    // Note: totalSlots is deprecated - we now use product quantity in offers
+    // The number of available slots is determined by the product quantity
+
+    // Validate offers (products)
+    if (!campaign.offers || campaign.offers.length === 0) {
+      errors.push('Exactly one product is required');
+    } else if (campaign.offers.length !== 1) {
+      errors.push('Campaign must have exactly one product');
+    } else {
+      let totalQuantity = 0;
+
+      for (let i = 0; i < campaign.offers.length; i++) {
+        const offer = campaign.offers[i];
+        const offerIndex = i + 1;
+
+        // Validate product exists and belongs to seller
+        if (!offer.product) {
+          errors.push(`Offer #${offerIndex}: Product not found`);
+        } else {
+          if (offer.product.sellerId !== sellerId) {
+            errors.push(`Offer #${offerIndex}: Product "${offer.product.name}" does not belong to you`);
+          }
+          if (!offer.product.isActive) {
+            errors.push(`Offer #${offerIndex}: Product "${offer.product.name}" is inactive`);
+          }
+        }
+
+        // Validate quantity
+        if (!offer.quantity || offer.quantity < 1) {
+          errors.push(`Offer #${offerIndex}: Quantity must be at least 1`);
+        } else {
+          totalQuantity += offer.quantity;
+        }
+
+        // Validate prices
+        // Note: expectedPrice and shippingCost can come from the product itself
+        // If not set in offer, they will be taken from product during creation
+        const expectedPrice = offer.expectedPrice ? Number(offer.expectedPrice) : 0;
+        const shippingCost = offer.shippingCost ? Number(offer.shippingCost) : 0;
+        const bonus = Number(offer.bonus);
+        const priceRangeMin = Number(offer.priceRangeMin);
+        const priceRangeMax = Number(offer.priceRangeMax);
+
+        // Skip price validation if it's 0 (will be taken from product)
+        if (expectedPrice > 0 && isNaN(expectedPrice)) {
+          errors.push(`Offer #${offerIndex}: Expected price is invalid`);
+        }
+
+        if (shippingCost > 0 && isNaN(shippingCost)) {
+          errors.push(`Offer #${offerIndex}: Shipping cost is invalid`);
+        }
+
+        if (isNaN(bonus) || bonus < 0) {
+          errors.push(`Offer #${offerIndex}: Bonus cannot be negative`);
+        }
+
+        if (priceRangeMin > priceRangeMax) {
+          errors.push(`Offer #${offerIndex}: Price range min cannot be greater than max`);
+        }
+
+        // Validate max reimbursement limits
+        if (offer.maxReimbursedPrice !== null) {
+          const maxReimbursedPrice = Number(offer.maxReimbursedPrice);
+          if (isNaN(maxReimbursedPrice) || maxReimbursedPrice < 0) {
+            errors.push(`Offer #${offerIndex}: Max reimbursed price cannot be negative`);
+          }
+        }
+
+        if (offer.maxReimbursedShipping !== null) {
+          const maxReimbursedShipping = Number(offer.maxReimbursedShipping);
+          if (isNaN(maxReimbursedShipping) || maxReimbursedShipping < 0) {
+            errors.push(`Offer #${offerIndex}: Max reimbursed shipping cannot be negative`);
+          }
+        }
+      }
+
+      // Note: quantity in offer represents the number of product units available,
+      // not the number of testers. Multiple testers can share or review the same product.
+      // So we don't enforce quantity === totalSlots
+    }
+
+    // Validate procedures
+    if (!campaign.procedures || campaign.procedures.length === 0) {
+      errors.push('At least one procedure is required');
+    } else {
+      for (let i = 0; i < campaign.procedures.length; i++) {
+        const procedure = campaign.procedures[i];
+        const procIndex = i + 1;
+
+        if (!procedure.title || procedure.title.trim().length < 3) {
+          errors.push(`Procedure #${procIndex}: Title is required (minimum 3 characters)`);
+        }
+
+        if (!procedure.steps || procedure.steps.length === 0) {
+          errors.push(`Procedure #${procIndex}: At least one step is required`);
+        }
+      }
+    }
+
+    // Validate distributions
+    if (!campaign.distributions || campaign.distributions.length === 0) {
+      errors.push('At least one distribution schedule is required');
+    } else {
+      let totalMaxUnits = 0;
+
+      for (let i = 0; i < campaign.distributions.length; i++) {
+        const dist = campaign.distributions[i];
+        const distIndex = i + 1;
+
+        if (dist.type === 'SPECIFIC_DATE' && !dist.specificDate) {
+          errors.push(`Distribution #${distIndex}: Specific date is required for SPECIFIC_DATE type`);
+        }
+
+        if (dist.type === 'RECURRING' && (dist.dayOfWeek === null || dist.dayOfWeek === undefined)) {
+          errors.push(`Distribution #${distIndex}: Day of week is required for RECURRING type`);
+        }
+
+        if (dist.type === 'RECURRING' && dist.dayOfWeek !== null && (dist.dayOfWeek < 0 || dist.dayOfWeek > 6)) {
+          errors.push(`Distribution #${distIndex}: Day of week must be between 0 (Sunday) and 6 (Saturday)`);
+        }
+
+        // Sum up maxUnits from all distributions
+        if (dist.maxUnits && dist.maxUnits > 0) {
+          totalMaxUnits += dist.maxUnits;
+        }
+      }
+
+      // Validate that total maxUnits across all distributions matches available product quantity
+      if (campaign.offers.length > 0) {
+        const availableQuantity = campaign.offers[0].quantity;
+        
+        if (totalMaxUnits !== availableQuantity) {
+          errors.push(`Total distribution units (${totalMaxUnits}) must match product quantity (${availableQuantity})`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Campaign validation failed',
+        errors,
+      });
+    }
+
+    // Calculate total amount
+    // Si remboursé, utiliser le prix du produit (temps réel)
+    let totalAmountCents = 0;
+    for (const offer of campaign.offers) {
+      const productPrice = offer.reimbursedPrice 
+        ? Number(offer.product.price)
+        : Number(offer.expectedPrice);
+        
+      const shippingCost = offer.reimbursedShipping
+        ? Number(offer.product.shippingCost)
+        : Number(offer.shippingCost);
+      
+      const offerTotal = offer.quantity * (
+        productPrice +
+        shippingCost +
+        Number(offer.bonus)
+      );
+      totalAmountCents += Math.round(offerTotal * 100);
+    }
+
+    return {
+      campaign,
+      totalAmountCents,
+      errors: [],
+    };
+  }
+
+  /**
    * Validate campaign has all required data before publication (PENDING_PAYMENT)
+   * Internal method used by updateStatus
    */
   private validateCampaignForPublication(campaign: {
     title: string;
@@ -825,9 +1006,7 @@ export class CampaignsService {
       errors.push('Start date is required');
     }
 
-    if (!campaign.totalSlots || campaign.totalSlots < 1) {
-      errors.push('Total slots must be at least 1');
-    }
+    // Note: totalSlots validation removed - product quantity determines availability
 
     // Validate offers (products)
     if (!campaign.offers || campaign.offers.length === 0) {
@@ -881,6 +1060,74 @@ export class CampaignsService {
     const priceRangeMax = roundedPrice + halfRange;
 
     return { priceRangeMin, priceRangeMax };
+  }
+
+  /**
+   * Get campaign cost details
+   */
+  async getCampaignCost(campaignId: string): Promise<any> {
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        offers: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                shippingCost: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID ${campaignId} not found`);
+    }
+
+    const offers = campaign.offers.map((offer) => {
+      // Si remboursé, prendre le prix du produit, sinon celui de l'offre
+      const expectedPrice = offer.reimbursedPrice 
+        ? Number(offer.product.price)
+        : Number(offer.expectedPrice);
+        
+      const shippingCost = offer.reimbursedShipping
+        ? Number(offer.product.shippingCost)
+        : Number(offer.shippingCost);
+        
+      const bonus = Number(offer.bonus);
+      const quantity = offer.quantity;
+
+      const costPerUnit = expectedPrice + shippingCost + bonus;
+      const totalCost = costPerUnit * quantity;
+
+      return {
+        productId: offer.productId,
+        productName: offer.product.name,
+        quantity,
+        expectedPrice,
+        shippingCost,
+        bonus,
+        reimbursedPrice: offer.reimbursedPrice,
+        reimbursedShipping: offer.reimbursedShipping,
+        costPerUnit,
+        totalCost,
+      };
+    });
+
+    const totalCampaignCost = offers.reduce((sum, offer) => sum + offer.totalCost, 0);
+
+    return {
+      campaignId: campaign.id,
+      campaignTitle: campaign.title,
+      offers,
+      totalCampaignCost,
+      totalCampaignCostCents: Math.round(totalCampaignCost * 100),
+      currency: 'EUR',
+    };
   }
 
   /**

@@ -323,19 +323,11 @@ export class SessionsService {
       throw new BadRequestException('No product found for this campaign');
     }
 
-    // Calculer la tranche de prix acceptable
-    // Règle : [prix - 5€, prix + 5€] sauf si prix < 5€ alors [0€, 5€]
-    const expectedPrice = Number(offer.bonus) || 0; // TODO: Utiliser le vrai prix du produit quand disponible
-    let minPrice: number;
-    let maxPrice: number;
-
-    if (expectedPrice < 5) {
-      minPrice = 0;
-      maxPrice = 5;
-    } else {
-      minPrice = expectedPrice - 5;
-      maxPrice = expectedPrice + 5;
-    }
+    // Utiliser priceRangeMin et priceRangeMax de l'offre
+    // Ces valeurs sont calculées lors de la création de la campagne
+    // basées sur le expectedPrice (prix du produit)
+    const minPrice = Number(offer.priceRangeMin);
+    const maxPrice = Number(offer.priceRangeMax);
 
     // Vérifier que le prix saisi est dans la tranche acceptable
     if (productPrice < minPrice || productPrice > maxPrice) {

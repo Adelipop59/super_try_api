@@ -176,6 +176,7 @@ model Profile {
   wallet                  Wallet? // Portefeuille financier (pour les testeurs)
   withdrawals             Withdrawal[] // Demandes de retrait (pour les testeurs)
   procedureTemplates      ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
+  criteriaTemplates       CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -350,6 +351,7 @@ model CampaignCriteria {
   requiredGender String? @map("required_gender") // M, F, ALL, null
 
   // Location criteria
+  requiredCountries String[] @map("required_countries") // Liste de pays acceptés
   requiredLocations String[] @map("required_locations") // Liste de villes/régions acceptées
   excludedLocations String[] @map("excluded_locations") // Liste de villes/régions exclues
 
@@ -516,6 +518,65 @@ model StepTemplate {
   @@index([procedureTemplateId])
   @@index([order])
   @@map("step_templates")
+}
+
+// CriteriaTemplate table - Templates de critères d'éligibilité réutilisables
+model CriteriaTemplate {
+  id String @id @default(uuid())
+
+  // Relation with seller (owner of the template)
+  sellerId String  @map("seller_id")
+  seller   Profile @relation("SellerCriteriaTemplates", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Template info
+  name String // Nom du template pour le vendeur
+
+  // Age criteria
+  minAge Int? @map("min_age")
+  maxAge Int? @map("max_age")
+
+  // Rating criteria
+  minRating Decimal? @map("min_rating") @db.Decimal(3, 2)
+  maxRating Decimal? @map("max_rating") @db.Decimal(3, 2)
+
+  // Experience criteria
+  minCompletedSessions Int? @map("min_completed_sessions")
+
+  // Gender criteria
+  requiredGender String? @map("required_gender")
+
+  // Location criteria
+  requiredCountries String[] @map("required_countries")
+  requiredLocations String[] @map("required_locations")
+  excludedLocations String[] @map("excluded_locations")
+
+  // Category preferences
+  requiredCategories String[] @map("required_categories")
+
+  // Anti-duplicate seller criteria
+  noActiveSessionWithSeller Boolean @default(false) @map("no_active_session_with_seller")
+
+  // Participation limits
+  maxSessionsPerWeek  Int? @map("max_sessions_per_week")
+  maxSessionsPerMonth Int? @map("max_sessions_per_month")
+
+  // Quality criteria
+  minCompletionRate   Decimal? @map("min_completion_rate") @db.Decimal(5, 2)
+  maxCancellationRate Decimal? @map("max_cancellation_rate") @db.Decimal(5, 2)
+
+  // Temporal criteria
+  minAccountAge        Int? @map("min_account_age")
+  lastActiveWithinDays Int? @map("last_active_within_days")
+
+  // Verification criteria
+  requireVerified Boolean @default(false) @map("require_verified")
+  requirePrime    Boolean @default(false) @map("require_prime")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("criteria_templates")
 }
 
 // SessionStepProgress table - Tracking de la progression des testeurs dans les steps
@@ -928,6 +989,7 @@ model Transaction {
 
   // Stripe payment reference
   stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // ID du PaymentIntent Stripe
+  stripeSessionId       String? @unique @map("stripe_session_id") // ID de la Checkout Session Stripe
 
   // Status & metadata
   status        TransactionStatus @default(COMPLETED)
