@@ -7,21 +7,29 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { StripeService } from './stripe.service';
+import { PrismaService } from '../../database/prisma.service';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, CampaignStatus, TransactionType, TransactionStatus } from '@prisma/client';
 import type { Profile } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 // DTOs
 class CreatePaymentIntentDto {
   amount: number;
   sessionId: string;
   description?: string;
+}
+
+class CreateCampaignPaymentIntentDto {
+  campaignId: string;
 }
 
 class CreateConnectedAccountDto {
@@ -41,7 +49,10 @@ class AttachPaymentMethodDto {
 @Controller('stripe')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 export class StripeController {
-  constructor(private readonly stripeService: StripeService) {}
+  constructor(
+    private readonly stripeService: StripeService,
+    private readonly prismaService: PrismaService,
+  ) {}
 
   /**
    * Obtenir la clé publique Stripe (pour le frontend)
@@ -87,6 +98,320 @@ export class StripeController {
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+    };
+  }
+
+  /**
+   * Créer un Payment Intent pour pré-payer une campagne
+   * Utilisé par les vendeurs pour activer leurs campagnes
+   */
+  @Post('campaign-payment-intents')
+  @Roles(UserRole.PRO, UserRole.ADMIN)
+  async createCampaignPaymentIntent(
+    @Body() dto: CreateCampaignPaymentIntentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+
+    // Récupérer la campagne avec ses offres
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: dto.campaignId },
+      include: {
+        seller: true,
+        offers: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    // Vérifier que l'utilisateur est bien le propriétaire de la campagne
+    if (campaign.sellerId !== userId) {
+      throw new ForbiddenException('You are not the owner of this campaign');
+    }
+
+    // Vérifier que la campagne est en DRAFT ou PENDING_PAYMENT
+    if (campaign.status !== CampaignStatus.DRAFT && campaign.status !== CampaignStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        `Campaign cannot be paid in status ${campaign.status}. Only DRAFT or PENDING_PAYMENT campaigns can be paid.`,
+      );
+    }
+
+    // Vérifier qu'il n'y a pas déjà un paiement en cours pour cette campagne
+    const existingPayment = await this.prismaService.transaction.findFirst({
+      where: {
+        campaignId: dto.campaignId,
+        type: TransactionType.CAMPAIGN_PAYMENT,
+        status: TransactionStatus.PENDING,
+      },
+    });
+
+    if (existingPayment) {
+      throw new BadRequestException(
+        'A payment is already pending for this campaign',
+      );
+    }
+
+    // Calculer le montant total à payer pour la campagne
+    // = somme de (prix attendu + livraison + bonus) * quantité pour chaque offre
+    let totalAmount = new Decimal(0);
+
+    for (const offer of campaign.offers) {
+      const offerTotal = new Decimal(offer.expectedPrice.toString())
+        .add(new Decimal(offer.shippingCost.toString()))
+        .add(new Decimal(offer.bonus.toString()))
+        .mul(offer.quantity);
+
+      totalAmount = totalAmount.add(offerTotal);
+    }
+
+    // Appliquer les frais de plateforme (10% par défaut)
+    const amountInCents = Math.round(totalAmount.toNumber() * 100);
+    const { platformFee, totalAmount: totalWithFee } = this.stripeService.calculatePlatformFee(amountInCents);
+
+    // Créer le Payment Intent
+    const paymentIntent = await this.stripeService.createPaymentIntent({
+      amount: totalWithFee,
+      description: `Payment for campaign "${campaign.title}"`,
+      metadata: {
+        userId,
+        campaignId: dto.campaignId,
+        type: 'campaign_payment',
+        campaignTitle: campaign.title,
+      },
+    });
+
+    // Utiliser une transaction atomique pour les opérations en base
+    await this.prismaService.$transaction(async (prisma) => {
+      // Créer une transaction PENDING dans la base de données
+      await prisma.transaction.create({
+        data: {
+          type: TransactionType.CAMPAIGN_PAYMENT,
+          amount: totalAmount,
+          reason: `Pré-paiement campagne "${campaign.title}"`,
+          campaignId: dto.campaignId,
+          stripePaymentIntentId: paymentIntent.id,
+          status: TransactionStatus.PENDING,
+          metadata: {
+            platformFee: platformFee / 100,
+            totalWithFee: totalWithFee / 100,
+            breakdown: campaign.offers.map(offer => ({
+              productName: offer.product.name,
+              expectedPrice: offer.expectedPrice.toString(),
+              shippingCost: offer.shippingCost.toString(),
+              bonus: offer.bonus.toString(),
+              quantity: offer.quantity,
+            })),
+          },
+        },
+      });
+
+      // Mettre à jour le statut de la campagne à PENDING_PAYMENT
+      if (campaign.status === CampaignStatus.DRAFT) {
+        await prisma.campaign.update({
+          where: { id: dto.campaignId },
+          data: { status: CampaignStatus.PENDING_PAYMENT },
+        });
+      }
+    });
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: totalAmount.toNumber(),
+      platformFee: platformFee / 100,
+      totalWithFee: totalWithFee / 100,
+      currency: 'eur',
+      breakdown: campaign.offers.map(offer => ({
+        productName: offer.product.name,
+        expectedPrice: offer.expectedPrice.toNumber(),
+        shippingCost: offer.shippingCost.toNumber(),
+        bonus: offer.bonus.toNumber(),
+        quantity: offer.quantity,
+        subtotal: new Decimal(offer.expectedPrice.toString())
+          .add(new Decimal(offer.shippingCost.toString()))
+          .add(new Decimal(offer.bonus.toString()))
+          .mul(offer.quantity)
+          .toNumber(),
+      })),
+    };
+  }
+
+  /**
+   * Récupérer le statut de paiement d'une campagne
+   */
+  @Get('campaigns/:campaignId/payment-status')
+  @Roles(UserRole.PRO, UserRole.ADMIN)
+  async getCampaignPaymentStatus(
+    @Param('campaignId') campaignId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+
+    // Récupérer la campagne
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    // Vérifier que l'utilisateur est bien le propriétaire
+    if (campaign.sellerId !== userId) {
+      throw new ForbiddenException('You are not the owner of this campaign');
+    }
+
+    // Récupérer la dernière transaction de paiement
+    const payment = await this.prismaService.transaction.findFirst({
+      where: {
+        campaignId,
+        type: TransactionType.CAMPAIGN_PAYMENT,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!payment) {
+      return {
+        status: 'NOT_PAID',
+        campaignStatus: campaign.status,
+        message: 'No payment found for this campaign',
+      };
+    }
+
+    return {
+      status: payment.status,
+      campaignStatus: campaign.status,
+      transactionId: payment.id,
+      amount: payment.amount,
+      stripePaymentIntentId: payment.stripePaymentIntentId,
+      createdAt: payment.createdAt,
+      metadata: payment.metadata,
+    };
+  }
+
+  /**
+   * Demander un remboursement pour une campagne annulée
+   * Le remboursement n'est possible que si la campagne n'a pas de sessions actives
+   */
+  @Post('campaigns/:campaignId/refund')
+  @Roles(UserRole.PRO, UserRole.ADMIN)
+  async requestCampaignRefund(
+    @Param('campaignId') campaignId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+
+    // Récupérer la campagne
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        sessions: {
+          where: {
+            status: {
+              notIn: ['REJECTED', 'CANCELLED'],
+            },
+          },
+        },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    // Vérifier que l'utilisateur est bien le propriétaire
+    if (campaign.sellerId !== userId) {
+      throw new ForbiddenException('You are not the owner of this campaign');
+    }
+
+    // Vérifier que la campagne est en PENDING_PAYMENT ou CANCELLED
+    if (campaign.status !== CampaignStatus.PENDING_PAYMENT && campaign.status !== CampaignStatus.CANCELLED) {
+      throw new BadRequestException(
+        `Refund is only available for campaigns in PENDING_PAYMENT or CANCELLED status. Current status: ${campaign.status}`,
+      );
+    }
+
+    // Vérifier qu'il n'y a pas de sessions actives
+    if (campaign.sessions.length > 0) {
+      throw new BadRequestException(
+        `Cannot refund campaign with active sessions. ${campaign.sessions.length} session(s) found.`,
+      );
+    }
+
+    // Récupérer la transaction de paiement complétée
+    const paymentTransaction = await this.prismaService.transaction.findFirst({
+      where: {
+        campaignId,
+        type: TransactionType.CAMPAIGN_PAYMENT,
+        status: TransactionStatus.COMPLETED,
+      },
+    });
+
+    if (!paymentTransaction || !paymentTransaction.stripePaymentIntentId) {
+      throw new BadRequestException('No completed payment found for this campaign');
+    }
+
+    // Vérifier qu'il n'y a pas déjà un remboursement
+    const existingRefund = await this.prismaService.transaction.findFirst({
+      where: {
+        campaignId,
+        type: TransactionType.CAMPAIGN_REFUND,
+      },
+    });
+
+    if (existingRefund) {
+      throw new BadRequestException('A refund has already been processed for this campaign');
+    }
+
+    // Créer le remboursement Stripe
+    const refund = await this.stripeService.createRefund(
+      paymentTransaction.stripePaymentIntentId,
+      undefined, // Remboursement total
+      'requested_by_customer',
+    );
+
+    // Utiliser une transaction atomique pour les opérations en base
+    const result = await this.prismaService.$transaction(async (prisma) => {
+      // Créer la transaction de remboursement
+      const refundTransaction = await prisma.transaction.create({
+        data: {
+          type: TransactionType.CAMPAIGN_REFUND,
+          amount: paymentTransaction.amount,
+          reason: `Remboursement campagne annulée "${campaign.title}"`,
+          campaignId,
+          status: TransactionStatus.COMPLETED,
+          metadata: {
+            originalTransactionId: paymentTransaction.id,
+            stripeRefundId: refund.id,
+            refundedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      // Annuler la campagne si elle ne l'est pas déjà
+      if (campaign.status !== CampaignStatus.CANCELLED) {
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: CampaignStatus.CANCELLED },
+        });
+      }
+
+      return refundTransaction;
+    });
+
+    return {
+      success: true,
+      refundId: refund.id,
+      transactionId: result.id,
+      amount: paymentTransaction.amount,
+      status: refund.status,
+      message: `Refund of ${paymentTransaction.amount}€ processed successfully`,
     };
   }
 

@@ -9,11 +9,13 @@ import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { WalletsService } from '../wallets/wallets.service';
 import { LogCategory, SessionStatus, Prisma } from '@prisma/client';
+import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
 import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ValidateTestDto } from './dto/validate-test.dto';
+import { RateTesterDto } from './dto/rate-tester.dto';
 import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
@@ -34,6 +36,7 @@ export class SessionsService {
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
     private readonly walletsService: WalletsService,
+    private readonly campaignCriteriaService: CampaignCriteriaService,
   ) {}
 
   /**
@@ -72,6 +75,18 @@ export class SessionsService {
     if (existingApplication) {
       throw new BadRequestException(
         'You have already applied to this campaign',
+      );
+    }
+
+    // Vérifier l'éligibilité du testeur selon les critères de la campagne
+    const eligibility = await this.campaignCriteriaService.checkTesterEligibility(
+      dto.campaignId,
+      userId,
+    );
+
+    if (!eligibility.eligible) {
+      throw new BadRequestException(
+        `Vous n'êtes pas éligible pour cette campagne: ${eligibility.reasons.join(', ')}`,
       );
     }
 
@@ -608,6 +623,146 @@ export class SessionsService {
         sessionId,
         rating: dto.rating,
         rewardAmount,
+      },
+    );
+
+    return updatedSession;
+  }
+
+  /**
+   * 6.1 Noter un testeur quand la campagne est terminée (PRO uniquement)
+   * Permet de noter un testeur même si la session n'est pas encore COMPLETED
+   */
+  async rateTester(
+    sessionId: string,
+    userId: string,
+    dto: RateTesterDto,
+    isAdmin: boolean,
+  ): Promise<PrismaSessionResponse> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Vérifier ownership
+    if (!isAdmin && session.campaign.sellerId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Vérifier que la campagne est terminée (status COMPLETED ou endDate dépassée)
+    const campaignEnded =
+      session.campaign.status === 'COMPLETED' ||
+      (session.campaign.endDate && session.campaign.endDate < new Date());
+
+    if (!campaignEnded) {
+      throw new BadRequestException(
+        'Campaign must be completed to rate tester early',
+      );
+    }
+
+    // Vérifier que la session est dans un état permettant la notation
+    const ratableStatuses: SessionStatus[] = [
+      SessionStatus.IN_PROGRESS,
+      SessionStatus.SUBMITTED,
+      SessionStatus.COMPLETED,
+    ];
+    if (!ratableStatuses.includes(session.status)) {
+      throw new BadRequestException(
+        'Session must be IN_PROGRESS, SUBMITTED, or COMPLETED to rate tester',
+      );
+    }
+
+    // Vérifier que le testeur n'a pas déjà été noté
+    if (session.rating !== null) {
+      throw new BadRequestException(
+        'Tester has already been rated. Use updateTesterRating to modify.',
+      );
+    }
+
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        rating: dto.rating,
+        ratingComment: dto.ratingComment,
+        ratedAt: new Date(),
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    await this.logsService.logSuccess(
+      LogCategory.SESSION,
+      `✅ Testeur noté (session ${sessionId}) - Note: ${dto.rating}/5`,
+      {
+        sessionId,
+        rating: dto.rating,
+        ratingComment: dto.ratingComment,
+      },
+    );
+
+    return updatedSession;
+  }
+
+  /**
+   * 6.2 Modifier la notation d'un testeur (PRO uniquement)
+   */
+  async updateTesterRating(
+    sessionId: string,
+    userId: string,
+    dto: RateTesterDto,
+    isAdmin: boolean,
+  ): Promise<PrismaSessionResponse> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Vérifier ownership
+    if (!isAdmin && session.campaign.sellerId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Vérifier que le testeur a déjà été noté
+    if (session.rating === null) {
+      throw new BadRequestException(
+        'Tester has not been rated yet. Use rateTester to create rating.',
+      );
+    }
+
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        rating: dto.rating,
+        ratingComment: dto.ratingComment,
+        ratedAt: new Date(),
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    await this.logsService.logSuccess(
+      LogCategory.SESSION,
+      `✅ Note du testeur modifiée (session ${sessionId}) - Nouvelle note: ${dto.rating}/5`,
+      {
+        sessionId,
+        rating: dto.rating,
+        ratingComment: dto.ratingComment,
       },
     );
 

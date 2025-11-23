@@ -144,6 +144,14 @@ model Profile {
   completedSessionsCount Int       @default(0) @map("completed_sessions_count") // Nombre de tests complétés
   preferredCategories    String[]  @map("preferred_categories") // IDs des catégories préférées
 
+  // Performance statistics (for eligibility criteria)
+  cancelledSessionsCount Int       @default(0) @map("cancelled_sessions_count") // Nombre de sessions annulées
+  totalSessionsCount     Int       @default(0) @map("total_sessions_count") // Nombre total de sessions
+  lastActiveAt           DateTime? @map("last_active_at") // Dernière activité
+
+  // Premium status (future feature)
+  isPrime Boolean @default(false) @map("is_prime") // Statut premium
+
   // Business info for PRO users
   companyName String? @map("company_name")
   siret       String?
@@ -269,6 +277,7 @@ model Campaign {
   sessions      Session[] // Sessions pour cette campagne
   reviews       CampaignReview[] // Avis sur cette campagne
   criteria      CampaignCriteria? // Critères de sélection des testeurs
+  transactions  Transaction[] // Transactions liées à cette campagne (paiements vendeur)
 
   @@index([sellerId])
   @@index([status])
@@ -342,9 +351,31 @@ model CampaignCriteria {
 
   // Location criteria
   requiredLocations String[] @map("required_locations") // Liste de villes/régions acceptées
+  excludedLocations String[] @map("excluded_locations") // Liste de villes/régions exclues
 
   // Category preferences
   requiredCategories String[] @map("required_categories") // IDs des catégories requises dans les préférences
+
+  // Anti-duplicate seller criteria
+  noActiveSessionWithSeller Boolean @default(false) @map("no_active_session_with_seller") // Pas de session en cours avec ce vendeur
+
+  // Participation limits
+  maxSessionsPerWeek  Int? @map("max_sessions_per_week") // Maximum de sessions par semaine
+  maxSessionsPerMonth Int? @map("max_sessions_per_month") // Maximum de sessions par mois
+
+  // Quality criteria
+  minCompletionRate   Decimal? @map("min_completion_rate") @db.Decimal(5, 2) // Taux de complétion minimum (%)
+  maxCancellationRate Decimal? @map("max_cancellation_rate") @db.Decimal(5, 2) // Taux d'annulation maximum (%)
+
+  // Temporal criteria
+  minAccountAge        Int? @map("min_account_age") // Ancienneté minimum du compte (jours)
+  lastActiveWithinDays Int? @map("last_active_within_days") // Actif dans les X derniers jours
+
+  // Verification criteria
+  requireVerified Boolean @default(false) @map("require_verified") // Compte vérifié obligatoire
+
+  // Premium criteria (future feature)
+  requirePrime Boolean @default(false) @map("require_prime") // Statut premium obligatoire
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -816,6 +847,8 @@ model BonusTask {
 enum TransactionType {
   CREDIT // Ajout d'argent (récompense, bonus)
   DEBIT // Retrait d'argent (retrait bancaire, carte cadeau)
+  CAMPAIGN_PAYMENT // Paiement par le vendeur pour une campagne
+  CAMPAIGN_REFUND // Remboursement au vendeur (campagne annulée)
 }
 
 // Enum for transaction status
@@ -874,9 +907,9 @@ model Wallet {
 model Transaction {
   id String @id @default(uuid())
 
-  // Relation with wallet
-  walletId String @map("wallet_id")
-  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  // Relation with wallet (optional - null for seller payments)
+  walletId String? @map("wallet_id")
+  wallet   Wallet? @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   // Transaction info
   type   TransactionType
@@ -890,6 +923,11 @@ model Transaction {
   bonusTask    BonusTask?  @relation(fields: [bonusTaskId], references: [id], onDelete: SetNull)
   withdrawalId String?     @map("withdrawal_id") // Lien vers un retrait si applicable
   withdrawal   Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
+  campaignId   String?     @map("campaign_id") // Lien vers une campagne si applicable (paiement vendeur)
+  campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  // Stripe payment reference
+  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // ID du PaymentIntent Stripe
 
   // Status & metadata
   status        TransactionStatus @default(COMPLETED)
@@ -903,6 +941,7 @@ model Transaction {
   @@index([sessionId])
   @@index([bonusTaskId])
   @@index([withdrawalId])
+  @@index([campaignId])
   @@index([type])
   @@index([status])
   @@index([createdAt])

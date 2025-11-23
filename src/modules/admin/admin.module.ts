@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { UsersService } from '../users/users.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
+import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { ProductsService } from '../products/products.service';
 import { MessagesService } from '../messages/messages.service';
@@ -37,6 +38,7 @@ import { WalletsService } from '../wallets/wallets.service';
     LogsService,
     UsersService,
     CampaignsService,
+    CampaignCriteriaService,
     SessionsService,
     ProductsService,
     MessagesService,

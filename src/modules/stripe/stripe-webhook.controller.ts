@@ -10,13 +10,20 @@ import {
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { StripeService } from './stripe.service';
+import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { CampaignStatus, TransactionStatus, NotificationType, NotificationChannel } from '@prisma/client';
 import Stripe from 'stripe';
 
 @Controller('stripe/webhooks')
 export class StripeWebhookController {
   private readonly logger = new Logger(StripeWebhookController.name);
 
-  constructor(private readonly stripeService: StripeService) {}
+  constructor(
+    private readonly stripeService: StripeService,
+    private readonly prismaService: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -114,16 +121,142 @@ export class StripeWebhookController {
       `Payment intent succeeded: ${paymentIntent.id}, amount: ${paymentIntent.amount}`,
     );
 
-    // TODO: Mettre à jour la base de données
-    // - Créditer le wallet du testeur
-    // - Mettre à jour le statut de la transaction
-    // - Envoyer une notification
-
     const metadata = paymentIntent.metadata;
-    if (metadata) {
-      this.logger.log(`Payment metadata: ${JSON.stringify(metadata)}`);
-      // Utiliser les metadata pour identifier la session, le user, etc.
+    if (!metadata) {
+      this.logger.warn(`Payment intent ${paymentIntent.id} has no metadata`);
+      return;
     }
+
+    this.logger.log(`Payment metadata: ${JSON.stringify(metadata)}`);
+
+    // Gérer les différents types de paiement
+    if (metadata.type === 'campaign_payment') {
+      await this.handleCampaignPaymentSucceeded(paymentIntent);
+    } else if (metadata.type === 'session_payment') {
+      await this.handleSessionPaymentSucceeded(paymentIntent);
+    } else {
+      this.logger.warn(`Unknown payment type: ${metadata.type}`);
+    }
+  }
+
+  /**
+   * Paiement de campagne réussi - Active la campagne
+   */
+  private async handleCampaignPaymentSucceeded(
+    paymentIntent: Stripe.PaymentIntent,
+  ): Promise<void> {
+    const { campaignId } = paymentIntent.metadata;
+
+    if (!campaignId) {
+      this.logger.error('Campaign payment succeeded but no campaignId in metadata');
+      return;
+    }
+
+    try {
+      // Utiliser une transaction pour garantir la cohérence
+      await this.prismaService.$transaction(async (prisma) => {
+        // Mettre à jour la transaction
+        const transaction = await prisma.transaction.findFirst({
+          where: {
+            stripePaymentIntentId: paymentIntent.id,
+          },
+        });
+
+        if (!transaction) {
+          this.logger.error(`Transaction not found for payment intent ${paymentIntent.id}`);
+          return;
+        }
+
+        // Vérification d'idempotence - éviter le traitement en double
+        if (transaction.status === TransactionStatus.COMPLETED) {
+          this.logger.warn(`Transaction already completed for payment intent ${paymentIntent.id}, skipping`);
+          return;
+        }
+
+        // Mettre à jour le statut de la transaction à COMPLETED
+        await prisma.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: TransactionStatus.COMPLETED,
+            metadata: {
+              ...(transaction.metadata as object || {}),
+              completedAt: new Date().toISOString(),
+              stripeChargeId: typeof paymentIntent.latest_charge === 'string'
+                ? paymentIntent.latest_charge
+                : paymentIntent.latest_charge?.id || null,
+            },
+          },
+        });
+
+        // Récupérer la campagne
+        const campaign = await prisma.campaign.findUnique({
+          where: { id: campaignId },
+        });
+
+        if (!campaign) {
+          this.logger.error(`Campaign ${campaignId} not found`);
+          return;
+        }
+
+        // Vérifier que la campagne est bien en PENDING_PAYMENT
+        if (campaign.status !== CampaignStatus.PENDING_PAYMENT) {
+          this.logger.warn(
+            `Campaign ${campaignId} is in status ${campaign.status}, expected PENDING_PAYMENT`,
+          );
+          // On continue quand même pour ne pas bloquer
+        }
+
+        // Activer la campagne
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: CampaignStatus.ACTIVE },
+        });
+
+        this.logger.log(
+          `Campaign ${campaignId} activated after successful payment of ${paymentIntent.amount / 100}€`,
+        );
+
+        // Envoyer une notification au vendeur
+        try {
+          await this.notificationsService.send({
+            userId: campaign.sellerId,
+            type: NotificationType.PAYMENT_RECEIVED,
+            channel: NotificationChannel.IN_APP,
+            title: 'Campagne activée',
+            message: `Votre paiement de ${paymentIntent.amount / 100}€ a été confirmé. La campagne "${campaign.title}" est maintenant active et visible par les testeurs.`,
+            data: {
+              campaignId,
+              transactionId: transaction.id,
+              amount: paymentIntent.amount / 100,
+            },
+          });
+        } catch (notifError) {
+          // Ne pas bloquer le flow si la notification échoue
+          this.logger.error(`Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to process campaign payment: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Paiement de session réussi - Crédite le wallet du testeur
+   */
+  private async handleSessionPaymentSucceeded(
+    paymentIntent: Stripe.PaymentIntent,
+  ): Promise<void> {
+    const { sessionId, userId } = paymentIntent.metadata;
+
+    if (!sessionId || !userId) {
+      this.logger.error('Session payment succeeded but missing sessionId or userId in metadata');
+      return;
+    }
+
+    // TODO: Implémenter la logique de crédit wallet pour les sessions
+    this.logger.log(`Session payment for session ${sessionId} by user ${userId} - TODO: credit wallet`);
   }
 
   /**
@@ -136,7 +269,29 @@ export class StripeWebhookController {
       `Payment intent failed: ${paymentIntent.id}, error: ${paymentIntent.last_payment_error?.message}`,
     );
 
-    // TODO: Notifier l'utilisateur de l'échec
+    // Mettre à jour la transaction si elle existe
+    const transaction = await this.prismaService.transaction.findFirst({
+      where: {
+        stripePaymentIntentId: paymentIntent.id,
+      },
+    });
+
+    if (transaction) {
+      await this.prismaService.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: TransactionStatus.FAILED,
+          failureReason: paymentIntent.last_payment_error?.message || 'Payment failed',
+          metadata: {
+            ...(transaction.metadata as object || {}),
+            failedAt: new Date().toISOString(),
+            errorCode: paymentIntent.last_payment_error?.code,
+          },
+        },
+      });
+    }
+
+    // TODO: Notifier l'utilisateur de l'échec via NotificationsService
   }
 
   /**

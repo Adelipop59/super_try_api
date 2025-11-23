@@ -28,6 +28,7 @@ import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
 import { ValidateProductPriceDto } from './dto/validate-product-price.dto';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ValidateTestDto } from './dto/validate-test.dto';
+import { RateTesterDto } from './dto/rate-tester.dto';
 import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
@@ -268,6 +269,77 @@ export class SessionsController {
       id,
       user.id,
       validateTestDto,
+      isAdmin,
+    );
+  }
+
+  /**
+   * 6.1 Noter un testeur quand la campagne est terminée (PRO uniquement)
+   */
+  @Post(':id/rate')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Noter un testeur (PRO/ADMIN)',
+    description:
+      'Permet au vendeur de noter un testeur quand la campagne est terminée, même si la session n\'est pas encore COMPLETED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 201,
+    description: 'Testeur noté avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Campagne non terminée ou testeur déjà noté',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async rateTester(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() rateTesterDto: RateTesterDto,
+  ): Promise<SessionResponseDto> {
+    const isAdmin = user.role === 'ADMIN';
+    return this.sessionsService.rateTester(id, user.id, rateTesterDto, isAdmin);
+  }
+
+  /**
+   * 6.2 Modifier la notation d'un testeur (PRO uniquement)
+   */
+  @Patch(':id/rate')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Modifier la notation d\'un testeur (PRO/ADMIN)',
+    description:
+      'Permet au vendeur de modifier la note d\'un testeur déjà noté.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Note modifiée avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Testeur pas encore noté',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async updateTesterRating(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() rateTesterDto: RateTesterDto,
+  ): Promise<SessionResponseDto> {
+    const isAdmin = user.role === 'ADMIN';
+    return this.sessionsService.updateTesterRating(
+      id,
+      user.id,
+      rateTesterDto,
       isAdmin,
     );
   }

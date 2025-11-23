@@ -17,6 +17,7 @@ import {
   createPaginatedResponse,
   calculateOffset,
 } from '../../common/dto/pagination.dto';
+import { CampaignCriteriaService } from './campaign-criteria.service';
 
 // Type for campaign with all includes used in this service
 type CampaignWithIncludes = Prisma.CampaignGetPayload<{
@@ -49,7 +50,10 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
 
 @Injectable()
 export class CampaignsService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private campaignCriteriaService: CampaignCriteriaService,
+  ) {}
 
   /**
    * Create a new campaign (draft mode)
@@ -261,6 +265,51 @@ export class CampaignsService {
   }
 
   /**
+   * Find eligible campaigns for a specific tester
+   * Returns only campaigns where the tester meets all criteria
+   */
+  async findEligibleForTester(
+    testerId: string,
+    filters: CampaignFilterDto,
+  ): Promise<PaginatedResponse<CampaignResponseDto & { eligibilityReasons?: string[] }>> {
+    // Get all active campaigns first
+    const activeCampaigns = await this.findAll({
+      ...filters,
+      status: CampaignStatus.ACTIVE,
+    });
+
+    // Filter campaigns based on eligibility
+    const eligibleCampaigns: (CampaignResponseDto & { eligibilityReasons?: string[] })[] = [];
+
+    for (const campaign of activeCampaigns.data) {
+      const eligibility = await this.campaignCriteriaService.checkTesterEligibility(
+        campaign.id,
+        testerId,
+      );
+
+      if (eligibility.eligible) {
+        eligibleCampaigns.push(campaign);
+      }
+    }
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const totalPages = Math.ceil(eligibleCampaigns.length / limit);
+
+    return {
+      data: eligibleCampaigns,
+      meta: {
+        total: eligibleCampaigns.length,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  /**
    * Find campaign by ID
    */
   async findOne(id: string): Promise<CampaignResponseDto> {
@@ -387,7 +436,8 @@ export class CampaignsService {
       );
     }
 
-    const data: any = { ...updateCampaignDto };
+    const { products, ...campaignData } = updateCampaignDto;
+    const data: any = { ...campaignData };
 
     // Validate and convert dates
     if (updateCampaignDto.startDate) {
@@ -415,6 +465,64 @@ export class CampaignsService {
           'Cannot reduce total slots below already consumed slots',
         );
       }
+    }
+
+    // If products are provided, validate and replace them
+    if (products && products.length > 0) {
+      const productIds = products.map((p) => p.productId);
+      const existingProducts = await this.prismaService.product.findMany({
+        where: {
+          id: { in: productIds },
+        },
+      });
+
+      if (existingProducts.length !== productIds.length) {
+        throw new NotFoundException('One or more products not found');
+      }
+
+      // Check that all products belong to the seller
+      const notOwnedProducts = existingProducts.filter(
+        (p) => p.sellerId !== sellerId,
+      );
+      if (notOwnedProducts.length > 0) {
+        throw new ForbiddenException(
+          'You can only add your own products to a campaign',
+        );
+      }
+
+      // Check that products are active
+      const inactiveProducts = existingProducts.filter((p) => !p.isActive);
+      if (inactiveProducts.length > 0) {
+        throw new BadRequestException(
+          `Cannot add inactive products to campaign: ${inactiveProducts.map((p) => p.name).join(', ')}`,
+        );
+      }
+
+      // Delete existing offers and create new ones
+      await this.prismaService.offer.deleteMany({
+        where: { campaignId: id },
+      });
+
+      data.offers = {
+        create: products.map((p) => {
+          const { priceRangeMin, priceRangeMax } = this.calculatePriceRange(
+            p.expectedPrice,
+          );
+          return {
+            productId: p.productId,
+            quantity: p.quantity,
+            expectedPrice: p.expectedPrice,
+            shippingCost: p.shippingCost ?? 0,
+            priceRangeMin,
+            priceRangeMax,
+            reimbursedPrice: p.reimbursedPrice ?? true,
+            reimbursedShipping: p.reimbursedShipping ?? true,
+            maxReimbursedPrice: p.maxReimbursedPrice,
+            maxReimbursedShipping: p.maxReimbursedShipping,
+            bonus: p.bonus ?? 0,
+          };
+        }),
+      };
     }
 
     const updatedCampaign = await this.prismaService.campaign.update({

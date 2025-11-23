@@ -16,10 +16,18 @@ export class TransactionResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'ID du wallet',
+    description: 'ID du wallet (optionnel pour les paiements vendeur)',
     example: '550e8400-e29b-41d4-a716-446655440001',
+    required: false,
   })
-  walletId: string;
+  walletId?: string;
+
+  @ApiProperty({
+    description: 'ID de la campagne liée (optionnel, pour les paiements vendeur)',
+    example: '550e8400-e29b-41d4-a716-446655440005',
+    required: false,
+  })
+  campaignId?: string;
 
   @ApiProperty({
     description: 'Type de transaction',

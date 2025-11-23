@@ -49,7 +49,17 @@ export class CampaignCriteriaService {
         minCompletedSessions: dto.minCompletedSessions,
         requiredGender: dto.requiredGender,
         requiredLocations: dto.requiredLocations ?? [],
+        excludedLocations: dto.excludedLocations ?? [],
         requiredCategories: dto.requiredCategories ?? [],
+        noActiveSessionWithSeller: dto.noActiveSessionWithSeller ?? false,
+        maxSessionsPerWeek: dto.maxSessionsPerWeek,
+        maxSessionsPerMonth: dto.maxSessionsPerMonth,
+        minCompletionRate: dto.minCompletionRate,
+        maxCancellationRate: dto.maxCancellationRate,
+        minAccountAge: dto.minAccountAge,
+        lastActiveWithinDays: dto.lastActiveWithinDays,
+        requireVerified: dto.requireVerified ?? false,
+        requirePrime: dto.requirePrime ?? false,
       },
     });
 
@@ -100,7 +110,17 @@ export class CampaignCriteriaService {
         minCompletedSessions: dto.minCompletedSessions,
         requiredGender: dto.requiredGender,
         requiredLocations: dto.requiredLocations,
+        excludedLocations: dto.excludedLocations,
         requiredCategories: dto.requiredCategories,
+        noActiveSessionWithSeller: dto.noActiveSessionWithSeller,
+        maxSessionsPerWeek: dto.maxSessionsPerWeek,
+        maxSessionsPerMonth: dto.maxSessionsPerMonth,
+        minCompletionRate: dto.minCompletionRate,
+        maxCancellationRate: dto.maxCancellationRate,
+        minAccountAge: dto.minAccountAge,
+        lastActiveWithinDays: dto.lastActiveWithinDays,
+        requireVerified: dto.requireVerified,
+        requirePrime: dto.requirePrime,
       },
     });
 
@@ -135,6 +155,13 @@ export class CampaignCriteriaService {
   ): Promise<{ eligible: boolean; reasons: string[] }> {
     const criteria = await this.prismaService.campaignCriteria.findUnique({
       where: { campaignId },
+      include: {
+        campaign: {
+          select: {
+            sellerId: true,
+          },
+        },
+      },
     });
 
     // Si pas de critères, tous les testeurs sont éligibles
@@ -205,7 +232,7 @@ export class CampaignCriteriaService {
       reasons.push(`Genre requis: ${criteria.requiredGender}`);
     }
 
-    // Vérifier la localisation
+    // Vérifier la localisation (requises)
     if (criteria.requiredLocations.length > 0) {
       if (!tester.location) {
         reasons.push('Localisation non renseignée');
@@ -213,6 +240,13 @@ export class CampaignCriteriaService {
         reasons.push(
           `Localisation requise: ${criteria.requiredLocations.join(', ')}`,
         );
+      }
+    }
+
+    // Vérifier la localisation (exclues)
+    if (criteria.excludedLocations.length > 0 && tester.location) {
+      if (criteria.excludedLocations.includes(tester.location)) {
+        reasons.push(`Localisation exclue: ${tester.location}`);
       }
     }
 
@@ -224,6 +258,126 @@ export class CampaignCriteriaService {
       if (!hasMatchingCategory) {
         reasons.push('Aucune catégorie préférée correspondante');
       }
+    }
+
+    // Vérifier pas de session en cours avec ce vendeur
+    if (criteria.noActiveSessionWithSeller) {
+      const activeSession = await this.prismaService.session.findFirst({
+        where: {
+          testerId,
+          campaign: {
+            sellerId: criteria.campaign.sellerId,
+          },
+          status: {
+            in: ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'SUBMITTED'],
+          },
+        },
+      });
+      if (activeSession) {
+        reasons.push('Vous avez déjà une session en cours avec ce vendeur');
+      }
+    }
+
+    // Vérifier limite de sessions par semaine
+    if (criteria.maxSessionsPerWeek !== null) {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const sessionsThisWeek = await this.prismaService.session.count({
+        where: {
+          testerId,
+          createdAt: { gte: oneWeekAgo },
+        },
+      });
+      if (sessionsThisWeek >= criteria.maxSessionsPerWeek) {
+        reasons.push(
+          `Limite hebdomadaire atteinte: ${criteria.maxSessionsPerWeek} sessions/semaine`,
+        );
+      }
+    }
+
+    // Vérifier limite de sessions par mois
+    if (criteria.maxSessionsPerMonth !== null) {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const sessionsThisMonth = await this.prismaService.session.count({
+        where: {
+          testerId,
+          createdAt: { gte: oneMonthAgo },
+        },
+      });
+      if (sessionsThisMonth >= criteria.maxSessionsPerMonth) {
+        reasons.push(
+          `Limite mensuelle atteinte: ${criteria.maxSessionsPerMonth} sessions/mois`,
+        );
+      }
+    }
+
+    // Vérifier taux de complétion minimum
+    if (criteria.minCompletionRate !== null) {
+      const totalSessions = tester.totalSessionsCount || 0;
+      const completedSessions = tester.completedSessionsCount || 0;
+      if (totalSessions > 0) {
+        const completionRate = (completedSessions / totalSessions) * 100;
+        if (completionRate < parseFloat(criteria.minCompletionRate.toString())) {
+          reasons.push(
+            `Taux de complétion minimum requis: ${criteria.minCompletionRate}%`,
+          );
+        }
+      }
+    }
+
+    // Vérifier taux d'annulation maximum
+    if (criteria.maxCancellationRate !== null) {
+      const totalSessions = tester.totalSessionsCount || 0;
+      const cancelledSessions = tester.cancelledSessionsCount || 0;
+      if (totalSessions > 0) {
+        const cancellationRate = (cancelledSessions / totalSessions) * 100;
+        if (
+          cancellationRate > parseFloat(criteria.maxCancellationRate.toString())
+        ) {
+          reasons.push(
+            `Taux d'annulation maximum autorisé: ${criteria.maxCancellationRate}%`,
+          );
+        }
+      }
+    }
+
+    // Vérifier ancienneté du compte
+    if (criteria.minAccountAge !== null) {
+      const accountAgeInDays = Math.floor(
+        (Date.now() - tester.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (accountAgeInDays < criteria.minAccountAge) {
+        reasons.push(
+          `Ancienneté minimum requise: ${criteria.minAccountAge} jours`,
+        );
+      }
+    }
+
+    // Vérifier activité récente
+    if (criteria.lastActiveWithinDays !== null) {
+      if (!tester.lastActiveAt) {
+        reasons.push('Aucune activité récente enregistrée');
+      } else {
+        const daysSinceActive = Math.floor(
+          (Date.now() - tester.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (daysSinceActive > criteria.lastActiveWithinDays) {
+          reasons.push(
+            `Activité requise dans les ${criteria.lastActiveWithinDays} derniers jours`,
+          );
+        }
+      }
+    }
+
+    // Vérifier compte vérifié
+    if (criteria.requireVerified && !tester.isVerified) {
+      reasons.push('Compte vérifié obligatoire');
+    }
+
+    // Vérifier statut premium
+    if (criteria.requirePrime && !tester.isPrime) {
+      reasons.push('Statut premium obligatoire');
     }
 
     return {
@@ -343,7 +497,21 @@ export class CampaignCriteriaService {
       minCompletedSessions: criteria.minCompletedSessions,
       requiredGender: criteria.requiredGender,
       requiredLocations: criteria.requiredLocations,
+      excludedLocations: criteria.excludedLocations,
       requiredCategories: criteria.requiredCategories,
+      noActiveSessionWithSeller: criteria.noActiveSessionWithSeller,
+      maxSessionsPerWeek: criteria.maxSessionsPerWeek,
+      maxSessionsPerMonth: criteria.maxSessionsPerMonth,
+      minCompletionRate: criteria.minCompletionRate
+        ? parseFloat(criteria.minCompletionRate.toString())
+        : null,
+      maxCancellationRate: criteria.maxCancellationRate
+        ? parseFloat(criteria.maxCancellationRate.toString())
+        : null,
+      minAccountAge: criteria.minAccountAge,
+      lastActiveWithinDays: criteria.lastActiveWithinDays,
+      requireVerified: criteria.requireVerified,
+      requirePrime: criteria.requirePrime,
       createdAt: criteria.createdAt,
       updatedAt: criteria.updatedAt,
     };

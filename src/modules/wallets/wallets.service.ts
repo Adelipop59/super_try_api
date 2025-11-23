@@ -489,7 +489,8 @@ export class WalletsService {
   ): TransactionResponseDto {
     return {
       id: transaction.id,
-      walletId: transaction.walletId,
+      walletId: transaction.walletId ?? undefined,
+      campaignId: transaction.campaignId ?? undefined,
       type: transaction.type,
       amount: transaction.amount,
       reason: transaction.reason,

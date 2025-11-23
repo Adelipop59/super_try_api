@@ -107,6 +107,39 @@ export class CampaignsController {
     return this.campaignsService.findAllActive(filters);
   }
 
+  @Roles('USER')
+  @Get('eligible')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Liste des campagnes éligibles pour le testeur (USER)',
+    description:
+      'Récupère les campagnes actives auxquelles le testeur connecté peut postuler selon les critères définis',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats par page (défaut: 20, max: 100)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste paginée des campagnes éligibles',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Rôle USER requis' })
+  findEligible(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() filters: CampaignFilterDto,
+  ): Promise<PaginatedResponse<CampaignResponseDto>> {
+    return this.campaignsService.findEligibleForTester(user.id, filters);
+  }
+
   @Roles('ADMIN')
   @Get('all')
   @ApiBearerAuth('supabase-auth')

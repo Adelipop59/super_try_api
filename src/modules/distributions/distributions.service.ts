@@ -402,8 +402,8 @@ export class DistributionsService {
           'specificDate is required for SPECIFIC_DATE distributions',
         );
       }
-      // dayOfWeek ne doit pas être fourni
-      if (dto.dayOfWeek !== undefined && dto.dayOfWeek !== null) {
+      // dayOfWeek ne doit pas être fourni (sauf 0 qui est la valeur par défaut)
+      if (dto.dayOfWeek !== undefined && dto.dayOfWeek !== null && dto.dayOfWeek !== 0) {
         throw new BadRequestException(
           'dayOfWeek should not be provided for SPECIFIC_DATE distributions',
         );
