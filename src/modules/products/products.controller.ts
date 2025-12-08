@@ -9,7 +9,11 @@ import {
   UseGuards,
   Query,
   ForbiddenException,
+  UploadedFiles,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -17,12 +21,15 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
+import { ProductImageDto } from './dto/product-image.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -280,5 +287,148 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Produit non trouvé' })
   toggleActive(@Param('id') id: string): Promise<ProductResponseDto> {
     return this.productsService.toggleActive(id);
+  }
+
+  @Roles('PRO', 'ADMIN')
+  @Post(':id/images')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Ajouter des images à un produit',
+    description:
+      'Upload plusieurs images pour un produit. Max 10 images par requête. Formats acceptés: jpg, jpeg, png, webp. Taille max: 5MB par image.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+      required: ['images'],
+    },
+  })
+  @ApiParam({ name: 'id', description: 'ID du produit' })
+  @ApiResponse({
+    status: 200,
+    description: 'Images ajoutées avec succès',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Fichiers invalides' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez modifier que vos propres produits',
+  })
+  @ApiResponse({ status: 404, description: 'Produit non trouvé' })
+  @UseInterceptors(FilesInterceptor('images', 10))
+  async uploadProductImages(
+    @Param('id') productId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProductResponseDto> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Aucune image fournie');
+    }
+    return this.productsService.addProductImages(productId, files, user.id);
+  }
+
+  @Roles('PRO', 'ADMIN')
+  @Delete(':id/images')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Supprimer une image d\'un produit',
+    description: 'Supprime une image spécifique d\'un produit (par URL)',
+  })
+  @ApiParam({ name: 'id', description: 'ID du produit' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        imageUrl: {
+          type: 'string',
+          description: 'URL de l\'image à supprimer',
+        },
+      },
+      required: ['imageUrl'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Image supprimée avec succès',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'URL invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez modifier que vos propres produits',
+  })
+  @ApiResponse({ status: 404, description: 'Produit non trouvé' })
+  async deleteProductImage(
+    @Param('id') productId: string,
+    @Body('imageUrl') imageUrl: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProductResponseDto> {
+    if (!imageUrl) {
+      throw new BadRequestException('imageUrl est requis');
+    }
+    return this.productsService.removeProductImage(productId, imageUrl, user.id);
+  }
+
+  @Roles('PRO', 'ADMIN')
+  @Patch(':id/images')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Mettre à jour l\'ordre des images',
+    description:
+      'Met à jour l\'ordre des images ou définit l\'image principale',
+  })
+  @ApiParam({ name: 'id', description: 'ID du produit' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              order: { type: 'number' },
+              isPrimary: { type: 'boolean' },
+            },
+          },
+        },
+      },
+      required: ['images'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Images mises à jour avec succès',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez modifier que vos propres produits',
+  })
+  @ApiResponse({ status: 404, description: 'Produit non trouvé' })
+  async updateProductImages(
+    @Param('id') productId: string,
+    @Body('images') images: ProductImageDto[],
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProductResponseDto> {
+    if (!images || !Array.isArray(images)) {
+      throw new BadRequestException('images doit être un tableau');
+    }
+    return this.productsService.updateProductImages(productId, images, user.id);
   }
 }

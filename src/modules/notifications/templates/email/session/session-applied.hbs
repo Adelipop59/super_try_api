@@ -1,0 +1,23 @@
+<h2>📩 Nouvelle candidature reçue</h2>
+
+<p>Bonjour {{sellerName}},</p>
+
+<p>Vous avez reçu une nouvelle candidature pour votre campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Informations du candidat</h3>
+    <ul>
+        <li><strong>Testeur:</strong> {{testerName}}</li>
+        <li><strong>Note moyenne:</strong> {{testerRating}}/5 ⭐</li>
+        <li><strong>Tests complétés:</strong> {{testerCompletedSessions}}</li>
+        {{#if testerLocation}}
+        <li><strong>Localisation:</strong> {{testerLocation}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p>
+    <a href="{{url (concat '/campaigns/' campaignId '/applications')}}" class="button">Voir la candidature</a>
+</p>
+
+<p>Cordialement,<br>L'équipe Super Try</p>

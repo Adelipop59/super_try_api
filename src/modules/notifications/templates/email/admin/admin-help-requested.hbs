@@ -1,0 +1,20 @@
+<h2>🆘 Demande d'assistance admin</h2>
+
+<p>Bonjour {{adminName}},</p>
+
+<p>Un utilisateur a demandé votre aide dans une conversation concernant la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de la demande</h3>
+    <p><strong>Demandeur :</strong> {{requesterName}} ({{requesterRole}})</p>
+    <p><strong>Raison :</strong></p>
+    <p>{{reason}}</p>
+</div>
+
+<p>
+    <a href="{{url (concat '/admin/conversations/' sessionId)}}" class="button">Voir la conversation</a>
+</p>
+
+<p style="font-size: 12px; color: #666; margin-top: 20px;">
+    💡 <em>Cette notification est envoyée à tous les administrateurs actifs.</em>
+</p>

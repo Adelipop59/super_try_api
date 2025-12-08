@@ -46,6 +46,23 @@ export class SessionsService {
     userId: string,
     dto: ApplySessionDto,
   ): Promise<PrismaSessionResponse> {
+    // Vérifier que l'utilisateur est vérifié (KYC)
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { isVerified: true, role: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    if (profile.role === 'USER' && !profile.isVerified) {
+      throw new ForbiddenException(
+        'You must complete identity verification before applying to campaigns. ' +
+        'Please verify your identity in your profile settings.',
+      );
+    }
+
     // Vérifier que la campagne existe et est active
     const campaign = await this.prisma.campaign.findUnique({
       where: { id: dto.campaignId },

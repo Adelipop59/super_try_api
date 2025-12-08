@@ -127,4 +127,23 @@ export class DashboardStatsDto {
     avgResponseTime: number; // ms
     uptime: number; // %
   };
+
+  @ApiProperty({
+    description: 'Montant total dépensé dans les campagnes (en centimes)',
+    example: 1250000,
+  })
+  totalCampaignSpending: number;
+
+  @ApiProperty({
+    description: 'Données pour le graphique des revenus par jour (derniers 30 jours)',
+    example: [
+      { date: '2025-01-01', amount: 15000, campaignCount: 5 },
+      { date: '2025-01-02', amount: 22000, campaignCount: 8 },
+    ],
+  })
+  revenueChart: Array<{
+    date: string; // Format: YYYY-MM-DD
+    amount: number; // en centimes
+    campaignCount: number;
+  }>;
 }

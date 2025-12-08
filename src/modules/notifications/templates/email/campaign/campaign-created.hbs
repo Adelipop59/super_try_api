@@ -1,0 +1,33 @@
+<h2>🎉 Nouvelle campagne disponible !</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Une nouvelle campagne de test vient d'être publiée et pourrait vous intéresser !</p>
+
+<div class="info-box">
+    <h3>{{campaignTitle}}</h3>
+    <p>{{campaignDescription}}</p>
+
+    <ul style="margin-top: 15px;">
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Catégorie:</strong> {{categoryName}}</li>
+        <li><strong>Récompense:</strong> {{formatCurrency rewardAmount}}</li>
+        <li><strong>Places disponibles:</strong> {{availableSlots}}</li>
+        {{#if endDate}}
+        <li><strong>Fin de campagne:</strong> {{formatDate endDate}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+{{#if productDescription}}
+<div class="info-box">
+    <h3>À propos du produit</h3>
+    <p>{{productDescription}}</p>
+</div>
+{{/if}}
+
+<p>Ne manquez pas cette opportunité ! Les places partent vite.</p>
+
+<p>
+    <a href="{{url (concat '/campaigns/' campaignId)}}" class="button">Voir la campagne</a>
+</p>

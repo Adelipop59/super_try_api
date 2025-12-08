@@ -3,12 +3,15 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
-import { LogCategory, Prisma } from '@prisma/client';
+import { LogCategory, Prisma, SessionStatus } from '@prisma/client';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MessageFilterDto } from './dto/message-filter.dto';
+import { DeclareDisputeDto } from './dto/declare-dispute.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 
 // Type helper pour les réponses Prisma
 type PrismaMessageResponse = any;
@@ -24,6 +27,7 @@ export class MessagesService {
 
   /**
    * 1. Envoyer un message dans une session
+   * Version enrichie avec WebSocket, lock conversation et types de messages
    */
   async sendMessage(
     sessionId: string,
@@ -34,7 +38,10 @@ export class MessagesService {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
-        campaign: true,
+        campaign: {
+          include: { seller: true },
+        },
+        tester: true,
       },
     });
 
@@ -42,12 +49,53 @@ export class MessagesService {
       throw new NotFoundException('Session not found');
     }
 
-    // Vérifier que l'utilisateur est soit le testeur soit le vendeur
+    // Récupérer l'utilisateur pour vérifier son rôle
+    const user = await this.prisma.profile.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Vérifier le verrouillage de la conversation
+    if (session.isConversationLocked) {
+      // Seul ADMIN peut envoyer des messages quand la conversation est verrouillée
+      if (user.role !== 'ADMIN') {
+        throw new ForbiddenException(
+          'Conversation is locked due to dispute. Only admin can send messages.',
+        );
+      }
+    }
+
+    // Vérifier que l'utilisateur est participant (testeur, vendeur, ou admin)
     const isTester = session.testerId === userId;
     const isSeller = session.campaign.sellerId === userId;
+    const isAdmin = user.role === 'ADMIN';
 
-    if (!isTester && !isSeller) {
+    if (!isTester && !isSeller && !isAdmin) {
       throw new ForbiddenException('You are not part of this conversation');
+    }
+
+    // Traiter les pièces jointes avec métadonnées
+    let processedAttachments: any = null;
+    if (dto.attachments && dto.attachments.length > 0) {
+      processedAttachments = dto.attachments.map((att) => ({
+        url: att.url,
+        filename: att.filename,
+        size: att.size,
+        type: att.type,
+        uploadedAt: new Date().toISOString(),
+      }));
+    }
+
+    // Déterminer le type de message
+    let messageType = 'TEXT';
+    if (processedAttachments && processedAttachments.length > 0) {
+      const firstType = processedAttachments[0].type;
+      if (firstType.startsWith('image/')) messageType = 'IMAGE';
+      else if (firstType.startsWith('video/')) messageType = 'VIDEO';
+      else if (firstType === 'application/pdf') messageType = 'PDF';
     }
 
     // Créer le message
@@ -56,7 +104,8 @@ export class MessagesService {
         sessionId,
         senderId: userId,
         content: dto.content,
-        attachments: dto.attachments ? (dto.attachments as any) : null,
+        attachments: processedAttachments as any,
+        messageType,
       },
       include: {
         sender: {
@@ -72,6 +121,16 @@ export class MessagesService {
       },
     });
 
+    // TODO: Émettre via WebSocket si gateway disponible
+    // if (this.messagesGateway) {
+    //   this.messagesGateway.emitNewMessage(sessionId, message);
+    // }
+
+    // TODO: Envoyer notification email au destinataire
+    // const recipientId = isTester ? session.campaign.sellerId : session.testerId;
+    // const recipient = isTester ? session.campaign.seller : session.tester;
+    // await this.notificationEventsHelper.messageReceived({...});
+
     await this.logsService.logSuccess(
       LogCategory.MESSAGE,
       `✅ Nouveau message envoyé dans la session ${sessionId}`,
@@ -79,6 +138,7 @@ export class MessagesService {
         messageId: message.id,
         sessionId,
         senderId: userId,
+        messageType,
       },
     );
 
@@ -398,5 +458,354 @@ export class MessagesService {
     }
 
     return message;
+  }
+
+  /**
+   * 8. Vérifier l'accès à une session (pour WebSocket et endpoints)
+   */
+  async verifySessionAccess(
+    sessionId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<boolean> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: true,
+      },
+    });
+
+    if (!session) {
+      return false;
+    }
+
+    // Admin a accès à tout
+    if (userRole === 'ADMIN') {
+      return true;
+    }
+
+    // Testeur a accès à ses sessions
+    if (session.testerId === userId) {
+      return true;
+    }
+
+    // Vendeur a accès aux sessions de ses campagnes
+    if (session.campaign.sellerId === userId) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 9. Demander l'aide d'un admin
+   */
+  async requestAdminHelp(
+    sessionId: string,
+    userId: string,
+    userRole: string,
+    reason: string,
+  ): Promise<{ message: string; session: any }> {
+    // Vérifier l'accès
+    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { campaign: true, tester: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.adminInvitedAt) {
+      throw new BadRequestException('Admin already invited to this conversation');
+    }
+
+    // Mettre à jour la session
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        adminInvitedBy: userId,
+        adminInvitedAt: new Date(),
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    // Créer un message système
+    await this.createSystemMessage(
+      sessionId,
+      userId,
+      `Admin help requested by ${userRole === 'PRO' ? 'seller' : 'tester'}: ${reason}`,
+    );
+
+    await this.logsService.logInfo(
+      LogCategory.MESSAGE,
+      `🔵 Admin help requested for session ${sessionId} by user ${userId}`,
+      { sessionId, userId, reason },
+    );
+
+    // TODO: Notifier tous les admins via NotificationEventsHelper
+
+    return {
+      message: 'Admin help requested successfully',
+      session: updatedSession,
+    };
+  }
+
+  /**
+   * 10. Admin rejoint une conversation
+   */
+  async adminJoinConversation(
+    sessionId: string,
+    adminId: string,
+  ): Promise<{ message: string; session: any }> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { campaign: true, tester: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Mettre à jour la session
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        adminJoinedAt: new Date(),
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    // Créer un message système
+    await this.createSystemMessage(
+      sessionId,
+      adminId,
+      'An administrator has joined the conversation',
+    );
+
+    await this.logsService.logInfo(
+      LogCategory.MESSAGE,
+      `🔵 Admin ${adminId} joined session ${sessionId}`,
+      { sessionId, adminId },
+    );
+
+    return {
+      message: 'Admin joined conversation successfully',
+      session: updatedSession,
+    };
+  }
+
+  /**
+   * 11. Déclarer un litige
+   */
+  async declareDispute(
+    sessionId: string,
+    userId: string,
+    userRole: string,
+    dto: DeclareDisputeDto,
+  ): Promise<{ message: string; session: any }> {
+    // Vérifier l'accès
+    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    if (!hasAccess || userRole === 'ADMIN') {
+      throw new ForbiddenException('Only tester or seller can declare dispute');
+    }
+
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { campaign: true, tester: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Vérifier si déjà en litige
+    if (session.status === SessionStatus.DISPUTED) {
+      throw new BadRequestException('Session already in dispute');
+    }
+
+    // Mettre à jour la session
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        status: SessionStatus.DISPUTED,
+        disputedAt: new Date(),
+        disputeReason: dto.reason,
+        disputeDeclaredBy: userId,
+        isConversationLocked: true, // Bloquer la conversation
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    // Créer un message système
+    await this.createSystemMessage(
+      sessionId,
+      userId,
+      `Dispute declared: ${dto.reason}`,
+    );
+
+    await this.logsService.logWarning(
+      LogCategory.MESSAGE,
+      `⚠️ Dispute declared for session ${sessionId} by user ${userId}`,
+      { sessionId, userId, reason: dto.reason },
+    );
+
+    // TODO: Notifier admin et autre partie via NotificationEventsHelper
+
+    return {
+      message: 'Dispute declared successfully',
+      session: updatedSession,
+    };
+  }
+
+  /**
+   * 12. Résoudre un litige (admin uniquement)
+   */
+  async resolveDispute(
+    sessionId: string,
+    adminId: string,
+    dto: ResolveDisputeDto,
+  ): Promise<{ message: string; session: any }> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { campaign: true, tester: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status !== SessionStatus.DISPUTED) {
+      throw new BadRequestException('Session is not in dispute');
+    }
+
+    // Mettre à jour la session
+    const updatedSession = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        status: dto.newStatus,
+        disputeResolvedAt: new Date(),
+        disputeResolution: dto.resolution,
+        isConversationLocked: false, // Débloquer la conversation
+      },
+      include: {
+        campaign: true,
+        tester: true,
+      },
+    });
+
+    // Créer un message système
+    await this.createSystemMessage(
+      sessionId,
+      adminId,
+      `Dispute resolved by admin: ${dto.resolution}`,
+    );
+
+    await this.logsService.logSuccess(
+      LogCategory.MESSAGE,
+      `✅ Dispute resolved for session ${sessionId} by admin ${adminId}`,
+      { sessionId, adminId, resolution: dto.resolution },
+    );
+
+    // TODO: Notifier les deux parties via NotificationEventsHelper
+
+    return {
+      message: 'Dispute resolved successfully',
+      session: updatedSession,
+    };
+  }
+
+  /**
+   * 13. Créer un message système
+   */
+  private async createSystemMessage(
+    sessionId: string,
+    userId: string,
+    content: string,
+  ): Promise<any> {
+    return await this.prisma.message.create({
+      data: {
+        sessionId,
+        senderId: userId,
+        content,
+        isSystemMessage: true,
+        messageType: 'SYSTEM',
+      },
+    });
+  }
+
+  /**
+   * 14. Récupérer les participants d'une conversation
+   */
+  async getConversationParticipants(
+    sessionId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<any> {
+    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: {
+          include: {
+            seller: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                role: true,
+              },
+            },
+          },
+        },
+        tester: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    const participants: any = {
+      tester: session.tester,
+      seller: session.campaign.seller,
+    };
+
+    // Si admin a rejoint, l'inclure
+    if (session.adminJoinedAt) {
+      participants.adminJoinedAt = session.adminJoinedAt;
+      participants.adminInvitedBy = session.adminInvitedBy;
+    }
+
+    return participants;
   }
 }

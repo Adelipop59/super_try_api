@@ -1,0 +1,33 @@
+<h2>🎉 Votre candidature a été acceptée !</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Excellente nouvelle ! Votre candidature pour la campagne <strong>{{campaignTitle}}</strong> a été acceptée par le vendeur.</p>
+
+<div class="info-box">
+    <h3>Détails de la session</h3>
+    <ul>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Récompense:</strong> {{formatCurrency rewardAmount}}</li>
+        {{#if deadlineDate}}
+        <li><strong>Date limite:</strong> {{formatDate deadlineDate}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<h3>Prochaines étapes</h3>
+<ol>
+    <li>Achetez le produit (vous serez remboursé)</li>
+    <li>Suivez la procédure de test</li>
+    <li>Soumettez votre avis</li>
+    <li>Recevez votre récompense !</li>
+</ol>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId)}}" class="button">Voir ma session</a>
+</p>
+
+<p>Bonne chance ! 🚀</p>
+
+<p>L'équipe Super Try</p>

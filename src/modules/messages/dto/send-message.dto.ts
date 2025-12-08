@@ -3,9 +3,49 @@ import {
   IsNotEmpty,
   IsOptional,
   IsArray,
+  IsNumber,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+/**
+ * DTO pour une pièce jointe avec métadonnées
+ */
+export class MessageAttachmentDto {
+  @ApiProperty({
+    description: 'URL du fichier (depuis endpoint upload)',
+    example: 'https://s3.amazonaws.com/bucket/messages/session-id/file.jpg',
+  })
+  @IsString()
+  @IsNotEmpty()
+  url!: string;
+
+  @ApiProperty({
+    description: 'Nom original du fichier',
+    example: 'receipt.pdf',
+  })
+  @IsString()
+  @IsNotEmpty()
+  filename!: string;
+
+  @ApiProperty({
+    description: 'Taille du fichier en octets',
+    example: 245678,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  size!: number;
+
+  @ApiProperty({
+    description: 'Type MIME du fichier',
+    example: 'application/pdf',
+  })
+  @IsString()
+  @IsNotEmpty()
+  type!: string;
+}
 
 /**
  * DTO pour envoyer un message
@@ -23,16 +63,13 @@ export class SendMessageDto {
   content!: string;
 
   @ApiProperty({
-    description: 'URLs des fichiers joints (photos, documents)',
-    example: [
-      'https://storage.example.com/file1.jpg',
-      'https://storage.example.com/file2.pdf',
-    ],
+    description: 'Pièces jointes avec métadonnées (images, PDFs, vidéos)',
+    type: [MessageAttachmentDto],
     required: false,
-    type: [String],
   })
   @IsArray()
   @IsOptional()
-  @IsString({ each: true })
-  attachments?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => MessageAttachmentDto)
+  attachments?: MessageAttachmentDto[];
 }

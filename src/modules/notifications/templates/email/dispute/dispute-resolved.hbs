@@ -1,0 +1,24 @@
+<h2>✅ Litige résolu</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Le litige concernant la campagne <strong>{{campaignTitle}}</strong> a été résolu par un administrateur.</p>
+
+<div class="info-box">
+    <h3>Résolution du litige</h3>
+    <p><strong>Décision :</strong></p>
+    <p>{{resolution}}</p>
+    {{#if newStatus}}
+    <p><strong>Nouveau statut de la session :</strong> {{newStatus}}</p>
+    {{/if}}
+</div>
+
+<p>La conversation a été débloquée et vous pouvez à nouveau échanger des messages avec l'autre partie.</p>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/messages')}}" class="button">Voir la conversation</a>
+</p>
+
+<p style="font-size: 12px; color: #666; margin-top: 20px;">
+    💡 <em>En cas de désaccord avec cette décision, veuillez contacter le support.</em>
+</p>

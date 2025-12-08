@@ -1,0 +1,24 @@
+<h2>📝 Test soumis</h2>
+
+<p>Bonjour {{sellerName}},</p>
+
+<p>Le testeur <strong>{{testerName}}</strong> a terminé et soumis le test pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails du test</h3>
+    <ul>
+        <li><strong>Testeur:</strong> {{testerName}}</li>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Date de soumission:</strong> {{formatDate submissionDate}}</li>
+        {{#if stepsCompleted}}
+        <li><strong>Étapes complétées:</strong> {{stepsCompleted}}/{{totalSteps}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p>Le test est maintenant en attente de votre validation. Veuillez le vérifier et approuver ou demander des modifications si nécessaire.</p>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId)}}" class="button">Valider le test</a>
+</p>

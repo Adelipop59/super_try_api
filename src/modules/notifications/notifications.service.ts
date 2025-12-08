@@ -9,9 +9,7 @@ import {
 } from '@prisma/client';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
-import { EmailProvider } from './providers/email.provider';
-import { SmsProvider } from './providers/sms.provider';
-import { PushProvider } from './providers/push.provider';
+import { NotificationsQueueService } from './queue/notifications.queue.service';
 
 // Type helper
 type PrismaNotificationResponse = any;
@@ -23,9 +21,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
-    private readonly emailProvider: EmailProvider,
-    private readonly smsProvider: SmsProvider,
-    private readonly pushProvider: PushProvider,
+    private readonly queueService: NotificationsQueueService,
   ) {}
 
   /**
@@ -101,7 +97,7 @@ export class NotificationsService {
   }
 
   /**
-   * Envoi asynchrone (ne bloque pas la requête)
+   * Envoi asynchrone via queue (ne bloque pas la requête)
    */
   private async sendAsync(
     notificationId: string,
@@ -112,58 +108,45 @@ export class NotificationsService {
     data?: any,
   ): Promise<void> {
     try {
-      let success = false;
-      let errorMessage: string | null = null;
-
       // Récupérer les informations de contact
       const to = this.getContactInfo(user, channel);
 
       if (!to) {
-        errorMessage = `Informations de contact manquantes pour ${channel}`;
+        const errorMessage = `Informations de contact manquantes pour ${channel}`;
         this.logger.error(errorMessage);
-      } else {
-        // Envoyer selon le canal
-        switch (channel) {
-          case NotificationChannel.EMAIL:
-            success = await this.emailProvider.send(to, title, message, data);
-            break;
-          case NotificationChannel.SMS:
-            success = await this.smsProvider.send(to, title, message, data);
-            break;
-          case NotificationChannel.PUSH:
-            success = await this.pushProvider.send(to, title, message, data);
-            break;
-          case NotificationChannel.IN_APP:
-            success = true; // Pas d'envoi externe pour IN_APP
-            break;
-        }
+
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            error: errorMessage,
+            isSent: false,
+          },
+        });
+
+        return;
       }
 
-      // Mettre à jour la notification
-      await this.prisma.notification.update({
-        where: { id: notificationId },
-        data: {
-          isSent: success,
-          sentAt: success ? new Date() : null,
-          error: errorMessage,
-          retries: { increment: 1 },
-        },
+      // Ajouter à la queue BullMQ (avec retry automatique)
+      await this.queueService.addNotificationJob({
+        notificationId,
+        channel,
+        to,
+        title,
+        message,
+        data,
+        template: data?.template,
+        templateVars: data?.templateVars,
       });
 
-      if (!success) {
-        await this.logsService.logError(
-          LogCategory.SYSTEM,
-          `❌ Échec d'envoi notification ${notificationId}`,
-          { error: errorMessage },
-        );
-      }
+      this.logger.log(`✅ Notification ${notificationId} added to queue (${channel})`);
     } catch (error) {
-      this.logger.error(`Erreur sendAsync: ${error.message}`);
+      this.logger.error(`❌ Failed to add notification to queue: ${error.message}`);
+
       await this.prisma.notification.update({
         where: { id: notificationId },
         data: {
-          error: error.message,
-          retries: { increment: 1 },
+          error: `Failed to add to queue: ${error.message}`,
+          isSent: false,
         },
       });
     }
@@ -182,8 +165,7 @@ export class NotificationsService {
       case NotificationChannel.SMS:
         return user.phone || null;
       case NotificationChannel.PUSH:
-        // TODO: Stocker le device token dans Profile
-        return user.id; // Pour l'instant, utiliser l'ID
+        return user.deviceToken || null; // FCM device token
       case NotificationChannel.IN_APP:
         return user.id;
       default:

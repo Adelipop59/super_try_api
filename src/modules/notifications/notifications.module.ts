@@ -3,29 +3,31 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
-import { EmailProvider } from './providers/email.provider';
-import { SmsProvider } from './providers/sms.provider';
-import { PushProvider } from './providers/push.provider';
+import { NotificationsQueueModule } from './queue/notifications.queue.module';
+import { TemplateService } from './templates/template.service';
+import { NotificationEventsHelper } from './helpers/notification-events.helper';
 
 /**
  * Module de gestion des notifications
  *
  * Fonctionnalités:
  * - Envoi de notifications multi-canaux (Email, SMS, Push, In-App)
+ * - Queue asynchrone avec BullMQ + Redis
+ * - Templates email avec Handlebars
  * - Gestion des préférences utilisateur
  * - Système de lecture/non-lu
- * - Tracking des envois et des erreurs
+ * - Tracking des envois et des erreurs avec retry automatique
  */
 @Module({
+  imports: [NotificationsQueueModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
     PrismaService,
     LogsService,
-    EmailProvider,
-    SmsProvider,
-    PushProvider,
+    TemplateService,
+    NotificationEventsHelper,
   ],
-  exports: [NotificationsService], // Export pour utilisation dans d'autres modules
+  exports: [NotificationsService, NotificationEventsHelper], // Export pour utilisation dans d'autres modules
 })
 export class NotificationsModule {}

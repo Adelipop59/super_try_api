@@ -1,0 +1,27 @@
+<h2>🚫 Session annulée</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Nous vous informons que la session pour la campagne <strong>{{campaignTitle}}</strong> a été annulée.</p>
+
+<div class="info-box">
+    <h3>Détails de l'annulation</h3>
+    <ul>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        {{#if cancellationReason}}
+        <li><strong>Raison:</strong> {{cancellationReason}}</li>
+        {{/if}}
+        {{#if cancelledBy}}
+        <li><strong>Annulée par:</strong> {{cancelledBy}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+{{#if refundAmount}}
+<p>Un remboursement de <strong>{{formatCurrency refundAmount}}</strong> sera effectué dans les prochains jours.</p>
+{{/if}}
+
+<p>
+    <a href="{{url '/campaigns'}}" class="button">Voir d'autres campagnes</a>
+</p>

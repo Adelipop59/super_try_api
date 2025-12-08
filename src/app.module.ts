@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bull';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -26,6 +27,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { BonusTasksModule } from './modules/bonus-tasks/bonus-tasks.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
+import { UploadModule } from './modules/upload/upload.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -39,6 +41,20 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
       load: [configuration],
       validate,
       envFilePath: '.env',
+    }),
+
+    // BullMQ Queue system (global)
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        redis: {
+          host: configService.get<string>('redis.host'),
+          port: configService.get<number>('redis.port'),
+          password: configService.get<string>('redis.password'),
+          maxRetriesPerRequest: null,
+        },
+      }),
+      inject: [ConfigService],
     }),
 
     // Global modules
@@ -65,6 +81,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     ReviewsModule,
     BonusTasksModule,
     WalletsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [

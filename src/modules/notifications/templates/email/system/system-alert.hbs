@@ -1,0 +1,31 @@
+<h2>🔔 {{alertTitle}}</h2>
+
+<p>Bonjour {{userName}},</p>
+
+{{#if alertMessage}}
+<p>{{alertMessage}}</p>
+{{/if}}
+
+{{#if alertDetails}}
+<div class="info-box" style="background-color: {{#if isUrgent}}#fff3cd{{else}}#e7f3ff{{/if}}; border-left: 4px solid {{#if isUrgent}}#ff9800{{else}}#2196f3{{/if}};">
+    <h3>Détails</h3>
+    {{{alertDetails}}}
+</div>
+{{/if}}
+
+{{#if actionRequired}}
+<div class="info-box" style="background-color: #ffe7e7; border-left: 4px solid #f44336;">
+    <h3>⚠️ Action requise</h3>
+    <p>{{actionRequired}}</p>
+</div>
+{{/if}}
+
+{{#if actionUrl}}
+<p>
+    <a href="{{url actionUrl}}" class="button">{{actionButtonText}}</a>
+</p>
+{{/if}}
+
+<p style="margin-top: 30px; font-size: 12px; color: #666;">
+    Ceci est un message système automatique de Super Try.
+</p>

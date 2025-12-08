@@ -1,0 +1,28 @@
+<h2>💰 Paiement reçu !</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Bonne nouvelle ! Votre paiement de <strong>{{formatCurrency amount}}</strong> a bien été reçu et traité.</p>
+
+<div class="info-box">
+    <h3>Détails du paiement</h3>
+    <ul>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Type:</strong> {{paymentType}}</li>
+        <li><strong>Date:</strong> {{formatDate paymentDate}}</li>
+        {{#if campaignTitle}}
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        {{/if}}
+        <li><strong>Référence:</strong> {{transactionId}}</li>
+    </ul>
+</div>
+
+{{#if walletBalance}}
+<p>Votre nouveau solde est de <strong>{{formatCurrency walletBalance}}</strong>.</p>
+{{/if}}
+
+<p>
+    <a href="{{url '/wallet'}}" class="button">Voir mon portefeuille</a>
+</p>
+
+<p>Merci de votre confiance !<br>L'équipe Super Try</p>

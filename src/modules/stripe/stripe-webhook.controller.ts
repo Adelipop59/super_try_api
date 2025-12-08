@@ -12,6 +12,7 @@ import type { Request } from 'express';
 import { StripeService } from './stripe.service';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LogsService } from '../logs/logs.service';
 import { CampaignStatus, TransactionStatus, NotificationType, NotificationChannel } from '@prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import Stripe from 'stripe';
@@ -24,6 +25,7 @@ export class StripeWebhookController {
     private readonly stripeService: StripeService,
     private readonly prismaService: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly logsService: LogsService,
   ) {}
 
   @Post()
@@ -118,6 +120,31 @@ export class StripeWebhookController {
       case 'payment_method.attached':
         await this.handlePaymentMethodAttached(
           event.data.object as Stripe.PaymentMethod,
+        );
+        break;
+
+      // Événements Stripe Identity
+      case 'identity.verification_session.verified':
+        await this.handleVerificationVerified(
+          event.data.object as Stripe.Identity.VerificationSession,
+        );
+        break;
+
+      case 'identity.verification_session.requires_input':
+        await this.handleVerificationRequiresInput(
+          event.data.object as Stripe.Identity.VerificationSession,
+        );
+        break;
+
+      case 'identity.verification_session.processing':
+        await this.handleVerificationProcessing(
+          event.data.object as Stripe.Identity.VerificationSession,
+        );
+        break;
+
+      case 'identity.verification_session.canceled':
+        await this.handleVerificationCanceled(
+          event.data.object as Stripe.Identity.VerificationSession,
         );
         break;
 
@@ -543,5 +570,190 @@ export class StripeWebhookController {
     );
 
     // TODO: Enregistrer la méthode de paiement par défaut pour le client
+  }
+
+  /**
+   * Vérification d'identité réussie (Stripe Identity)
+   */
+  private async handleVerificationVerified(
+    session: Stripe.Identity.VerificationSession,
+  ): Promise<void> {
+    this.logger.log(`Identity verification verified: ${session.id}`);
+
+    const userId = session.metadata?.userId || session.metadata?.profileId;
+
+    if (!userId) {
+      this.logger.warn(`Verification session ${session.id} has no userId in metadata`);
+      return;
+    }
+
+    try {
+      // Récupérer les données vérifiées
+      const verifiedData = session.verified_outputs;
+
+      // Mettre à jour le profil
+      await this.prismaService.profile.update({
+        where: { id: userId },
+        data: {
+          isVerified: true,
+          verificationStatus: 'verified',
+          verifiedAt: new Date(),
+          verificationFailedReason: null,
+          // Optionnel : extraire birthDate si fourni
+          ...(verifiedData?.dob &&
+            verifiedData.dob.year &&
+            verifiedData.dob.month &&
+            verifiedData.dob.day && {
+            birthDate: new Date(
+              verifiedData.dob.year,
+              verifiedData.dob.month - 1,
+              verifiedData.dob.day,
+            ),
+          }),
+        },
+      });
+
+      // Logger l'action
+      await this.logsService.logSuccess(
+        'USER' as any,
+        `User verified via Stripe Identity: ${session.id}`,
+        { verificationSessionId: session.id },
+        userId,
+      );
+
+      // Récupérer le profil pour la notification
+      const profile = await this.prismaService.profile.findUnique({
+        where: { id: userId },
+        select: { firstName: true, email: true },
+      });
+
+      if (profile) {
+        // Envoyer notification de succès
+        try {
+          await this.notificationsService.send({
+            userId,
+            type: NotificationType.SYSTEM_ALERT,
+            channel: NotificationChannel.EMAIL,
+            title: '✅ Vérification d\'identité réussie',
+            message: `Votre identité a été vérifiée avec succès ! Vous pouvez maintenant candidater à toutes les campagnes de test.`,
+            data: {
+              verificationSessionId: session.id,
+              verifiedAt: new Date().toISOString(),
+            },
+          });
+        } catch (notifError) {
+          this.logger.error(`Failed to send verification success notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+        }
+      }
+
+      this.logger.log(`User ${userId} successfully verified via Stripe Identity`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process verification success: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Vérification d'identité requiert une action (Stripe Identity)
+   */
+  private async handleVerificationRequiresInput(
+    session: Stripe.Identity.VerificationSession,
+  ): Promise<void> {
+    this.logger.log(`Identity verification requires input: ${session.id}`);
+
+    const userId = session.metadata?.userId || session.metadata?.profileId;
+
+    if (!userId) {
+      return;
+    }
+
+    try {
+      // Envoyer notification pour compléter la vérification
+      await this.notificationsService.send({
+        userId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.IN_APP,
+        title: 'Vérification d\'identité incomplète',
+        message: 'Veuillez compléter la vérification de votre identité pour accéder aux campagnes.',
+        data: {
+          verificationSessionId: session.id,
+          action: 'complete_verification',
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification requires input notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Vérification d'identité en traitement (Stripe Identity)
+   */
+  private async handleVerificationProcessing(
+    session: Stripe.Identity.VerificationSession,
+  ): Promise<void> {
+    this.logger.log(`Identity verification processing: ${session.id}`);
+
+    const userId = session.metadata?.userId || session.metadata?.profileId;
+
+    if (!userId) {
+      return;
+    }
+
+    try {
+      // Mettre à jour le statut à pending
+      await this.prismaService.profile.update({
+        where: { id: userId },
+        data: { verificationStatus: 'pending' },
+      });
+
+      this.logger.log(`User ${userId} verification status updated to pending`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to update verification status to pending: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Vérification d'identité annulée (Stripe Identity)
+   */
+  private async handleVerificationCanceled(
+    session: Stripe.Identity.VerificationSession,
+  ): Promise<void> {
+    this.logger.log(`Identity verification canceled: ${session.id}`);
+
+    const userId = session.metadata?.userId || session.metadata?.profileId;
+
+    if (!userId) {
+      return;
+    }
+
+    try {
+      // Réinitialiser le statut de vérification
+      await this.prismaService.profile.update({
+        where: { id: userId },
+        data: {
+          verificationStatus: 'unverified',
+          stripeVerificationSessionId: null,
+        },
+      });
+
+      // Logger l'action
+      await this.logsService.logInfo(
+        'USER' as any,
+        `User canceled identity verification: ${session.id}`,
+        { verificationSessionId: session.id },
+        userId,
+      );
+
+      this.logger.log(`User ${userId} verification canceled`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process verification cancellation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 }

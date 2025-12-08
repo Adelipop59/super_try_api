@@ -426,17 +426,13 @@ export class StripeController {
   ) {
     const userId = user.id;
 
-    // TODO: Vérifier que l'utilisateur n'a pas déjà un compte connecté
-
-    const account = await this.stripeService.createConnectedAccount({
+    const account = await this.stripeService.createConnectedAccount(userId, {
       email: dto.email,
       businessType: dto.businessType || 'individual',
       metadata: {
         userId,
       },
     });
-
-    // TODO: Enregistrer l'account ID dans la base de données (profil vendeur)
 
     return {
       accountId: account.id,
@@ -498,9 +494,7 @@ export class StripeController {
   @Post('customers')
   @Roles(UserRole.USER, UserRole.ADMIN)
   async createCustomer(@CurrentProfile() profile: Profile) {
-    // TODO: Vérifier que l'utilisateur n'a pas déjà un customer ID
-
-    const customer = await this.stripeService.createCustomer({
+    const customer = await this.stripeService.createCustomer(profile.id, {
       email: profile.email,
       name: profile.firstName && profile.lastName
         ? `${profile.firstName} ${profile.lastName}`
@@ -509,8 +503,6 @@ export class StripeController {
         userId: profile.id,
       },
     });
-
-    // TODO: Enregistrer le customer ID dans la base de données (profil)
 
     return {
       customerId: customer.id,

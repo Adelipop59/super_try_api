@@ -9,12 +9,14 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
+import { ProductImageDto } from './dto/product-image.dto';
 import { Prisma } from '@prisma/client';
 import {
   PaginatedResponse,
   createPaginatedResponse,
   calculateOffset,
 } from '../../common/dto/pagination.dto';
+import { UploadService } from '../upload/upload.service';
 
 // Type for product with all includes
 type ProductWithIncludes = Prisma.ProductGetPayload<{
@@ -39,7 +41,10 @@ type ProductWithIncludes = Prisma.ProductGetPayload<{
 
 @Injectable()
 export class ProductsService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
   /**
    * Create a new product in the catalog.
@@ -49,10 +54,13 @@ export class ProductsService {
     sellerId: string,
     createProductDto: CreateProductDto,
   ): Promise<ProductResponseDto> {
+    const { images, ...productData } = createProductDto;
+
     const product = await this.prismaService.product.create({
       data: {
-        ...createProductDto,
+        ...productData,
         sellerId,
+        images: images ? (images as any) : undefined,
       },
       include: {
         seller: {
@@ -225,9 +233,14 @@ export class ProductsService {
       throw new ForbiddenException('You can only update your own products');
     }
 
+    const { images, ...updateData } = updateProductDto;
+
     const updatedProduct = await this.prismaService.product.update({
       where: { id },
-      data: updateProductDto,
+      data: {
+        ...updateData,
+        images: images ? (images as any) : undefined,
+      },
       include: {
         seller: {
           select: {
@@ -401,11 +414,164 @@ export class ProductsService {
       name: product.name,
       description: product.description,
       imageUrl: product.imageUrl,
+      productUrl: product.productUrl,
+      images: product.images ? (product.images as unknown as ProductImageDto[]) : null,
       price: product.price.toNumber(),
       shippingCost: product.shippingCost.toNumber(),
       isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
+  }
+
+  /**
+   * Add images to a product
+   */
+  async addProductImages(
+    productId: string,
+    files: Express.Multer.File[],
+    sellerId: string,
+  ): Promise<ProductResponseDto> {
+    // Verify ownership
+    const productResponse = await this.findOne(productId);
+    if (productResponse.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only modify your own products');
+    }
+
+    // Upload images to S3
+    const urls = await this.uploadService.uploadMultipleImages(
+      files,
+      'products',
+      productId,
+    );
+
+    // Get existing images
+    const existingImages = (productResponse.images as ProductImageDto[] | null) || [];
+    const maxOrder = existingImages.reduce(
+      (max, img) => Math.max(max, img.order),
+      -1,
+    );
+
+    // Create new image objects
+    const newImages = urls.map((url, index) => ({
+      url,
+      order: maxOrder + index + 1,
+      isPrimary: existingImages.length === 0 && index === 0, // First image is primary if none exist
+    }));
+
+    // Merge with existing images
+    const allImages = [...existingImages, ...newImages];
+
+    // Update product
+    const updated = await this.prismaService.product.update({
+      where: { id: productId },
+      data: { images: allImages as any },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
+      },
+    });
+
+    return this.formatProductResponse(updated);
+  }
+
+  /**
+   * Remove an image from a product
+   */
+  async removeProductImage(
+    productId: string,
+    imageUrl: string,
+    sellerId: string,
+  ): Promise<ProductResponseDto> {
+    // Verify ownership
+    const productResponse = await this.findOne(productId);
+    if (productResponse.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only modify your own products');
+    }
+
+    // Remove from S3
+    await this.uploadService.deleteImage(imageUrl);
+
+    // Remove from database
+    const existingImages = (productResponse.images as ProductImageDto[] | null) || [];
+    const updatedImages = existingImages.filter((img) => img.url !== imageUrl);
+
+    // Update product
+    const updated = await this.prismaService.product.update({
+      where: { id: productId },
+      data: { images: updatedImages as any },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
+      },
+    });
+
+    return this.formatProductResponse(updated);
+  }
+
+  /**
+   * Update image order or set primary image
+   */
+  async updateProductImages(
+    productId: string,
+    images: ProductImageDto[],
+    sellerId: string,
+  ): Promise<ProductResponseDto> {
+    // Verify ownership
+    const productResponse = await this.findOne(productId);
+    if (productResponse.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only modify your own products');
+    }
+
+    // Update product
+    const updated = await this.prismaService.product.update({
+      where: { id: productId },
+      data: { images: images as any },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
+      },
+    });
+
+    return this.formatProductResponse(updated);
   }
 }

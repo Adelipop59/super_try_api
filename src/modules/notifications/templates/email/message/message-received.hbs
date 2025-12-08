@@ -1,0 +1,24 @@
+<h2>💬 Nouveau message reçu</h2>
+
+<p>Bonjour {{recipientName}},</p>
+
+<p>Vous avez reçu un nouveau message de <strong>{{senderName}}</strong>{{#if campaignTitle}} concernant la campagne <strong>{{campaignTitle}}</strong>{{/if}}.</p>
+
+<div class="info-box">
+    <h3>Aperçu du message</h3>
+    <p>{{messagePreview}}</p>
+</div>
+
+{{#if sessionId}}
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/messages')}}" class="button">Répondre au message</a>
+</p>
+{{else}}
+<p>
+    <a href="{{url '/messages'}}" class="button">Voir mes messages</a>
+</p>
+{{/if}}
+
+<p style="font-size: 12px; color: #666; margin-top: 20px;">
+    💡 <em>Astuce : Vous pouvez désactiver les notifications de messages dans vos préférences.</em>
+</p>

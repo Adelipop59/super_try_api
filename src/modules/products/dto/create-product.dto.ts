@@ -1,6 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl, IsNumber, Min, IsUUID, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl, IsNumber, Min, IsUUID, IsBoolean, IsArray, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { ProductImageDto } from './product-image.dto';
 
 /**
  * DTO for creating a product in the catalog.
@@ -48,6 +49,15 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @ApiProperty({
+    description: 'URL du produit (Amazon, site vendeur, etc.)',
+    example: 'https://www.amazon.fr/dp/B0XXXXXX',
+    required: false,
+  })
+  @IsUrl()
+  @IsOptional()
+  productUrl?: string;
+
+  @ApiProperty({
     description: 'Prix de référence du produit',
     example: 1299.99,
     minimum: 0
@@ -78,4 +88,19 @@ export class CreateProductDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiProperty({
+    description: 'Liste des images du produit avec métadonnées',
+    required: false,
+    type: [ProductImageDto],
+    example: [
+      { url: 'https://example.com/image1.jpg', order: 0, isPrimary: true },
+      { url: 'https://example.com/image2.jpg', order: 1, isPrimary: false },
+    ],
+  })
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ProductImageDto)
+  images?: ProductImageDto[];
 }

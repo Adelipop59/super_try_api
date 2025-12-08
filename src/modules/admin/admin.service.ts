@@ -236,6 +236,73 @@ export class AdminService {
 
     const errorRate = totalLogs > 0 ? (errorLogs / totalLogs) * 100 : 0;
 
+    // Calculer le montant total dépensé dans les campagnes (via transactions COMPLETED)
+    const totalSpending = await this.prisma.transaction.aggregate({
+      where: {
+        status: 'COMPLETED',
+        type: 'CAMPAIGN_PAYMENT',
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const totalCampaignSpending = totalSpending._sum.amount
+      ? Number(totalSpending._sum.amount)
+      : 0;
+
+    // Générer les données du graphique des revenus (derniers 30 jours)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const dailyTransactions = await this.prisma.transaction.groupBy({
+      by: ['createdAt'],
+      where: {
+        status: 'COMPLETED',
+        type: 'CAMPAIGN_PAYMENT',
+        createdAt: {
+          gte: thirtyDaysAgo,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+      _count: true,
+    });
+
+    // Créer un map pour regrouper par jour
+    const revenueByDay = new Map<string, { amount: number; count: number }>();
+
+    dailyTransactions.forEach((transaction) => {
+      const dateKey = transaction.createdAt.toISOString().split('T')[0];
+      const existing = revenueByDay.get(dateKey) || { amount: 0, count: 0 };
+      const transactionAmount = transaction._sum.amount
+        ? Number(transaction._sum.amount)
+        : 0;
+      revenueByDay.set(dateKey, {
+        amount: existing.amount + transactionAmount,
+        count: existing.count + transaction._count,
+      });
+    });
+
+    // Générer le tableau final avec tous les jours (même ceux sans transactions)
+    const revenueChart: Array<{
+      date: string;
+      amount: number;
+      campaignCount: number;
+    }> = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split('T')[0];
+      const data = revenueByDay.get(dateKey) || { amount: 0, count: 0 };
+      revenueChart.push({
+        date: dateKey,
+        amount: data.amount,
+        campaignCount: data.count,
+      });
+    }
+
     await this.logsService.logInfo(
       LogCategory.ADMIN,
       '📊 Statistiques dashboard consultées par admin',
@@ -289,6 +356,8 @@ export class AdminService {
         avgResponseTime: 0, // TODO: Implémenter avec un système de métriques
         uptime: 99.9, // TODO: Implémenter avec un système de monitoring
       },
+      totalCampaignSpending,
+      revenueChart,
     };
   }
 
@@ -1024,6 +1093,228 @@ export class AdminService {
 
     return {
       message: `Campaign "${campaign.title}" permanently deleted with ${sessionsCount} session(s)`,
+    };
+  }
+
+  // ========================================
+  // CONVERSATIONS - GESTION
+  // ========================================
+
+  /**
+   * Lister toutes les conversations (sessions) avec filtres
+   */
+  async getAllConversations(filters?: {
+    hasDispute?: boolean;
+    hasAdminJoined?: boolean;
+    isLocked?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    const where: Prisma.SessionWhereInput = {};
+
+    // Filtrer par présence de litige
+    if (filters?.hasDispute !== undefined) {
+      if (filters.hasDispute) {
+        where.disputedAt = { not: null };
+      } else {
+        where.disputedAt = null;
+      }
+    }
+
+    // Filtrer par présence admin
+    if (filters?.hasAdminJoined !== undefined) {
+      if (filters.hasAdminJoined) {
+        where.adminJoinedAt = { not: null };
+      } else {
+        where.adminJoinedAt = null;
+      }
+    }
+
+    // Filtrer par statut de verrouillage
+    if (filters?.isLocked !== undefined) {
+      where.isConversationLocked = filters.isLocked;
+    }
+
+    const sessions = await this.prisma.session.findMany({
+      where,
+      include: {
+        campaign: {
+          select: {
+            title: true,
+            seller: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        tester: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        messages: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: filters?.limit || 50,
+      skip: filters?.offset || 0,
+    });
+
+    // Formater la réponse
+    return sessions.map((session) => ({
+      id: session.id,
+      campaignTitle: session.campaign.title,
+      testerName: session.tester.firstName
+        ? `${session.tester.firstName} ${session.tester.lastName || ''}`
+        : session.tester.email,
+      sellerName: session.campaign.seller.firstName
+        ? `${session.campaign.seller.firstName} ${session.campaign.seller.lastName || ''}`
+        : session.campaign.seller.email,
+      status: session.status,
+      hasDispute: session.disputedAt !== null,
+      isConversationLocked: session.isConversationLocked,
+      hasAdminJoined: session.adminJoinedAt !== null,
+      lastMessageAt: session.messages[0]?.createdAt || null,
+      createdAt: session.createdAt,
+    }));
+  }
+
+  /**
+   * Obtenir les détails complets d'une conversation
+   */
+  async getConversationDetails(sessionId: string): Promise<any> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            status: true,
+            seller: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+              },
+            },
+          },
+        },
+        tester: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        messages: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Récupérer l'admin si présent
+    let admin: any = null;
+    if (session.adminInvitedBy) {
+      const adminProfile = await this.prisma.profile.findUnique({
+        where: { id: session.adminInvitedBy },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+        },
+      });
+      admin = {
+        ...adminProfile,
+        joinedAt: session.adminJoinedAt,
+        invitedAt: session.adminInvitedAt,
+      };
+    }
+
+    // Préparer les informations de litige
+    let dispute: any = null;
+    if (session.disputedAt) {
+      let declaredBy: any = null;
+      if (session.disputeDeclaredBy) {
+        const declarer = await this.prisma.profile.findUnique({
+          where: { id: session.disputeDeclaredBy },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        });
+        declaredBy = declarer;
+      }
+
+      dispute = {
+        reason: session.disputeReason,
+        disputedAt: session.disputedAt,
+        declaredBy,
+        isResolved: session.disputeResolvedAt !== null,
+        resolvedAt: session.disputeResolvedAt,
+        resolution: session.disputeResolution,
+      };
+    }
+
+    return {
+      session: {
+        id: session.id,
+        status: session.status,
+        isConversationLocked: session.isConversationLocked,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        campaign: session.campaign,
+      },
+      participants: {
+        tester: session.tester,
+        seller: session.campaign.seller,
+        admin,
+      },
+      messages: session.messages,
+      dispute,
     };
   }
 

@@ -292,29 +292,51 @@ export class CampaignsService {
   }
 
   /**
-   * Find eligible campaigns for a specific tester
+   * Find eligible campaigns for a specific tester (OPTIMIZED)
    * Returns only campaigns where the tester meets all criteria
+   * Uses batch eligibility checking to avoid N+1 queries
    */
   async findEligibleForTester(
     testerId: string,
     filters: CampaignFilterDto,
   ): Promise<PaginatedResponse<CampaignResponseDto & { eligibilityReasons?: string[] }>> {
-    // Get all active campaigns first
+    // Get all active campaigns first (1 query with includes)
     const activeCampaigns = await this.findAll({
       ...filters,
       status: CampaignStatus.ACTIVE,
     });
 
-    // Filter campaigns based on eligibility
+    // If no campaigns, return early
+    if (activeCampaigns.data.length === 0) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page: filters.page || 1,
+          limit: filters.limit || 10,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
+    }
+
+    // Extract campaign IDs
+    const campaignIds = activeCampaigns.data.map((c) => c.id);
+
+    // Batch eligibility check (5-6 queries total instead of N×5)
+    const eligibilityMap = await this.campaignCriteriaService.checkBatchEligibility(
+      testerId,
+      campaignIds,
+    );
+
+    // Filter campaigns based on eligibility (in-memory operation)
     const eligibleCampaigns: (CampaignResponseDto & { eligibilityReasons?: string[] })[] = [];
 
     for (const campaign of activeCampaigns.data) {
-      const eligibility = await this.campaignCriteriaService.checkTesterEligibility(
-        campaign.id,
-        testerId,
-      );
+      const eligibility = eligibilityMap.get(campaign.id);
 
-      if (eligibility.eligible) {
+      if (eligibility?.eligible) {
         eligibleCampaigns.push(campaign);
       }
     }

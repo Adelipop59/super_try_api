@@ -9,11 +9,9 @@ import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service'
 import { SessionsService } from '../sessions/sessions.service';
 import { ProductsService } from '../products/products.service';
 import { MessagesService } from '../messages/messages.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { EmailProvider } from '../notifications/providers/email.provider';
-import { SmsProvider } from '../notifications/providers/sms.provider';
-import { PushProvider } from '../notifications/providers/push.provider';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { WalletsService } from '../wallets/wallets.service';
+import { UploadModule } from '../upload/upload.module';
 
 /**
  * Module d'administration
@@ -31,6 +29,7 @@ import { WalletsService } from '../wallets/wallets.service';
  * Sécurité: Tous les endpoints nécessitent le rôle ADMIN
  */
 @Module({
+  imports: [UploadModule, NotificationsModule],
   controllers: [AdminController],
   providers: [
     AdminService,
@@ -42,12 +41,7 @@ import { WalletsService } from '../wallets/wallets.service';
     SessionsService,
     ProductsService,
     MessagesService,
-    NotificationsService,
     WalletsService,
-    // Providers de notifications (nécessaires pour NotificationsService)
-    EmailProvider,
-    SmsProvider,
-    PushProvider,
   ],
   exports: [AdminService],
 })

@@ -1,0 +1,26 @@
+<h2>⏰ Votre campagne se termine bientôt</h2>
+
+<p>Bonjour {{sellerName}},</p>
+
+<p>Votre campagne <strong>{{campaignTitle}}</strong> se termine dans <strong>{{daysRemaining}} jours</strong>.</p>
+
+<div class="highlight">
+    <p><strong>⚠️ Rappel important</strong></p>
+    <p>Pensez à valider les tests soumis par les testeurs avant la fin de la campagne pour qu'ils puissent recevoir leurs récompenses.</p>
+</div>
+
+<div class="info-box">
+    <h3>État de la campagne</h3>
+    <ul>
+        <li><strong>Date de fin:</strong> {{formatDate endDate}}</li>
+        <li><strong>Sessions actives:</strong> {{activeSessions}}</li>
+        <li><strong>Tests en attente:</strong> {{pendingTests}}</li>
+        <li><strong>Slots restants:</strong> {{remainingSlots}}/{{totalSlots}}</li>
+    </ul>
+</div>
+
+<p>
+    <a href="{{url (concat '/campaigns/' campaignId)}}" class="button">Gérer ma campagne</a>
+</p>
+
+<p>Cordialement,<br>L'équipe Super Try</p>

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../../database/prisma.service';
 import { CampaignStatus, TransactionType, TransactionStatus } from '@prisma/client';
+import { StripeTransactionHelper } from './helpers/stripe-transaction.helper';
 
 export interface CreatePaymentIntentDto {
   amount: number; // En centimes (ex: 1050 = 10.50€)
@@ -44,6 +45,7 @@ export class StripeService {
   constructor(
     private configService: ConfigService,
     private prismaService: PrismaService,
+    private stripeTransactionHelper: StripeTransactionHelper,
   ) {
     const apiKey = this.configService.get<string>('stripe.apiKey');
     if (!apiKey) {
@@ -64,14 +66,32 @@ export class StripeService {
   /**
    * Créer un client Stripe
    */
-  async createCustomer(data: CreateCustomerDto): Promise<Stripe.Customer> {
+  async createCustomer(userId: string, data: CreateCustomerDto): Promise<Stripe.Customer> {
     try {
-      return await this.stripe.customers.create({
+      // Vérifier si l'utilisateur a déjà un customer ID
+      const profile = await this.prismaService.profile.findUnique({
+        where: { id: userId },
+      });
+
+      if (profile?.stripeCustomerId) {
+        this.logger.warn(`User ${userId} already has a Stripe Customer: ${profile.stripeCustomerId}`);
+        return await this.stripe.customers.retrieve(profile.stripeCustomerId) as Stripe.Customer;
+      }
+
+      // Créer le customer Stripe
+      const customer = await this.stripe.customers.create({
         email: data.email,
         name: data.name,
         phone: data.phone,
-        metadata: data.metadata || {},
+        metadata: { ...data.metadata, userId },
       });
+
+      // Sauvegarder le Customer ID de manière atomique
+      await this.stripeTransactionHelper.saveStripeCustomerId(userId, customer.id);
+
+      this.logger.log(`✅ Customer created and saved: ${customer.id} for user ${userId}`);
+
+      return customer;
     } catch (error) {
       this.logger.error(`Failed to create customer: ${error.message}`);
       throw new BadRequestException('Failed to create Stripe customer');
@@ -153,20 +173,39 @@ export class StripeService {
    * Créer un compte Stripe Connect (pour les vendeurs)
    */
   async createConnectedAccount(
+    userId: string,
     data: CreateConnectedAccountDto,
   ): Promise<Stripe.Account> {
     try {
-      return await this.stripe.accounts.create({
+      // Vérifier si l'utilisateur a déjà un compte
+      const profile = await this.prismaService.profile.findUnique({
+        where: { id: userId },
+      });
+
+      if (profile?.stripeAccountId) {
+        this.logger.warn(`User ${userId} already has a Stripe Account: ${profile.stripeAccountId}`);
+        return await this.stripe.accounts.retrieve(profile.stripeAccountId);
+      }
+
+      // Créer le compte Stripe
+      const account = await this.stripe.accounts.create({
         type: data.type || 'express',
         country: data.country || 'FR',
         email: data.email,
         business_type: data.businessType || 'individual',
-        metadata: data.metadata || {},
+        metadata: { ...data.metadata, userId },
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
       });
+
+      // Sauvegarder l'Account ID de manière atomique
+      await this.stripeTransactionHelper.saveStripeAccountId(userId, account.id);
+
+      this.logger.log(`✅ Connected account created and saved: ${account.id} for user ${userId}`);
+
+      return account;
     } catch (error) {
       this.logger.error(`Failed to create connected account: ${error.message}`);
       throw new BadRequestException('Failed to create connected account');
@@ -669,5 +708,41 @@ export class StripeService {
       currency: this.currency,
       transactionId: transaction.id,
     };
+  }
+
+  /**
+   * Créer une session de vérification Stripe Identity
+   */
+  async createVerificationSession(params: {
+    type: 'document' | 'id_number';
+    metadata?: Record<string, string>;
+    options?: any;
+    return_url: string;
+  }): Promise<Stripe.Identity.VerificationSession> {
+    try {
+      return await this.stripe.identity.verificationSessions.create({
+        type: params.type,
+        metadata: params.metadata,
+        options: params.options,
+        return_url: params.return_url,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to create verification session: ${error.message}`);
+      throw new BadRequestException('Failed to create verification session');
+    }
+  }
+
+  /**
+   * Récupérer une session de vérification Stripe Identity
+   */
+  async getVerificationSession(
+    sessionId: string,
+  ): Promise<Stripe.Identity.VerificationSession> {
+    try {
+      return await this.stripe.identity.verificationSessions.retrieve(sessionId);
+    } catch (error) {
+      this.logger.error(`Failed to get verification session: ${error.message}`);
+      throw new BadRequestException('Verification session not found');
+    }
   }
 }

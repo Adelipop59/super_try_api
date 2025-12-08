@@ -1,0 +1,31 @@
+<h2>⚠️ Litige créé</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Un litige a été créé concernant la session de la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails du litige</h3>
+    <ul>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Créé par:</strong> {{createdBy}}</li>
+        <li><strong>Date:</strong> {{formatDate disputeDate}}</li>
+        {{#if disputeReason}}
+        <li><strong>Motif:</strong> {{disputeReason}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+{{#if disputeDescription}}
+<div class="info-box">
+    <h3>Description</h3>
+    <p>{{disputeDescription}}</p>
+</div>
+{{/if}}
+
+<p>Notre équipe d'assistance va examiner ce litige et prendra contact avec vous rapidement. En attendant, vous pouvez consulter les détails et apporter des éléments complémentaires.</p>
+
+<p>
+    <a href="{{url (concat '/disputes/' disputeId)}}" class="button">Voir le litige</a>
+</p>

@@ -528,6 +528,127 @@ export class AdminController {
   }
 
   // ========================================
+  // GESTION CONVERSATIONS
+  // ========================================
+
+  @Get('conversations')
+  @ApiOperation({
+    summary: 'Lister toutes les conversations',
+    description:
+      'Récupère toutes les conversations (sessions) avec filtres. Permet de voir les conversations avec/sans admin, avec/sans litiges, bloquées, etc.',
+  })
+  @ApiQuery({
+    name: 'hasDispute',
+    required: false,
+    type: Boolean,
+    description: 'Filtrer par présence de litige',
+  })
+  @ApiQuery({
+    name: 'hasAdminJoined',
+    required: false,
+    type: Boolean,
+    description: 'Filtrer par présence admin',
+  })
+  @ApiQuery({
+    name: 'isLocked',
+    required: false,
+    type: Boolean,
+    description: 'Filtrer par statut de verrouillage',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Nombre de résultats (défaut: 50)',
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: 'Décalage pour pagination (défaut: 0)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste des conversations',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          campaignTitle: { type: 'string' },
+          testerName: { type: 'string' },
+          sellerName: { type: 'string' },
+          status: { type: 'string' },
+          hasDispute: { type: 'boolean' },
+          isConversationLocked: { type: 'boolean' },
+          hasAdminJoined: { type: 'boolean' },
+          lastMessageAt: { type: 'string', format: 'date-time' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  })
+  async getAllConversations(
+    @Query('hasDispute') hasDispute?: boolean,
+    @Query('hasAdminJoined') hasAdminJoined?: boolean,
+    @Query('isLocked') isLocked?: boolean,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return await this.adminService.getAllConversations({
+      hasDispute,
+      hasAdminJoined,
+      isLocked,
+      limit: limit ? Number(limit) : 50,
+      offset: offset ? Number(offset) : 0,
+    });
+  }
+
+  @Get('conversations/:sessionId')
+  @ApiOperation({
+    summary: "Détails complets d'une conversation",
+    description:
+      "Récupère tous les détails d'une conversation : participants, messages, litiges, admin, etc.",
+  })
+  @ApiParam({ name: 'sessionId', description: 'ID de la session/conversation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Détails de la conversation',
+    schema: {
+      type: 'object',
+      properties: {
+        session: {
+          type: 'object',
+          description: 'Informations de la session',
+        },
+        participants: {
+          type: 'object',
+          properties: {
+            tester: { type: 'object' },
+            seller: { type: 'object' },
+            admin: { type: 'object', nullable: true },
+          },
+        },
+        messages: {
+          type: 'array',
+          items: { type: 'object' },
+          description: 'Tous les messages de la conversation',
+        },
+        dispute: {
+          type: 'object',
+          nullable: true,
+          description: 'Informations sur le litige si présent',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Conversation non trouvée' })
+  async getConversationDetails(@Param('sessionId') sessionId: string) {
+    return await this.adminService.getConversationDetails(sessionId);
+  }
+
+  // ========================================
   // GESTION PRODUITS
   // ========================================
 

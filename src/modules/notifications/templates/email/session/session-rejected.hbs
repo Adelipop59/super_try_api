@@ -1,0 +1,24 @@
+<h2>❌ Candidature refusée</h2>
+
+<p>Bonjour {{userName}},</p>
+
+<p>Nous sommes désolés de vous informer que votre candidature pour la campagne <strong>{{campaignTitle}}</strong> n'a pas été retenue cette fois-ci.</p>
+
+<div class="info-box">
+    <h3>Détails</h3>
+    <ul>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        {{#if rejectionReason}}
+        <li><strong>Raison:</strong> {{rejectionReason}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p>Ne vous découragez pas ! De nombreuses autres opportunités vous attendent.</p>
+
+<p>
+    <a href="{{url '/campaigns'}}" class="button">Voir les campagnes disponibles</a>
+</p>
+
+<p>À bientôt sur Super Try !</p>

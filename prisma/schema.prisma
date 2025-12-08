@@ -124,6 +124,25 @@ enum BonusTaskStatus {
   CANCELLED // Annulé par le vendeur
 }
 
+// Enum for chat order types
+enum ChatOrderType {
+  UGC_REQUEST // Demande de contenu UGC (vidéos, reviews)
+  PHOTO_REQUEST // Demande de photos supplémentaires
+  TIP // Pourboire/bonus
+}
+
+// Enum for chat order status
+enum ChatOrderStatus {
+  PENDING // En attente d'acceptation par le testeur
+  ACCEPTED // Acceptée par le testeur, en cours
+  DELIVERED // Livrée par le testeur, en attente de validation PRO
+  COMPLETED // Validée par le PRO, paiement libéré
+  REJECTED // Refusée par le testeur
+  CANCELLED // Annulée par le PRO (avant acceptation)
+  DISPUTED // En litige, fonds bloqués
+  REFUNDED // Remboursée au PRO (litige résolu en faveur PRO)
+}
+
 // Profile table - extends Supabase auth.users
 model Profile {
   id             String   @id @default(uuid())
@@ -135,6 +154,19 @@ model Profile {
   lastName  String? @map("last_name")
   phone     String?
   avatar    String?
+
+  // Push notification device token
+  deviceToken String? @map("device_token") // FCM device token for push notifications
+
+  // Stripe integration fields
+  stripeCustomerId String? @unique @map("stripe_customer_id") // Stripe Customer ID (for payment methods)
+  stripeAccountId  String? @unique @map("stripe_account_id") // Stripe Connected Account ID (for sellers - payout)
+
+  // KYC Stripe Identity (pour verification d'identité des testeurs)
+  stripeVerificationSessionId String?   @unique @map("stripe_verification_session_id") // Stripe Identity VerificationSession ID
+  verificationStatus          String?   @default("unverified") @map("verification_status") // unverified, pending, verified, failed
+  verifiedAt                  DateTime? @map("verified_at") // Date de vérification réussie
+  verificationFailedReason    String?   @map("verification_failed_reason") @db.Text // Raison de l'échec si failed
 
   // Tester specific info (for USER role)
   birthDate              DateTime? @map("birth_date") // Date de naissance pour calculer l'âge
@@ -172,15 +204,18 @@ model Profile {
   notifications           Notification[] // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
   reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
-  requestedBonusTasks     BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
-  wallet                  Wallet? // Portefeuille financier (pour les testeurs)
-  withdrawals             Withdrawal[] // Demandes de retrait (pour les testeurs)
-  procedureTemplates      ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
-  criteriaTemplates       CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
+  requestedBonusTasks BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
+  wallet              Wallet? // Portefeuille financier (pour les testeurs)
+  withdrawals         Withdrawal[] // Demandes de retrait (pour les testeurs)
+  buyerOrders         ChatOrder[]             @relation("BuyerOrders") // Commandes passées (en tant que PRO)
+  sellerOrders        ChatOrder[]             @relation("SellerOrders") // Commandes reçues (en tant que testeur)
+  procedureTemplates  ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
+  criteriaTemplates   CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
 
   @@index([email])
   @@index([supabaseUserId])
   @@index([role])
+  @@index([verificationStatus])
   @@map("profiles")
 }
 
@@ -223,7 +258,9 @@ model Product {
   // Product information (catalogue de base)
   name        String
   description String  @db.Text
-  imageUrl    String? @map("image_url")
+  imageUrl    String? @map("image_url") // Legacy field - kept for backward compatibility
+  productUrl  String? @map("product_url")
+  images      Json?   // Array of image objects: [{ url: string, order: number, isPrimary: boolean }]
 
   // Pricing information
   price        Decimal @default(0) @db.Decimal(10, 2)
@@ -700,6 +737,13 @@ model Session {
   disputeReason     String?   @map("dispute_reason") @db.Text
   disputeResolvedAt DateTime? @map("dispute_resolved_at")
   disputeResolution String?   @map("dispute_resolution") @db.Text
+  disputeDeclaredBy String?   @map("dispute_declared_by") // ID du déclarant (PRO ou USER)
+  isConversationLocked Boolean @default(false) @map("is_conversation_locked") // Bloque messages (sauf admin)
+
+  // Admin participation
+  adminJoinedAt  DateTime? @map("admin_joined_at") // Quand admin rejoint
+  adminInvitedBy String?   @map("admin_invited_by") // Qui a invité l'admin
+  adminInvitedAt DateTime? @map("admin_invited_at") // Quand invitation
 
   // Rating (filled by seller after completion)
   rating        Int? // 1-5 stars
@@ -715,12 +759,14 @@ model Session {
   review       CampaignReview? // Avis de cette session
   bonusTasks   BonusTask[] // Prestations supplémentaires demandées par le vendeur
   transactions Transaction[] // Transactions financières liées à cette session
+  chatOrders   ChatOrder[] // Commandes chat (prestations supplémentaires)
 
   @@index([campaignId])
   @@index([testerId])
   @@index([status])
   @@index([appliedAt])
   @@index([createdAt])
+  @@index([isConversationLocked])
   @@map("sessions")
 }
 
@@ -738,11 +784,16 @@ model Message {
 
   // Message content
   content     String @db.Text
-  attachments Json? // URLs de fichiers joints (photos, documents)
+  attachments Json? // Structure: [{ url, filename, size, type, uploadedAt }]
 
   // Read status
   isRead Boolean   @default(false) @map("is_read")
   readAt DateTime? @map("read_at")
+  readBy String?   @map("read_by") // ID de qui a lu (pour "vu par Jean à 14:32")
+
+  // Message type
+  messageType     String?  @default("TEXT") @map("message_type") // TEXT, IMAGE, VIDEO, PDF, SYSTEM
+  isSystemMessage Boolean  @default(false) @map("is_system_message") // Messages auto (admin joined, dispute, etc.)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -751,6 +802,8 @@ model Message {
   @@index([senderId])
   @@index([isRead])
   @@index([createdAt])
+  @@index([messageType])
+  @@index([isSystemMessage])
   @@map("messages")
 }
 
@@ -910,6 +963,9 @@ enum TransactionType {
   DEBIT // Retrait d'argent (retrait bancaire, carte cadeau)
   CAMPAIGN_PAYMENT // Paiement par le vendeur pour une campagne
   CAMPAIGN_REFUND // Remboursement au vendeur (campagne annulée)
+  CHAT_ORDER_ESCROW // Paiement PRO → Escrow (bloqué en transit)
+  CHAT_ORDER_RELEASE // Escrow → Wallet testeur (libéré après validation)
+  CHAT_ORDER_REFUND // Escrow → PRO (remboursé en cas de litige)
 }
 
 // Enum for transaction status
@@ -918,6 +974,7 @@ enum TransactionStatus {
   COMPLETED // Transaction complétée
   FAILED // Transaction échouée
   REFUNDED // Transaction remboursée
+  ESCROW // En escrow (fonds bloqués en transit)
 }
 
 // Enum for withdrawal methods
@@ -944,8 +1001,9 @@ model Wallet {
   user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Balance
-  balance  Decimal @default(0) @db.Decimal(10, 2) // Solde actuel
-  currency String  @default("EUR") // Devise (EUR par défaut)
+  balance        Decimal @default(0) @db.Decimal(10, 2) // Solde disponible pour retrait
+  pendingBalance Decimal @default(0) @map("pending_balance") @db.Decimal(10, 2) // Argent en escrow (bloqué)
+  currency       String  @default("EUR") // Devise (EUR par défaut)
 
   // Lifetime stats
   totalEarned     Decimal   @default(0) @map("total_earned") @db.Decimal(10, 2) // Total gagné depuis la création
@@ -986,6 +1044,12 @@ model Transaction {
   withdrawal   Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
   campaignId   String?     @map("campaign_id") // Lien vers une campagne si applicable (paiement vendeur)
   campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  chatOrderId  String?     @map("chat_order_id") // Lien vers une commande chat si applicable
+  chatOrder    ChatOrder?  @relation(fields: [chatOrderId], references: [id], onDelete: SetNull)
+
+  // Relations inverses pour escrow (une transaction peut être escrow OU release pour une commande)
+  escrowForOrder  ChatOrder? @relation("EscrowTransaction")
+  releaseForOrder ChatOrder? @relation("ReleaseTransaction")
 
   // Stripe payment reference
   stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // ID du PaymentIntent Stripe
@@ -1004,6 +1068,7 @@ model Transaction {
   @@index([bonusTaskId])
   @@index([withdrawalId])
   @@index([campaignId])
+  @@index([chatOrderId])
   @@index([type])
   @@index([status])
   @@index([createdAt])
@@ -1053,4 +1118,71 @@ model Withdrawal {
   @@index([method])
   @@index([createdAt])
   @@map("withdrawals")
+}
+
+// ChatOrder table - Commandes de prestations supplémentaires dans le chat
+model ChatOrder {
+  id String @id @default(uuid())
+
+  // Relation with session
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Participants
+  buyerId  String  @map("buyer_id") // PRO qui commande
+  buyer    Profile @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Restrict)
+  sellerId String  @map("seller_id") // Testeur qui livre
+  seller   Profile @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  // Order details
+  type        ChatOrderType
+  status      ChatOrderStatus @default(PENDING)
+  amount      Decimal         @db.Decimal(10, 2) // Montant de la prestation
+  description String          @db.Text // Description de la demande
+
+  // Delivery
+  deliveryDeadline DateTime? @map("delivery_deadline") // Date limite de livraison
+  deliveryProof    Json?     @map("delivery_proof") // Fichiers livrés (structure: [{ url, filename, size, type }])
+  deliveredAt      DateTime? @map("delivered_at")
+
+  // Validation
+  validatedAt DateTime? @map("validated_at") // Quand le PRO a validé
+  validatedBy String?   @map("validated_by") // ID du PRO qui a validé
+
+  // Rejection
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  // Cancellation
+  cancelledAt DateTime? @map("cancelled_at")
+
+  // Dispute
+  disputedAt        DateTime? @map("disputed_at")
+  disputeReason     String?   @map("dispute_reason") @db.Text
+  disputeResolvedAt DateTime? @map("dispute_resolved_at")
+  disputeResolution String?   @map("dispute_resolution") @db.Text
+  disputeResolvedBy String?   @map("dispute_resolved_by") // Admin ID
+
+  // Payment tracking (escrow transactions)
+  escrowTransactionId  String?      @unique @map("escrow_transaction_id") // Transaction escrow (ESCROW)
+  escrowTransaction    Transaction? @relation("EscrowTransaction", fields: [escrowTransactionId], references: [id])
+  releaseTransactionId String?      @unique @map("release_transaction_id") // Transaction libération (COMPLETED)
+  releaseTransaction   Transaction? @relation("ReleaseTransaction", fields: [releaseTransactionId], references: [id])
+
+  // Relation inverse pour transactions normales (non-escrow, non-release)
+  transactions Transaction[] // Transactions liées à cette commande (via chatOrderId)
+
+  // Metadata
+  metadata Json? // Données additionnelles
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("chat_orders")
 }

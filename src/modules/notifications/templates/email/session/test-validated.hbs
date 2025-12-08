@@ -1,0 +1,28 @@
+<h2>✅ Test validé !</h2>
+
+<p>Bonjour {{testerName}},</p>
+
+<p>Excellente nouvelle ! Votre test pour la campagne <strong>{{campaignTitle}}</strong> a été validé par le vendeur.</p>
+
+<div class="info-box">
+    <h3>Détails de la validation</h3>
+    <ul>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Récompense:</strong> {{formatCurrency rewardAmount}}</li>
+        {{#if rating}}
+        <li><strong>Note reçue:</strong> {{rating}}/5 ⭐</li>
+        {{/if}}
+        {{#if sellerComment}}
+        <li><strong>Commentaire:</strong> {{sellerComment}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p>Votre récompense de <strong>{{formatCurrency rewardAmount}}</strong> a été créditée sur votre wallet.</p>
+
+<p>
+    <a href="{{url '/wallet'}}" class="button">Voir mon wallet</a>
+</p>
+
+<p>Merci pour votre contribution et à bientôt sur Super Try !</p>

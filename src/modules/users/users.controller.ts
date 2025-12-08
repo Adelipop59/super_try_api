@@ -29,6 +29,7 @@ import type { AuthenticatedUser } from '../../common/decorators/current-user.dec
 import type { Profile } from '@prisma/client';
 import { ProfileResponseDto } from './dto/profile.dto';
 import type { PaginatedResponse } from '../../common/dto/pagination.dto';
+import { ProOverviewDto } from './dto/pro-overview.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -119,6 +120,127 @@ export class UsersController {
     return profile;
   }
 
+  @Roles('USER')
+  @Post('me/verify/initiate')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Initier vérification KYC (Testeurs uniquement)',
+    description: "Démarre le processus de vérification d'identité via Stripe Identity",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session de vérification créée',
+    schema: {
+      type: 'object',
+      properties: {
+        verification_url: {
+          type: 'string',
+          description: 'URL Stripe Identity pour compléter la vérification',
+          example: 'https://verify.stripe.com/start/vs_...',
+        },
+        session_id: {
+          type: 'string',
+          description: 'ID de la session de vérification',
+          example: 'vs_1A2B3C4D5E6F',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Réservé aux testeurs (USER role)' })
+  @ApiResponse({ status: 400, description: 'Utilisateur déjà vérifié' })
+  async initiateVerification(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.initiateStripeVerification(user.id);
+  }
+
+  @Get('me/verify/status')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Statut de vérification KYC',
+    description: "Récupère le statut actuel de la vérification d'identité",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Statut de vérification',
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['unverified', 'pending', 'verified', 'failed'],
+          example: 'verified',
+        },
+        verified_at: {
+          type: 'string',
+          format: 'date-time',
+          example: '2025-12-08T10:30:00Z',
+          nullable: true,
+        },
+        failure_reason: {
+          type: 'string',
+          example: null,
+          nullable: true,
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Profil non trouvé' })
+  async getVerificationStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getVerificationStatus(user.id);
+  }
+
+  @Roles('USER')
+  @Post('me/verify/retry')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Réessayer vérification KYC',
+    description: 'Réinitialise et relance le processus de vérification après un échec',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Nouvelle session de vérification créée',
+    schema: {
+      type: 'object',
+      properties: {
+        verification_url: {
+          type: 'string',
+          description: 'URL Stripe Identity pour compléter la vérification',
+          example: 'https://verify.stripe.com/start/vs_...',
+        },
+        session_id: {
+          type: 'string',
+          description: 'ID de la nouvelle session de vérification',
+          example: 'vs_1G2H3I4J5K6L',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Réservé aux testeurs (USER role)' })
+  @ApiResponse({ status: 400, description: 'Utilisateur déjà vérifié' })
+  async retryVerification(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.retryVerification(user.id);
+  }
+
+  @Roles('PRO')
+  @Get('me/overview')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Overview PRO',
+    description: 'Récupère les KPIs et statistiques pour un vendeur PRO (dashboard)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Overview du vendeur PRO',
+    type: ProOverviewDto,
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Réservé aux utilisateurs PRO' })
+  async getProOverview(@CurrentUser() user: AuthenticatedUser): Promise<ProOverviewDto> {
+    return this.usersService.getProOverview(user.id);
+  }
+
   @Get('profiles/:id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -177,6 +299,74 @@ export class UsersController {
       ...safeUpdate
     } = updateProfileDto;
     return this.usersService.updateProfile(user.id, safeUpdate);
+  }
+
+  @Patch('me/device-token')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Enregistrer mon device token (push notifications)',
+    description: 'Enregistre ou met à jour le device token FCM pour les notifications push',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        deviceToken: {
+          type: 'string',
+          description: 'Firebase Cloud Messaging device token',
+          example: 'eXyZ1234abcd...',
+        },
+      },
+      required: ['deviceToken'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Device token enregistré',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Device token updated successfully' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async updateDeviceToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('deviceToken') deviceToken: string,
+  ) {
+    await this.usersService.updateDeviceToken(user.id, deviceToken);
+    return {
+      success: true,
+      message: 'Device token updated successfully',
+    };
+  }
+
+  @Delete('me/device-token')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Supprimer mon device token',
+    description: 'Supprime le device token (désinscription des push notifications)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Device token supprimé',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Device token removed successfully' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async removeDeviceToken(@CurrentUser() user: AuthenticatedUser) {
+    await this.usersService.updateDeviceToken(user.id, null);
+    return {
+      success: true,
+      message: 'Device token removed successfully',
+    };
   }
 
   @Roles('ADMIN')

@@ -1,0 +1,24 @@
+<h2>🛒 Preuve d'achat reçue</h2>
+
+<p>Bonjour {{sellerName}},</p>
+
+<p>Le testeur <strong>{{testerName}}</strong> a soumis sa preuve d'achat pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de l'achat</h3>
+    <ul>
+        <li><strong>Testeur:</strong> {{testerName}}</li>
+        <li><strong>Campagne:</strong> {{campaignTitle}}</li>
+        <li><strong>Produit:</strong> {{productName}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency purchaseAmount}}</li>
+        {{#if purchaseDate}}
+        <li><strong>Date d'achat:</strong> {{formatDate purchaseDate}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p>Veuillez vérifier la preuve d'achat et valider le remboursement si tout est conforme.</p>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId)}}" class="button">Voir la preuve d'achat</a>
+</p>

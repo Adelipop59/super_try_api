@@ -37,4 +37,29 @@ export default () => ({
     password: process.env.REDIS_PASSWORD,
     ttl: parseInt(process.env.REDIS_TTL || '3600', 10),
   },
+
+  aws: {
+    region: process.env.AWS_S3_REGION,
+    bucketName: process.env.AWS_S3_BUCKET_NAME,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    baseUrl: process.env.AWS_S3_BASE_URL,
+    endpoint: process.env.AWS_S3_ENDPOINT,
+  },
+
+  notifications: {
+    sendgrid: {
+      apiKey: process.env.SENDGRID_API_KEY,
+      fromEmail: process.env.SENDGRID_FROM_EMAIL,
+      fromName: process.env.SENDGRID_FROM_NAME,
+    },
+    twilio: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+    },
+    firebase: {
+      config: process.env.FIREBASE_CONFIG,
+    },
+  },
 });

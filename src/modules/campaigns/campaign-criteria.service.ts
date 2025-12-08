@@ -491,6 +491,319 @@ export class CampaignCriteriaService {
   }
 
   /**
+   * Check eligibility for multiple campaigns in batch (OPTIMIZED)
+   * Reduces N+1 queries by loading all data upfront
+   */
+  async checkBatchEligibility(
+    testerId: string,
+    campaignIds: string[],
+  ): Promise<Map<string, { eligible: boolean; reasons: string[] }>> {
+    if (campaignIds.length === 0) {
+      return new Map();
+    }
+
+    // Calculate time ranges once
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    // Fetch ALL data in parallel (5-6 queries instead of N×5)
+    const [tester, allCriteria, weeklyCount, monthlyCount, activeSessions] =
+      await Promise.all([
+        // 1. Fetch tester profile ONCE
+        this.prismaService.profile.findUnique({
+          where: { id: testerId },
+        }),
+
+        // 2. Fetch ALL criteria in batch
+        this.prismaService.campaignCriteria.findMany({
+          where: { campaignId: { in: campaignIds } },
+          include: {
+            campaign: {
+              select: { sellerId: true },
+            },
+          },
+        }),
+
+        // 3. Count weekly sessions ONCE
+        this.prismaService.session.count({
+          where: {
+            testerId,
+            createdAt: { gte: oneWeekAgo },
+          },
+        }),
+
+        // 4. Count monthly sessions ONCE
+        this.prismaService.session.count({
+          where: {
+            testerId,
+            createdAt: { gte: oneMonthAgo },
+          },
+        }),
+
+        // 5. Fetch active sessions ONCE
+        this.prismaService.session.findMany({
+          where: {
+            testerId,
+            status: {
+              in: ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'SUBMITTED'],
+            },
+          },
+          select: {
+            campaign: {
+              select: { sellerId: true },
+            },
+          },
+        }),
+      ]);
+
+    // If tester not found, return all as ineligible
+    if (!tester) {
+      const result = new Map<string, { eligible: boolean; reasons: string[] }>();
+      for (const campaignId of campaignIds) {
+        result.set(campaignId, {
+          eligible: false,
+          reasons: ['Tester not found'],
+        });
+      }
+      return result;
+    }
+
+    // Build a Set of seller IDs with active sessions for O(1) lookup
+    const sellerIdsWithActiveSessions = new Set<string>(
+      activeSessions.map((s) => s.campaign.sellerId),
+    );
+
+    // Create a Map of criteria by campaign ID for O(1) lookup
+    const criteriaMap = new Map(
+      allCriteria.map((c) => [c.campaignId, c]),
+    );
+
+    // Check eligibility for each campaign IN MEMORY
+    const result = new Map<string, { eligible: boolean; reasons: string[] }>();
+
+    for (const campaignId of campaignIds) {
+      const criteria = criteriaMap.get(campaignId);
+
+      // If no criteria, campaign is open to all
+      if (!criteria) {
+        result.set(campaignId, { eligible: true, reasons: [] });
+        continue;
+      }
+
+      // Check eligibility using in-memory data
+      const eligibility = this.checkEligibilityInMemory(
+        criteria,
+        tester,
+        weeklyCount,
+        monthlyCount,
+        sellerIdsWithActiveSessions,
+      );
+
+      result.set(campaignId, eligibility);
+    }
+
+    return result;
+  }
+
+  /**
+   * Check eligibility in memory (NO database queries)
+   * Pure function for testing and performance
+   */
+  private checkEligibilityInMemory(
+    criteria: any,
+    tester: any,
+    weeklySessionCount: number,
+    monthlySessionCount: number,
+    sellerIdsWithActiveSessions: Set<string>,
+  ): { eligible: boolean; reasons: string[] } {
+    const reasons: string[] = [];
+
+    // Vérifier l'âge
+    if (criteria.minAge !== null || criteria.maxAge !== null) {
+      if (!tester.birthDate) {
+        reasons.push('Date de naissance non renseignée');
+      } else {
+        const age = this.calculateAge(tester.birthDate);
+        if (criteria.minAge !== null && age < criteria.minAge) {
+          reasons.push(`Âge minimum requis: ${criteria.minAge} ans`);
+        }
+        if (criteria.maxAge !== null && age > criteria.maxAge) {
+          reasons.push(`Âge maximum requis: ${criteria.maxAge} ans`);
+        }
+      }
+    }
+
+    // Vérifier la note
+    if (criteria.minRating !== null || criteria.maxRating !== null) {
+      const rating = tester.averageRating
+        ? parseFloat(tester.averageRating.toString())
+        : 0;
+      if (
+        criteria.minRating !== null &&
+        rating < parseFloat(criteria.minRating.toString())
+      ) {
+        reasons.push(`Note minimum requise: ${criteria.minRating}/5`);
+      }
+      if (
+        criteria.maxRating !== null &&
+        rating > parseFloat(criteria.maxRating.toString())
+      ) {
+        reasons.push(`Note maximum requise: ${criteria.maxRating}/5`);
+      }
+    }
+
+    // Vérifier l'expérience
+    if (
+      criteria.minCompletedSessions !== null &&
+      tester.completedSessionsCount < criteria.minCompletedSessions
+    ) {
+      reasons.push(
+        `Nombre minimum de tests complétés: ${criteria.minCompletedSessions}`,
+      );
+    }
+
+    // Vérifier le genre
+    if (
+      criteria.requiredGender &&
+      criteria.requiredGender !== 'ALL' &&
+      tester.gender !== criteria.requiredGender
+    ) {
+      reasons.push(`Genre requis: ${criteria.requiredGender}`);
+    }
+
+    // Vérifier la localisation (requises)
+    if (criteria.requiredLocations.length > 0) {
+      if (!tester.location) {
+        reasons.push('Localisation non renseignée');
+      } else if (!criteria.requiredLocations.includes(tester.location)) {
+        reasons.push(
+          `Localisation requise: ${criteria.requiredLocations.join(', ')}`,
+        );
+      }
+    }
+
+    // Vérifier la localisation (exclues)
+    if (criteria.excludedLocations.length > 0 && tester.location) {
+      if (criteria.excludedLocations.includes(tester.location)) {
+        reasons.push(`Localisation exclue: ${tester.location}`);
+      }
+    }
+
+    // Vérifier les catégories préférées
+    if (criteria.requiredCategories.length > 0) {
+      const hasMatchingCategory = criteria.requiredCategories.some((catId) =>
+        tester.preferredCategories.includes(catId),
+      );
+      if (!hasMatchingCategory) {
+        reasons.push('Aucune catégorie préférée correspondante');
+      }
+    }
+
+    // Vérifier pas de session en cours avec ce vendeur (using preloaded Set)
+    if (criteria.noActiveSessionWithSeller) {
+      if (sellerIdsWithActiveSessions.has(criteria.campaign.sellerId)) {
+        reasons.push('Vous avez déjà une session en cours avec ce vendeur');
+      }
+    }
+
+    // Vérifier limite de sessions par semaine (using preloaded count)
+    if (
+      criteria.maxSessionsPerWeek !== null &&
+      weeklySessionCount >= criteria.maxSessionsPerWeek
+    ) {
+      reasons.push(
+        `Limite hebdomadaire atteinte: ${criteria.maxSessionsPerWeek} sessions/semaine`,
+      );
+    }
+
+    // Vérifier limite de sessions par mois (using preloaded count)
+    if (
+      criteria.maxSessionsPerMonth !== null &&
+      monthlySessionCount >= criteria.maxSessionsPerMonth
+    ) {
+      reasons.push(
+        `Limite mensuelle atteinte: ${criteria.maxSessionsPerMonth} sessions/mois`,
+      );
+    }
+
+    // Vérifier taux de complétion minimum
+    if (criteria.minCompletionRate !== null) {
+      const totalSessions = tester.totalSessionsCount || 0;
+      const completedSessions = tester.completedSessionsCount || 0;
+      if (totalSessions > 0) {
+        const completionRate = (completedSessions / totalSessions) * 100;
+        if (completionRate < parseFloat(criteria.minCompletionRate.toString())) {
+          reasons.push(
+            `Taux de complétion minimum requis: ${criteria.minCompletionRate}%`,
+          );
+        }
+      }
+    }
+
+    // Vérifier taux d'annulation maximum
+    if (criteria.maxCancellationRate !== null) {
+      const totalSessions = tester.totalSessionsCount || 0;
+      const cancelledSessions = tester.cancelledSessionsCount || 0;
+      if (totalSessions > 0) {
+        const cancellationRate = (cancelledSessions / totalSessions) * 100;
+        if (
+          cancellationRate > parseFloat(criteria.maxCancellationRate.toString())
+        ) {
+          reasons.push(
+            `Taux d'annulation maximum autorisé: ${criteria.maxCancellationRate}%`,
+          );
+        }
+      }
+    }
+
+    // Vérifier ancienneté du compte
+    if (criteria.minAccountAge !== null) {
+      const accountAgeInDays = Math.floor(
+        (Date.now() - tester.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (accountAgeInDays < criteria.minAccountAge) {
+        reasons.push(
+          `Ancienneté minimum requise: ${criteria.minAccountAge} jours`,
+        );
+      }
+    }
+
+    // Vérifier activité récente
+    if (criteria.lastActiveWithinDays !== null) {
+      if (!tester.lastActiveAt) {
+        reasons.push('Aucune activité récente enregistrée');
+      } else {
+        const daysSinceActive = Math.floor(
+          (Date.now() - tester.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (daysSinceActive > criteria.lastActiveWithinDays) {
+          reasons.push(
+            `Activité requise dans les ${criteria.lastActiveWithinDays} derniers jours`,
+          );
+        }
+      }
+    }
+
+    // Vérifier compte vérifié
+    if (criteria.requireVerified && !tester.isVerified) {
+      reasons.push('Compte vérifié obligatoire');
+    }
+
+    // Vérifier statut premium
+    if (criteria.requirePrime && !tester.isPrime) {
+      reasons.push('Statut premium obligatoire');
+    }
+
+    return {
+      eligible: reasons.length === 0,
+      reasons,
+    };
+  }
+
+  /**
    * Format response
    */
   private formatResponse(criteria: any): CampaignCriteriaResponseDto {

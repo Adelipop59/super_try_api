@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ProductImageDto } from './product-image.dto';
 
 class SellerInfo {
   @ApiProperty({ description: 'ID du vendeur' })
@@ -53,8 +54,18 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'Description du produit' })
   description!: string;
 
-  @ApiProperty({ description: "URL de l'image", required: false })
+  @ApiProperty({ description: "URL de l'image principale (legacy)", required: false })
   imageUrl?: string | null;
+
+  @ApiProperty({ description: 'URL du produit (Amazon, site vendeur, etc.)', required: false })
+  productUrl?: string | null;
+
+  @ApiProperty({
+    description: 'Liste des images du produit avec métadonnées',
+    required: false,
+    type: [ProductImageDto],
+  })
+  images?: ProductImageDto[] | null;
 
   @ApiProperty({ description: 'Prix du produit en euros', example: 99.99 })
   price!: number;
