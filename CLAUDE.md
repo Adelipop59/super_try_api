@@ -104,3 +104,33 @@ Exemple de logique backend :
 	•	Validation : class-validator, class-transformer
 	•	Langage : TypeScript (strict mode)
 	•	Environnement : Node.js 20+
+
+⸻
+
+## 🚀 Règles de Travail pour Claude
+
+### Vitesse et Efficacité
+- **Aller vite** : Pas de longues explications, juste l'essentiel
+- **Exécuter immédiatement** : Ne pas attendre, faire les actions directement
+- **Pas de questions inutiles** : Si c'est évident, le faire sans demander
+- **Si erreur** : Corriger directement sans demander de confirmation
+
+### Documentation
+- **NE JAMAIS créer de fichiers README ou documentation** sauf si explicitement demandé
+- **NE PAS créer de fichiers .md** automatiquement
+- Pas de fichiers de documentation proactifs
+
+### Migrations Base de Données
+- **Toujours fournir le fichier SQL** pour exécution avec psql
+- **Format de la commande** à donner à l'utilisateur :
+  ```bash
+  psql "postgresql://postgres.mdihnqriahzlqtrjexuy:1234@aws-1-eu-north-1.pooler.supabase.com:5432/postgres" < fichier.sql
+  ```
+- Créer le fichier SQL dans `scripts/migrations/`
+- Après migration SQL, toujours exécuter `npx prisma generate`
+
+### Code et TypeScript
+- Mode strict respecté en permanence
+- Corriger les erreurs TypeScript immédiatement sans demander
+- Pas de commentaires excessifs dans le code
+- DTOs avec validation class-validator complète

@@ -32,7 +32,7 @@ import { ChatMessageResponseDto } from './dto/message-response.dto';
 import { MessageFilterDto } from './dto/message-filter.dto';
 import { RequestAdminHelpDto } from './dto/request-admin-help.dto';
 import { DeclareDisputeDto } from './dto/declare-dispute.dto';
-import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { ResolveSessionDisputeDto } from './dto/resolve-dispute.dto';
 import { UploadService } from '../upload/upload.service';
 
 @ApiTags('messages')
@@ -459,7 +459,7 @@ export class MessagesController {
   async resolveDispute(
     @Param('sessionId') sessionId: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: ResolveDisputeDto,
+    @Body() dto: ResolveSessionDisputeDto,
   ): Promise<any> {
     return this.messagesService.resolveDispute(sessionId, user.id, dto);
   }

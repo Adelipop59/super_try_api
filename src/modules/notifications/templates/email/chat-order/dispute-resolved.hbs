@@ -1,0 +1,35 @@
+<h2>✅ Litige résolu - Décision administrative</h2>
+
+<p>Bonjour {{recipientName}},</p>
+
+<p>Le litige concernant la commande de prestation pour la campagne <strong>{{campaignTitle}}</strong> a été résolu par un administrateur.</p>
+
+<div class="info-box">
+    <h3>Détails de la commande</h3>
+    <ul>
+        <li><strong>Type:</strong> {{orderTypeLabel}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Description:</strong> {{description}}</li>
+    </ul>
+</div>
+
+<div class="info-box">
+    <h3>Décision</h3>
+    <p><strong>Résolution:</strong> {{resolution}}</p>
+    <p><strong>Notes admin:</strong> {{adminNotes}}</p>
+    <p><strong>Statut final:</strong> {{finalStatus}}</p>
+</div>
+
+{{#if isRefund}}
+<p>💰 Le montant a été remboursé à l'acheteur.</p>
+{{else}}
+<p>💰 Le paiement a été libéré au testeur.</p>
+{{/if}}
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/orders/' orderId)}}" class="button">Voir les détails</a>
+</p>
+
+<p>Cette décision est définitive et ne peut être contestée.</p>
+
+<p>L'équipe Super Try</p>

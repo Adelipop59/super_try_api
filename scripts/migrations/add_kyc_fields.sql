@@ -1,13 +1,15 @@
--- Migration: add_kyc_fields
--- Description: Ajout des champs KYC Stripe Identity pour vérification d'identité des testeurs
+-- Migration: KYC Stripe Identity Fields
+-- Date: 2025-12-09
 
--- Ajouter les champs KYC au profil utilisateur
+BEGIN;
+
+-- Profile : KYC Stripe Identity
 ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "stripe_verification_session_id" TEXT UNIQUE;
 ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "verification_status" TEXT DEFAULT 'unverified';
 ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "verified_at" TIMESTAMP(3);
 ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "verification_failed_reason" TEXT;
 
--- Créer l'index pour améliorer les performances des requêtes de filtrage par statut de vérification
+-- Index verification_status
 CREATE INDEX IF NOT EXISTS "profiles_verification_status_idx" ON "profiles"("verification_status");
 
--- Fin de la migration
+COMMIT;

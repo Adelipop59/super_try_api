@@ -1,0 +1,29 @@
+<h2>📦 Prestation livrée</h2>
+
+<p>Bonjour {{sellerName}},</p>
+
+<p>Le testeur <strong>{{testerName}}</strong> a livré la prestation que vous lui aviez commandée pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de la commande</h3>
+    <ul>
+        <li><strong>Type:</strong> {{orderTypeLabel}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Description:</strong> {{description}}</li>
+        <li><strong>Livré le:</strong> {{formatDate deliveredAt}}</li>
+    </ul>
+</div>
+
+<p><strong>Action requise:</strong> Veuillez vérifier la livraison et :</p>
+<ul>
+    <li><strong>Valider</strong> la prestation pour libérer le paiement au testeur</li>
+    <li><strong>Déclarer un litige</strong> si la prestation ne correspond pas à vos attentes</li>
+</ul>
+
+<p>💰 Le montant de {{formatCurrency amount}} est actuellement bloqué en escrow et sera libéré au testeur une fois que vous aurez validé la livraison.</p>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/orders/' orderId)}}" class="button">Voir la livraison</a>
+</p>
+
+<p>L'équipe Super Try</p>

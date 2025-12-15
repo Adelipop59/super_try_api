@@ -298,6 +298,13 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   /**
+   * Émettre événement ChatOrder
+   */
+  emitChatOrderEvent(sessionId: string, event: string, order: any): void {
+    this.emitToSession(sessionId, event, order);
+  }
+
+  /**
    * Vérifier si un utilisateur est en ligne
    */
   isUserOnline(userId: string): boolean {

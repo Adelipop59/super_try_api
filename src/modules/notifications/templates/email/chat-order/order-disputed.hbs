@@ -1,0 +1,32 @@
+<h2>⚠️ Litige déclaré sur une commande</h2>
+
+<p>Bonjour {{recipientName}},</p>
+
+<p><strong>{{disputedByName}}</strong> a déclaré un litige concernant une commande de prestation pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de la commande</h3>
+    <ul>
+        <li><strong>Type:</strong> {{orderTypeLabel}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Motif du litige:</strong> {{disputeReason}}</li>
+        <li><strong>Déclaré le:</strong> {{formatDate disputedAt}}</li>
+    </ul>
+</div>
+
+<p><strong>Que se passe-t-il maintenant ?</strong></p>
+<ul>
+    <li>💰 Le montant de {{formatCurrency amount}} reste bloqué en escrow</li>
+    <li>👨‍💼 Un administrateur va examiner le litige</li>
+    <li>📧 Vous serez notifié de la décision finale</li>
+</ul>
+
+<p style="color: #ff6b6b;">
+    <strong>Important:</strong> Les litiges sont traités dans un délai de 48h ouvrées. L'administrateur analysera les preuves fournies par les deux parties avant de rendre sa décision.
+</p>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/orders/' orderId)}}" class="button">Voir le litige</a>
+</p>
+
+<p>L'équipe Super Try</p>

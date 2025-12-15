@@ -1,0 +1,31 @@
+<h2>💼 Nouvelle commande de prestation</h2>
+
+<p>Bonjour {{testerName}},</p>
+
+<p>Le vendeur <strong>{{sellerName}}</strong> vous a commandé une prestation supplémentaire pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de la commande</h3>
+    <ul>
+        <li><strong>Type:</strong> {{orderTypeLabel}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Description:</strong> {{description}}</li>
+        {{#if deliveryDeadline}}
+        <li><strong>Date limite de livraison:</strong> {{formatDate deliveryDeadline}}</li>
+        {{/if}}
+    </ul>
+</div>
+
+<p><strong>💰 Paiement sécurisé:</strong> Le montant de {{formatCurrency amount}} est bloqué en escrow et sera libéré sur votre wallet une fois la prestation livrée et validée par le vendeur.</p>
+
+<p>Vous avez le choix :</p>
+<ul>
+    <li><strong>Accepter</strong> la commande et vous engager à livrer la prestation</li>
+    <li><strong>Refuser</strong> la commande si vous ne pouvez pas la réaliser</li>
+</ul>
+
+<p>
+    <a href="{{url (concat '/sessions/' sessionId '/orders/' orderId)}}" class="button">Voir la commande</a>
+</p>
+
+<p>L'équipe Super Try</p>

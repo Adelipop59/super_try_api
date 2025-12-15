@@ -201,14 +201,14 @@ model Profile {
   systemLogs              SystemLog[] // Logs d'actions de cet utilisateur
   sessions                Session[] // Sessions (en tant que testeur)
   messages                Message[] // Messages envoyés
+  chatOrdersAsBuyer       ChatOrder[]             @relation("ChatOrderBuyer") // Commandes en tant qu'acheteur (PRO)
+  chatOrdersAsSeller      ChatOrder[]             @relation("ChatOrderSeller") // Commandes en tant que vendeur (Testeur)
   notifications           Notification[] // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
   reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
   requestedBonusTasks BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
   wallet              Wallet? // Portefeuille financier (pour les testeurs)
   withdrawals         Withdrawal[] // Demandes de retrait (pour les testeurs)
-  buyerOrders         ChatOrder[]             @relation("BuyerOrders") // Commandes passées (en tant que PRO)
-  sellerOrders        ChatOrder[]             @relation("SellerOrders") // Commandes reçues (en tant que testeur)
   procedureTemplates  ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
   criteriaTemplates   CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
 
@@ -755,11 +755,11 @@ model Session {
 
   // Relations
   messages     Message[] // Messages de cette session
+  chatOrders   ChatOrder[] // Commandes de prestations dans le chat
   stepProgress SessionStepProgress[] // Progression dans les steps de la procédure
   review       CampaignReview? // Avis de cette session
   bonusTasks   BonusTask[] // Prestations supplémentaires demandées par le vendeur
   transactions Transaction[] // Transactions financières liées à cette session
-  chatOrders   ChatOrder[] // Commandes chat (prestations supplémentaires)
 
   @@index([campaignId])
   @@index([testerId])
@@ -1130,9 +1130,9 @@ model ChatOrder {
 
   // Participants
   buyerId  String  @map("buyer_id") // PRO qui commande
-  buyer    Profile @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Restrict)
+  buyer    Profile @relation("ChatOrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
   sellerId String  @map("seller_id") // Testeur qui livre
-  seller   Profile @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Restrict)
+  seller   Profile @relation("ChatOrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
 
   // Order details
   type        ChatOrderType

@@ -628,7 +628,7 @@ export class StripeWebhookController {
       });
 
       if (profile) {
-        // Envoyer notification de succès
+        // Envoyer notification de succès avec template
         try {
           await this.notificationsService.send({
             userId,
@@ -637,8 +637,11 @@ export class StripeWebhookController {
             title: '✅ Vérification d\'identité réussie',
             message: `Votre identité a été vérifiée avec succès ! Vous pouvez maintenant candidater à toutes les campagnes de test.`,
             data: {
-              verificationSessionId: session.id,
-              verifiedAt: new Date().toISOString(),
+              template: 'user/verification-completed',
+              templateVars: {
+                userName: profile.firstName || profile.email,
+                url: (path: string) => `${process.env.FRONTEND_URL}${path}`,
+              },
             },
           });
         } catch (notifError) {

@@ -28,6 +28,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { BonusTasksModule } from './modules/bonus-tasks/bonus-tasks.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { ChatOrdersModule } from './modules/chat-orders/chat-orders.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -82,6 +83,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     BonusTasksModule,
     WalletsModule,
     UploadModule,
+    ChatOrdersModule,
   ],
   controllers: [AppController],
   providers: [

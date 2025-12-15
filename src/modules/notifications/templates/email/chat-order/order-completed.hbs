@@ -1,0 +1,31 @@
+<h2>✅ Prestation validée - Paiement libéré</h2>
+
+<p>Bonjour {{testerName}},</p>
+
+<p>Excellente nouvelle ! Le vendeur <strong>{{sellerName}}</strong> a validé votre prestation pour la campagne <strong>{{campaignTitle}}</strong>.</p>
+
+<div class="info-box">
+    <h3>Détails de la commande</h3>
+    <ul>
+        <li><strong>Type:</strong> {{orderTypeLabel}}</li>
+        <li><strong>Montant:</strong> {{formatCurrency amount}}</li>
+        <li><strong>Description:</strong> {{description}}</li>
+        <li><strong>Validé le:</strong> {{formatDate validatedAt}}</li>
+    </ul>
+</div>
+
+<p>💰 <strong>Félicitations !</strong> Le montant de <strong>{{formatCurrency amount}}</strong> a été libéré et crédité sur votre wallet.</p>
+
+<p>Vous pouvez maintenant :</p>
+<ul>
+    <li>Retirer vos gains via carte cadeau ou virement bancaire</li>
+    <li>Utiliser votre solde pour d'autres prestations</li>
+</ul>
+
+<p>
+    <a href="{{url '/wallet'}}" class="button">Voir mon wallet</a>
+</p>
+
+<p>Merci pour votre excellent travail !</p>
+
+<p>L'équipe Super Try</p>

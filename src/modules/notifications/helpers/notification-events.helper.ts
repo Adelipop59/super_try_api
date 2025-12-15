@@ -473,9 +473,9 @@ export class NotificationEventsHelper {
   }
 
   /**
-   * Notification: Litige résolu
+   * Notification: Litige de session résolu
    */
-  async disputeResolved(params: {
+  async sessionDisputeResolved(params: {
     userId: string;
     userName: string;
     campaignTitle: string;
@@ -497,11 +497,11 @@ export class NotificationEventsHelper {
       });
 
       this.logger.log(
-        `✅ DISPUTE_RESOLVED notification sent to user ${params.userId}`,
+        `✅ SESSION_DISPUTE_RESOLVED notification sent to user ${params.userId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send DISPUTE_RESOLVED notification: ${error.message}`,
+        `Failed to send SESSION_DISPUTE_RESOLVED notification: ${error.message}`,
       );
     }
   }
@@ -535,5 +535,276 @@ export class NotificationEventsHelper {
     } catch (error) {
       this.logger.error(`Failed to send multi-channel notification: ${error.message}`);
     }
+  }
+
+  async chatOrderCreated(params: {
+    testerId: string;
+    testerName: string;
+    sellerName: string;
+    campaignTitle: string;
+    orderType: string;
+    amount: number;
+    description: string;
+    deliveryDeadline?: Date;
+    sessionId: string;
+    orderId: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.testerId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.EMAIL,
+        title: `📦 Nouvelle commande - ${params.campaignTitle}`,
+        message: `${params.sellerName} vous a envoyé une commande de ${params.amount}€.`,
+        data: {
+          template: 'chat-order/order-created',
+          templateVars: {
+            ...params,
+            orderTypeLabel: this.getOrderTypeLabel(params.orderType),
+          },
+        },
+      });
+
+      this.logger.log(`✅ CHAT_ORDER_CREATED notification sent to tester ${params.testerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send CHAT_ORDER_CREATED notification: ${error.message}`);
+    }
+  }
+
+  async chatOrderDelivered(params: {
+    sellerId: string;
+    sellerName: string;
+    testerName: string;
+    campaignTitle: string;
+    orderType: string;
+    amount: number;
+    description: string;
+    deliveredAt: Date;
+    sessionId: string;
+    orderId: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.sellerId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.EMAIL,
+        title: `📬 Livraison reçue - ${params.campaignTitle}`,
+        message: `${params.testerName} a livré votre commande.`,
+        data: {
+          template: 'chat-order/order-delivered',
+          templateVars: {
+            ...params,
+            orderTypeLabel: this.getOrderTypeLabel(params.orderType),
+          },
+        },
+      });
+
+      this.logger.log(`✅ CHAT_ORDER_DELIVERED notification sent to seller ${params.sellerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send CHAT_ORDER_DELIVERED notification: ${error.message}`);
+    }
+  }
+
+  async chatOrderCompleted(params: {
+    testerId: string;
+    testerName: string;
+    sellerName: string;
+    campaignTitle: string;
+    orderType: string;
+    amount: number;
+    description: string;
+    validatedAt: Date;
+    sessionId: string;
+    orderId: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.testerId,
+        type: NotificationType.PAYMENT_RECEIVED,
+        channel: NotificationChannel.EMAIL,
+        title: `✅ Paiement reçu - ${params.amount}€`,
+        message: `Votre prestation pour ${params.campaignTitle} a été validée.`,
+        data: {
+          template: 'chat-order/order-completed',
+          templateVars: {
+            ...params,
+            orderTypeLabel: this.getOrderTypeLabel(params.orderType),
+          },
+        },
+      });
+
+      this.logger.log(`✅ CHAT_ORDER_COMPLETED notification sent to tester ${params.testerId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send CHAT_ORDER_COMPLETED notification: ${error.message}`);
+    }
+  }
+
+  async chatOrderDisputed(params: {
+    recipientId: string;
+    recipientName: string;
+    disputedByName: string;
+    campaignTitle: string;
+    orderType: string;
+    amount: number;
+    disputeReason: string;
+    disputedAt: Date;
+    sessionId: string;
+    orderId: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.recipientId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.EMAIL,
+        title: `⚠️ Litige déclaré - ${params.campaignTitle}`,
+        message: `Un litige a été déclaré sur une commande.`,
+        data: {
+          template: 'chat-order/order-disputed',
+          templateVars: {
+            ...params,
+            orderTypeLabel: this.getOrderTypeLabel(params.orderType),
+          },
+        },
+      });
+
+      this.logger.log(`✅ CHAT_ORDER_DISPUTED notification sent to user ${params.recipientId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send CHAT_ORDER_DISPUTED notification: ${error.message}`);
+    }
+  }
+
+  async chatOrderDisputeResolved(params: {
+    buyerId: string;
+    buyerName: string;
+    sellerId: string;
+    sellerName: string;
+    campaignTitle: string;
+    orderType: string;
+    amount: number;
+    description: string;
+    resolution: 'REFUND_BUYER' | 'PAY_SELLER';
+    adminNotes: string;
+    finalStatus: string;
+    sessionId: string;
+    orderId: string;
+  }): Promise<void> {
+    try {
+      const isRefund = params.resolution === 'REFUND_BUYER';
+      const orderTypeLabel = this.getOrderTypeLabel(params.orderType);
+
+      // Notify both buyer and seller
+      const notifications = [
+        {
+          userId: params.buyerId,
+          recipientName: params.buyerName,
+        },
+        {
+          userId: params.sellerId,
+          recipientName: params.sellerName,
+        },
+      ];
+
+      for (const notif of notifications) {
+        await this.notificationsService.send({
+          userId: notif.userId,
+          type: NotificationType.SYSTEM_ALERT,
+          channel: NotificationChannel.EMAIL,
+          title: `✅ Litige résolu - ${params.campaignTitle}`,
+          message: `Le litige sur votre commande a été résolu par un administrateur.`,
+          data: {
+            template: 'chat-order/dispute-resolved',
+            templateVars: {
+              recipientName: notif.recipientName,
+              campaignTitle: params.campaignTitle,
+              orderTypeLabel,
+              amount: params.amount,
+              description: params.description,
+              resolution: isRefund ? 'Remboursement à l\'acheteur' : 'Paiement au testeur',
+              adminNotes: params.adminNotes,
+              finalStatus: params.finalStatus,
+              isRefund,
+              sessionId: params.sessionId,
+              orderId: params.orderId,
+              url: (path: string) => `${process.env.FRONTEND_URL}${path}`,
+              concat: (...args: string[]) => args.join(''),
+              formatCurrency: (amount: number) => `${amount.toFixed(2)}€`,
+            },
+          },
+        });
+      }
+
+      this.logger.log(
+        `✅ DISPUTE_RESOLVED notifications sent to buyer ${params.buyerId} and seller ${params.sellerId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to send DISPUTE_RESOLVED notifications: ${error.message}`);
+    }
+  }
+
+  /**
+   * Notification: Vérification d'identité complétée
+   */
+  async verificationCompleted(params: {
+    userId: string;
+    userName: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.userId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.EMAIL,
+        title: '✅ Vérification d\'identité réussie',
+        message: 'Votre identité a été vérifiée avec succès !',
+        data: {
+          template: 'user/verification-completed',
+          templateVars: {
+            userName: params.userName,
+            url: (path: string) => `${process.env.FRONTEND_URL}${path}`,
+          },
+        },
+      });
+
+      this.logger.log(`✅ VERIFICATION_COMPLETED notification sent to user ${params.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send VERIFICATION_COMPLETED notification: ${error.message}`);
+    }
+  }
+
+  /**
+   * Notification: Vérification d'identité requise
+   */
+  async verificationRequired(params: {
+    userId: string;
+    userName: string;
+  }): Promise<void> {
+    try {
+      await this.notificationsService.send({
+        userId: params.userId,
+        type: NotificationType.SYSTEM_ALERT,
+        channel: NotificationChannel.EMAIL,
+        title: '🔐 Vérification d\'identité requise',
+        message: 'Vous devez vérifier votre identité pour participer aux campagnes.',
+        data: {
+          template: 'user/verification-required',
+          templateVars: {
+            userName: params.userName,
+            url: (path: string) => `${process.env.FRONTEND_URL}${path}`,
+          },
+        },
+      });
+
+      this.logger.log(`✅ VERIFICATION_REQUIRED notification sent to user ${params.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send VERIFICATION_REQUIRED notification: ${error.message}`);
+    }
+  }
+
+  private getOrderTypeLabel(orderType: string): string {
+    const labels: Record<string, string> = {
+      UGC_REQUEST: 'Demande de contenu UGC',
+      PHOTO_REQUEST: 'Demande de photos',
+      TIP: 'Pourboire',
+    };
+    return labels[orderType] || orderType;
   }
 }

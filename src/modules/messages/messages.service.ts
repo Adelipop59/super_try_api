@@ -11,7 +11,7 @@ import { LogCategory, Prisma, SessionStatus } from '@prisma/client';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MessageFilterDto } from './dto/message-filter.dto';
 import { DeclareDisputeDto } from './dto/declare-dispute.dto';
-import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { ResolveSessionDisputeDto } from './dto/resolve-dispute.dto';
 
 // Type helper pour les réponses Prisma
 type PrismaMessageResponse = any;
@@ -678,7 +678,7 @@ export class MessagesService {
   async resolveDispute(
     sessionId: string,
     adminId: string,
-    dto: ResolveDisputeDto,
+    dto: ResolveSessionDisputeDto,
   ): Promise<{ message: string; session: any }> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },

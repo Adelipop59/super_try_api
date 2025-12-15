@@ -3,9 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { SessionStatus } from '@prisma/client';
 
 /**
- * DTO pour résoudre un litige (admin uniquement)
+ * DTO pour résoudre un litige de session (admin uniquement)
  */
-export class ResolveDisputeDto {
+export class ResolveSessionDisputeDto {
   @ApiProperty({
     description: 'Explication de la résolution du litige',
     example: 'Remboursement approuvé, session annulée suite à la vérification des preuves',

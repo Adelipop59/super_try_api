@@ -12,6 +12,7 @@ import { MessagesService } from '../messages/messages.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WalletsService } from '../wallets/wallets.service';
 import { UploadModule } from '../upload/upload.module';
+import { StripeModule } from '../stripe/stripe.module';
 
 /**
  * Module d'administration
@@ -29,7 +30,7 @@ import { UploadModule } from '../upload/upload.module';
  * Sécurité: Tous les endpoints nécessitent le rôle ADMIN
  */
 @Module({
-  imports: [UploadModule, NotificationsModule],
+  imports: [UploadModule, NotificationsModule, StripeModule],
   controllers: [AdminController],
   providers: [
     AdminService,
