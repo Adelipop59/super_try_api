@@ -47,6 +47,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.80.0
         version: 2.80.0
+      bull:
+        specifier: ^4.16.5
+        version: 4.16.5
       bullmq:
         specifier: ^5.65.1
         version: 5.65.1

@@ -46,17 +46,25 @@ export class SessionsService {
     userId: string,
     dto: ApplySessionDto,
   ): Promise<PrismaSessionResponse> {
-    // Vérifier que l'utilisateur est vérifié (KYC)
+    // Vérifier que l'utilisateur est vérifié (KYC) et actif
     const profile = await this.prisma.profile.findUnique({
       where: { id: userId },
-      select: { isVerified: true, role: true },
     });
 
     if (!profile) {
       throw new NotFoundException('Profile not found');
     }
 
-    if (profile.role === 'USER' && !profile.isVerified) {
+    // Vérifier que le compte est actif (pas banni par admin)
+    if (!profile.isActive) {
+      throw new ForbiddenException(
+        'Your account has been suspended. Please contact support for more information.',
+      );
+    }
+
+    // Vérifier que l'utilisateur a complété la vérification KYC
+    const profileWithVerification = profile as any;
+    if (profile.role === 'USER' && profileWithVerification.verificationStatus !== 'verified') {
       throw new ForbiddenException(
         'You must complete identity verification before applying to campaigns. ' +
         'Please verify your identity in your profile settings.',

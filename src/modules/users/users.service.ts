@@ -354,8 +354,58 @@ export class UsersService {
       );
     }
 
-    if (profile.verificationStatus === 'verified') {
+    // Vérifier si l'utilisateur est déjà vérifié
+    const profileWithVerification = profile as any;
+    if (profileWithVerification.verificationStatus === 'verified') {
       throw new BadRequestException('User is already verified');
+    }
+
+    // 🔒 SÉCURITÉ : Vérifier si une session KYC est déjà en cours
+    if (
+      profileWithVerification.stripeVerificationSessionId &&
+      profileWithVerification.verificationStatus === 'pending'
+    ) {
+      // Vérifier le statut de la session Stripe existante
+      try {
+        const existingSession =
+          await this.stripeService.getVerificationSession(
+            profileWithVerification.stripeVerificationSessionId,
+          );
+
+        // Si la session est encore active (non expirée), retourner l'URL existante
+        if (existingSession.status === 'requires_input') {
+          await this.logsService.logWarning(
+            'USER' as any,
+            `Tentative de création d'une nouvelle session KYC alors qu'une session est déjà en cours: ${profileWithVerification.stripeVerificationSessionId}`,
+            { existingSessionId: existingSession.id },
+            userId,
+          );
+
+          return {
+            verification_url: existingSession.url!,
+            session_id: existingSession.id,
+          };
+        }
+
+        // Si la session est expirée ou dans un autre état final, on peut en créer une nouvelle
+        // On nettoie l'ancienne session
+        await this.prismaService.profile.update({
+          where: { id: userId },
+          data: {
+            stripeVerificationSessionId: null,
+            verificationStatus: 'unverified',
+          },
+        });
+      } catch (error) {
+        // Si erreur Stripe (session introuvable), nettoyer et continuer
+        await this.prismaService.profile.update({
+          where: { id: userId },
+          data: {
+            stripeVerificationSessionId: null,
+            verificationStatus: 'unverified',
+          },
+        });
+      }
     }
 
     // Create Stripe Customer if it doesn't exist

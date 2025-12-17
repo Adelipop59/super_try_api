@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(git -C /Users/mohamed/Documents/super_try_api log --oneline --max-count=20)",
+      "Bash(npx prisma generate:*)",
+      "Bash(pnpm prisma generate:*)",
+      "Bash(chmod:*)",
+      "Bash(export PGPASSWORD=\"1234\":*)",
+      "Bash(psql:*)"
+    ]
+  }
+}

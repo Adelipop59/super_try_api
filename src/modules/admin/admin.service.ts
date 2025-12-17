@@ -511,7 +511,7 @@ export class AdminService {
   }
 
   /**
-   * Forcer la vérification d'un utilisateur
+   * Forcer la vérification d'un utilisateur (ancien système - isVerified)
    */
   async forceVerifyUser(userId: string): Promise<any> {
     const result = await this.usersService.verifyProfile(userId);
@@ -523,6 +523,160 @@ export class AdminService {
     );
 
     return result;
+  }
+
+  /**
+   * Modifier le statut de vérification KYC d'un testeur (nouveau système - verificationStatus)
+   * Status possibles: 'unverified', 'pending', 'verified', 'failed'
+   */
+  async updateKycStatus(
+    userId: string,
+    status: 'unverified' | 'pending' | 'verified' | 'failed',
+    failureReason?: string,
+  ): Promise<any> {
+    const user = await this.prisma.profile.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role !== UserRole.USER) {
+      throw new BadRequestException(
+        'KYC verification is only applicable for USER role (testers)',
+      );
+    }
+
+    const updateData: any = {
+      verificationStatus: status,
+    };
+
+    // Si statut = verified, mettre à jour verifiedAt et effacer failure reason
+    if (status === 'verified') {
+      updateData.verifiedAt = new Date();
+      updateData.verificationFailedReason = null;
+      // Synchroniser avec isVerified pour compatibilité
+      updateData.isVerified = true;
+    }
+
+    // Si statut = failed, enregistrer la raison
+    if (status === 'failed' && failureReason) {
+      updateData.verificationFailedReason = failureReason;
+      updateData.isVerified = false;
+    }
+
+    // Si unverified ou pending, réinitialiser
+    if (status === 'unverified' || status === 'pending') {
+      updateData.verifiedAt = null;
+      updateData.verificationFailedReason = null;
+      updateData.isVerified = false;
+    }
+
+    const updated = await this.prisma.profile.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    await this.logsService.logWarning(
+      LogCategory.ADMIN,
+      `⚠️ Statut KYC modifié par admin pour ${user.email}: ${status}`,
+      {
+        userId,
+        newStatus: status,
+        failureReason: failureReason || null,
+      },
+    );
+
+    return {
+      userId: updated.id,
+      email: user.email,
+      verificationStatus: status,
+      verifiedAt: updateData.verifiedAt || null,
+      failureReason: failureReason || null,
+    };
+  }
+
+  /**
+   * Diagnostic : Vérifier l'état des sessions KYC de tous les testeurs
+   */
+  async getKycSessionsDiagnostic(): Promise<any> {
+    const users = await this.prisma.profile.findMany({
+      where: {
+        role: UserRole.USER,
+      },
+      select: {
+        id: true,
+        email: true,
+        verificationStatus: true,
+        stripeVerificationSessionId: true,
+        verifiedAt: true,
+        verificationFailedReason: true,
+        isVerified: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const diagnostic = users.map((user: any) => ({
+      userId: user.id,
+      email: user.email,
+      isActive: user.isActive,
+      isVerified: user.isVerified,
+      verificationStatus: user.verificationStatus || 'unverified',
+      hasStripeSession: !!user.stripeVerificationSessionId,
+      stripeSessionId: user.stripeVerificationSessionId || null,
+      verifiedAt: user.verifiedAt || null,
+      failureReason: user.verificationFailedReason || null,
+      createdAt: user.createdAt,
+      canApplyToCampaigns:
+        user.isActive && user.verificationStatus === 'verified',
+      issues: [],
+    }));
+
+    // Détecter les incohérences
+    diagnostic.forEach((entry: any) => {
+      // Incohérence 1 : verificationStatus=verified mais isVerified=false
+      if (entry.verificationStatus === 'verified' && !entry.isVerified) {
+        entry.issues.push('⚠️ verificationStatus=verified mais isVerified=false');
+      }
+
+      // Incohérence 2 : verificationStatus=pending mais pas de session Stripe
+      if (entry.verificationStatus === 'pending' && !entry.hasStripeSession) {
+        entry.issues.push('⚠️ Status pending mais aucune session Stripe ID');
+      }
+
+      // Incohérence 3 : verificationStatus=verified mais pas de verifiedAt
+      if (entry.verificationStatus === 'verified' && !entry.verifiedAt) {
+        entry.issues.push('⚠️ Vérifié mais pas de date de vérification');
+      }
+
+      // Incohérence 4 : isActive=false (banni)
+      if (!entry.isActive) {
+        entry.issues.push('🚫 Compte suspendu (banni)');
+      }
+    });
+
+    return {
+      total: users.length,
+      verified: diagnostic.filter(
+        (u: any) => u.verificationStatus === 'verified',
+      ).length,
+      pending: diagnostic.filter(
+        (u: any) => u.verificationStatus === 'pending',
+      ).length,
+      unverified: diagnostic.filter(
+        (u: any) => u.verificationStatus === 'unverified',
+      ).length,
+      failed: diagnostic.filter((u: any) => u.verificationStatus === 'failed')
+        .length,
+      suspended: diagnostic.filter((u: any) => !u.isActive).length,
+      withIssues: diagnostic.filter((u: any) => u.issues.length > 0).length,
+      users: diagnostic,
+    };
   }
 
   /**

@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "kyc:check": "ts-node -r tsconfig-paths/register scripts/kyc-diagnostic.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.943.0",
@@ -33,6 +34,7 @@
     "@nestjs/websockets": "^11.1.9",
     "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.80.0",
+    "bull": "^4.16.5",
     "bullmq": "^5.65.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",

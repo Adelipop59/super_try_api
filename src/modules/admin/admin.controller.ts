@@ -32,6 +32,10 @@ import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { SuspendUserDto, SuspensionResponseDto } from './dto/suspend-user.dto';
 import {
+  UpdateKycStatusDto,
+  KycStatusResponseDto,
+} from './dto/update-kyc-status.dto';
+import {
   BroadcastNotificationDto,
   BroadcastResponseDto,
 } from './dto/broadcast-notification.dto';
@@ -193,9 +197,9 @@ export class AdminController {
 
   @Patch('users/:id/verify')
   @ApiOperation({
-    summary: "Forcer la vérification d'un utilisateur",
+    summary: "Forcer la vérification d'un utilisateur (ancien système)",
     description:
-      'Vérifie manuellement un utilisateur (bypass du processus normal)',
+      'Vérifie manuellement un utilisateur avec isVerified=true (ancien système)',
   })
   @ApiParam({ name: 'id', description: "ID de l'utilisateur" })
   @ApiResponse({
@@ -204,6 +208,50 @@ export class AdminController {
   })
   async forceVerifyUser(@Param('id') userId: string) {
     return await this.adminService.forceVerifyUser(userId);
+  }
+
+  @Patch('users/:id/kyc-status')
+  @ApiOperation({
+    summary: "Modifier le statut KYC d'un testeur",
+    description:
+      'Modifie manuellement le verificationStatus KYC (unverified, pending, verified, failed). ' +
+      'Cela permet de forcer la vérification ou de marquer un testeur comme non vérifié.',
+  })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur (testeur)" })
+  @ApiResponse({
+    status: 200,
+    description: 'Statut KYC modifié',
+    type: KycStatusResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Requête invalide (KYC uniquement pour testeurs, statut invalide, etc.)',
+  })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async updateKycStatus(
+    @Param('id') userId: string,
+    @Body() dto: UpdateKycStatusDto,
+  ): Promise<KycStatusResponseDto> {
+    return await this.adminService.updateKycStatus(
+      userId,
+      dto.status,
+      dto.failureReason,
+    );
+  }
+
+  @Get('kyc-diagnostic')
+  @ApiOperation({
+    summary: 'Diagnostic des sessions KYC',
+    description:
+      'Affiche l\'état de toutes les sessions KYC des testeurs avec détection des incohérences',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Diagnostic KYC avec statistiques et détails par utilisateur',
+  })
+  async getKycDiagnostic() {
+    return await this.adminService.getKycSessionsDiagnostic();
   }
 
   @Patch('users/:id/role')
