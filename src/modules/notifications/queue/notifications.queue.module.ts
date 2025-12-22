@@ -6,7 +6,6 @@ import { NotificationsQueueService } from './notifications.queue.service';
 import { EmailProvider } from '../providers/email.provider';
 import { SmsProvider } from '../providers/sms.provider';
 import { PushProvider } from '../providers/push.provider';
-import { PrismaService } from '../../../database/prisma.service';
 import { TemplateService } from '../templates/template.service';
 
 /**
@@ -50,7 +49,6 @@ import { TemplateService } from '../templates/template.service';
     EmailProvider,
     SmsProvider,
     PushProvider,
-    PrismaService,
     TemplateService,
   ],
   exports: [NotificationsQueueService],

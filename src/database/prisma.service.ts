@@ -15,7 +15,30 @@ export class PrismaService
 
   constructor() {
     super({
-      log: ['query', 'info', 'warn', 'error'],
+      log: [
+        { emit: 'event', level: 'query' }, // Active les logs de requêtes
+        'info',
+        'warn',
+        'error',
+      ],
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
+      },
+      // Configuration optimisée pour Supabase/PgBouncer
+      // En mode transaction pooling, limitez le pool de connexions
+      // Supabase recommande 1 connexion par CPU (généralement 2-4 pour les petites apps)
+    });
+
+    // Log les queries avec leur durée
+    this.$on('query' as never, (e: any) => {
+      if (e.duration > 100) {
+        // Log seulement les queries lentes (>100ms)
+        this.logger.warn(
+          `Slow Query (${e.duration}ms): ${e.query.substring(0, 200)}`,
+        );
+      }
     });
   }
 

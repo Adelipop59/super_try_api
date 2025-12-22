@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
-import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { NotificationsQueueModule } from './queue/notifications.queue.module';
 import { TemplateService } from './templates/template.service';
@@ -23,7 +22,6 @@ import { NotificationEventsHelper } from './helpers/notification-events.helper';
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
-    PrismaService,
     LogsService,
     TemplateService,
     NotificationEventsHelper,

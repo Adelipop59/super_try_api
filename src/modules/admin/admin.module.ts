@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
-import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { UsersService } from '../users/users.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
@@ -34,7 +33,6 @@ import { StripeModule } from '../stripe/stripe.module';
   controllers: [AdminController],
   providers: [
     AdminService,
-    PrismaService,
     LogsService,
     UsersService,
     CampaignsService,

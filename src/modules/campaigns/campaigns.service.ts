@@ -18,9 +18,20 @@ import {
 } from '../../common/dto/pagination.dto';
 import { CampaignCriteriaService } from './campaign-criteria.service';
 
-// Type for campaign with all includes used in this service
+// Type for campaign with optimized select (only needed fields)
 type CampaignWithIncludes = Prisma.CampaignGetPayload<{
-  include: {
+  select: {
+    id: true;
+    sellerId: true;
+    title: true;
+    description: true;
+    startDate: true;
+    endDate: true;
+    totalSlots: true;
+    availableSlots: true;
+    status: true;
+    createdAt: true;
+    updatedAt: true;
     seller: {
       select: {
         id: true;
@@ -29,9 +40,24 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
       };
     };
     offers: {
-      include: {
+      select: {
+        id: true;
+        productId: true;
+        quantity: true;
+        reimbursedPrice: true;
+        reimbursedShipping: true;
+        maxReimbursedPrice: true;
+        maxReimbursedShipping: true;
+        bonus: true;
+        createdAt: true;
         product: {
-          include: {
+          select: {
+            id: true;
+            name: true;
+            description: true;
+            categoryId: true;
+            imageUrl: true;
+            isActive: true;
             category: {
               select: {
                 id: true;
@@ -241,7 +267,18 @@ export class CampaignsService {
     const [campaigns, total] = await Promise.all([
       this.prismaService.campaign.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          sellerId: true,
+          title: true,
+          description: true,
+          startDate: true,
+          endDate: true,
+          totalSlots: true,
+          availableSlots: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           seller: {
             select: {
               id: true,
@@ -250,9 +287,24 @@ export class CampaignsService {
             },
           },
           offers: {
-            include: {
+            select: {
+              id: true,
+              productId: true,
+              quantity: true,
+              reimbursedPrice: true,
+              reimbursedShipping: true,
+              maxReimbursedPrice: true,
+              maxReimbursedShipping: true,
+              bonus: true,
+              createdAt: true,
               product: {
-                include: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  categoryId: true,
+                  imageUrl: true,
+                  isActive: true,
                   category: {
                     select: {
                       id: true,
@@ -412,7 +464,18 @@ export class CampaignsService {
     const [campaigns, total] = await Promise.all([
       this.prismaService.campaign.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          sellerId: true,
+          title: true,
+          description: true,
+          startDate: true,
+          endDate: true,
+          totalSlots: true,
+          availableSlots: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           seller: {
             select: {
               id: true,
@@ -421,9 +484,24 @@ export class CampaignsService {
             },
           },
           offers: {
-            include: {
+            select: {
+              id: true,
+              productId: true,
+              quantity: true,
+              reimbursedPrice: true,
+              reimbursedShipping: true,
+              maxReimbursedPrice: true,
+              maxReimbursedShipping: true,
+              bonus: true,
+              createdAt: true,
               product: {
-                include: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  categoryId: true,
+                  imageUrl: true,
+                  isActive: true,
                   category: {
                     select: {
                       id: true,

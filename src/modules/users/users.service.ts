@@ -14,6 +14,7 @@ import {
   calculateOffset,
 } from '../../common/dto/pagination.dto';
 import { ProOverviewDto } from './dto/pro-overview.dto';
+import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { StripeService } from '../stripe/stripe.service';
 import { LogsService } from '../logs/logs.service';
 import { ConfigService } from '@nestjs/config';
@@ -26,6 +27,159 @@ export class UsersService {
     private logsService: LogsService,
     private configService: ConfigService,
   ) {}
+
+  /**
+   * Get unified dashboard statistics in a single query
+   * Returns all necessary data for the dashboard based on user role
+   */
+  async getDashboardStats(userId: string): Promise<DashboardStatsDto> {
+    const profile = await this.getProfileById(userId);
+
+    // Get wallet balance (works for all roles)
+    const walletBalance = await this.prismaService.wallet
+      .findUnique({
+        where: { userId },
+        select: { balance: true, currency: true },
+      })
+      .catch(() => null);
+
+    const balance = walletBalance?.balance
+      ? Number(walletBalance.balance)
+      : 0;
+    const currency = walletBalance?.currency || 'EUR';
+
+    if (profile.role === UserRole.PRO || profile.role === UserRole.ADMIN) {
+      // PRO/ADMIN: Get comprehensive stats including campaigns and products
+      const [
+        totalProducts,
+        totalCampaigns,
+        activeCampaigns,
+        testsInProgress,
+        testsDone,
+        totalSpentResult,
+      ] = await Promise.all([
+        this.prismaService.product.count({ where: { sellerId: userId } }),
+        this.prismaService.campaign.count({ where: { sellerId: userId } }),
+        this.prismaService.campaign.count({
+          where: { sellerId: userId, status: 'ACTIVE' },
+        }),
+        this.prismaService.session.count({
+          where: {
+            campaign: { sellerId: userId },
+            status: SessionStatus.IN_PROGRESS,
+          },
+        }),
+        this.prismaService.session.count({
+          where: {
+            campaign: { sellerId: userId },
+            status: SessionStatus.COMPLETED,
+          },
+        }),
+        this.prismaService.transaction.aggregate({
+          where: {
+            status: 'COMPLETED',
+            type: 'CAMPAIGN_PAYMENT',
+            campaign: { sellerId: userId },
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const totalSpent = totalSpentResult._sum.amount
+        ? Number(totalSpentResult._sum.amount)
+        : 0;
+
+      // Get spending chart data (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const dailyTransactions = await this.prismaService.transaction.groupBy({
+        by: ['createdAt'],
+        where: {
+          status: 'COMPLETED',
+          type: 'CAMPAIGN_PAYMENT',
+          campaign: { sellerId: userId },
+          createdAt: { gte: thirtyDaysAgo },
+        },
+        _sum: { amount: true },
+        _count: true,
+      });
+
+      // Group by day
+      const spendingByDay = new Map<string, { amount: number; count: number }>();
+      dailyTransactions.forEach((transaction) => {
+        const dateKey = transaction.createdAt.toISOString().split('T')[0];
+        const existing = spendingByDay.get(dateKey) || { amount: 0, count: 0 };
+        const transactionAmount = transaction._sum.amount
+          ? Number(transaction._sum.amount)
+          : 0;
+        spendingByDay.set(dateKey, {
+          amount: existing.amount + transactionAmount,
+          count: existing.count + transaction._count,
+        });
+      });
+
+      // Generate chart data with all 30 days
+      const spendingChart: Array<{
+        date: string;
+        amount: number;
+        campaignCount: number;
+      }> = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toISOString().split('T')[0];
+        const data = spendingByDay.get(dateKey) || { amount: 0, count: 0 };
+        spendingChart.push({
+          date: dateKey,
+          amount: data.amount,
+          campaignCount: data.count,
+        });
+      }
+
+      return {
+        totalSessions: testsInProgress + testsDone,
+        activeSessions: testsInProgress,
+        completedSessions: testsDone,
+        pendingSessions: 0,
+        balance,
+        currency,
+        totalCampaigns,
+        activeCampaigns,
+        totalProducts,
+        testsInProgress,
+        testsDone,
+        totalSpent,
+        spendingChart,
+      };
+    } else {
+      // USER: Get basic session stats
+      const sessions = await this.prismaService.session.findMany({
+        where: { testerId: userId },
+        select: { status: true },
+      });
+
+      const totalSessions = sessions.length;
+      const activeSessions = sessions.filter((s) =>
+        ['ACCEPTED', 'PURCHASE_SUBMITTED', 'IN_PROGRESS'].includes(s.status),
+      ).length;
+      const completedSessions = sessions.filter(
+        (s) => s.status === SessionStatus.COMPLETED,
+      ).length;
+      const pendingSessions = sessions.filter(
+        (s) => s.status === 'PENDING',
+      ).length;
+
+      return {
+        totalSessions,
+        activeSessions,
+        completedSessions,
+        pendingSessions,
+        balance,
+        currency,
+      };
+    }
+  }
 
   /**
    * Create a new profile

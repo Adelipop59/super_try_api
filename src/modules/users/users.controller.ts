@@ -30,6 +30,7 @@ import type { Profile } from '@prisma/client';
 import { ProfileResponseDto } from './dto/profile.dto';
 import type { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { ProOverviewDto } from './dto/pro-overview.dto';
+import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -118,6 +119,22 @@ export class UsersController {
   getMyProfile(@CurrentProfile() profile: Profile) {
     // Profile is already loaded by the auth guard, no extra query needed
     return profile;
+  }
+
+  @Get('me/dashboard')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Dashboard statistiques unifiées',
+    description: 'Récupère toutes les statistiques du dashboard en une seule requête (optimisé)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Statistiques complètes du dashboard',
+    type: DashboardStatsDto,
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async getDashboardStats(@CurrentUser() user: AuthenticatedUser): Promise<DashboardStatsDto> {
+    return this.usersService.getDashboardStats(user.id);
   }
 
   @Roles('USER')
