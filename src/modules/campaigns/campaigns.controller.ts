@@ -119,7 +119,8 @@ export class CampaignsController {
   @ApiOperation({
     summary: 'Liste des campagnes éligibles pour le testeur (USER)',
     description:
-      'Récupère les campagnes actives auxquelles le testeur connecté peut postuler selon les critères définis',
+      'Récupère les campagnes actives auxquelles le testeur connecté peut postuler selon les critères définis. ' +
+      'Si l\'utilisateur n\'est pas vérifié KYC, retourne un teaser avec des informations génériques sans détails des produits.',
   })
   @ApiQuery({
     name: 'page',
@@ -135,14 +136,15 @@ export class CampaignsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste paginée des campagnes éligibles',
+    description:
+      'Liste paginée des campagnes éligibles (détails complets si vérifié KYC, teaser sinon)',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle USER requis' })
   findEligible(
     @CurrentUser() user: AuthenticatedUser,
     @Query() filters: CampaignFilterDto,
-  ): Promise<PaginatedResponse<CampaignResponseDto>> {
+  ) {
     return this.campaignsService.findEligibleForTester(user.id, filters);
   }
 

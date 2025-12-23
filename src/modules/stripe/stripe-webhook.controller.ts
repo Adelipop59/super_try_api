@@ -591,26 +591,57 @@ export class StripeWebhookController {
       // Récupérer les données vérifiées
       const verifiedData = session.verified_outputs;
 
+      this.logger.log(`Verified data received: ${JSON.stringify(verifiedData)}`);
+
+      // Préparer les données à mettre à jour
+      const updateData: any = {
+        isVerified: true,
+        verificationStatus: 'verified',
+        verifiedAt: new Date(),
+        verificationFailedReason: null,
+      };
+
+      // Extraire la date de naissance
+      if (verifiedData?.dob?.year && verifiedData.dob.month && verifiedData.dob.day) {
+        updateData.birthDate = new Date(
+          verifiedData.dob.year,
+          verifiedData.dob.month - 1,
+          verifiedData.dob.day,
+        );
+      }
+
+      // Extraire le prénom et nom
+      if (verifiedData?.first_name) {
+        updateData.firstName = verifiedData.first_name;
+      }
+      if (verifiedData?.last_name) {
+        updateData.lastName = verifiedData.last_name;
+      }
+
+      // Extraire l'adresse complète
+      if (verifiedData?.address) {
+        const addr = verifiedData.address;
+
+        // Composer l'adresse complète (ville, pays)
+        const addressParts = [
+          addr.city,
+          addr.country,
+        ].filter(Boolean);
+
+        if (addressParts.length > 0) {
+          updateData.location = addressParts.join(', ');
+        }
+
+        // Stocker le pays séparément
+        if (addr.country) {
+          updateData.country = addr.country;
+        }
+      }
+
       // Mettre à jour le profil
       await this.prismaService.profile.update({
         where: { id: userId },
-        data: {
-          isVerified: true,
-          verificationStatus: 'verified',
-          verifiedAt: new Date(),
-          verificationFailedReason: null,
-          // Optionnel : extraire birthDate si fourni
-          ...(verifiedData?.dob &&
-            verifiedData.dob.year &&
-            verifiedData.dob.month &&
-            verifiedData.dob.day && {
-            birthDate: new Date(
-              verifiedData.dob.year,
-              verifiedData.dob.month - 1,
-              verifiedData.dob.day,
-            ),
-          }),
-        },
+        data: updateData,
       });
 
       // Logger l'action
@@ -640,7 +671,7 @@ export class StripeWebhookController {
               template: 'user/verification-completed',
               templateVars: {
                 userName: profile.firstName || profile.email,
-                url: (path: string) => `${process.env.FRONTEND_URL}${path}`,
+                frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
               },
             },
           });

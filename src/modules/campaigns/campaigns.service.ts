@@ -347,11 +347,31 @@ export class CampaignsService {
    * Find eligible campaigns for a specific tester (OPTIMIZED)
    * Returns only campaigns where the tester meets all criteria
    * Uses batch eligibility checking to avoid N+1 queries
+   *
+   * Si l'utilisateur n'est pas vérifié KYC, retourne un teaser sans détails
    */
   async findEligibleForTester(
     testerId: string,
     filters: CampaignFilterDto,
-  ): Promise<PaginatedResponse<CampaignResponseDto & { eligibilityReasons?: string[] }>> {
+  ): Promise<PaginatedResponse<CampaignResponseDto & { eligibilityReasons?: string[] }> | any> {
+    // Vérifier le statut KYC du testeur
+    const tester = await this.prismaService.profile.findUnique({
+      where: { id: testerId },
+      select: {
+        isVerified: true,
+        verificationStatus: true,
+      },
+    });
+
+    if (!tester) {
+      throw new NotFoundException('Tester profile not found');
+    }
+
+    // Si non vérifié, retourner des campagnes avec données floutées (limité à 50)
+    if (!tester.isVerified) {
+      return this.getBlurredCampaigns(filters);
+    }
+
     // Get all active campaigns first (1 query with includes)
     const activeCampaigns = await this.findAll({
       ...filters,
@@ -1301,5 +1321,74 @@ export class CampaignsService {
       createdAt: campaign.createdAt,
       updatedAt: campaign.updatedAt,
     };
+  }
+
+  /**
+   * Retourne des campagnes avec données floutées pour utilisateurs non-KYC
+   * Limité à 50 campagnes maximum
+   * Affiche uniquement: fausse image, bonus, remboursement (prix + shipping)
+   */
+  private async getBlurredCampaigns(
+    filters: CampaignFilterDto,
+  ): Promise<any> {
+    const page = filters.page || 1;
+    const requestedLimit = filters.limit || 20;
+    // Limiter strictement à 50 max pour éviter surcharge DB
+    const limit = Math.min(requestedLimit, 50);
+    const offset = calculateOffset(page, limit);
+
+    // Récupérer les campagnes actives avec données minimales
+    const [campaigns, total] = await Promise.all([
+      this.prismaService.campaign.findMany({
+        where: {
+          status: CampaignStatus.ACTIVE,
+          availableSlots: { gt: 0 },
+        },
+        select: {
+          id: true,
+          offers: {
+            select: {
+              bonus: true,
+              reimbursedPrice: true,
+              reimbursedShipping: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      // Compter le total (limité à 50)
+      this.prismaService.campaign
+        .count({
+          where: {
+            status: CampaignStatus.ACTIVE,
+            availableSlots: { gt: 0 },
+          },
+        })
+        .then((count) => Math.min(count, 50)),
+    ]);
+
+    // URL de placeholder générique (non-informative)
+    const PLACEHOLDER_IMAGE =
+      'https://via.placeholder.com/400x400/CCCCCC/666666?text=Product';
+
+    // Formatter les données floutées
+    const blurredData = campaigns.map((campaign) => ({
+      id: campaign.id,
+      // Image placeholder générique
+      imageUrl: PLACEHOLDER_IMAGE,
+      // Bonus (visible)
+      bonus: campaign.offers[0]?.bonus
+        ? Number(campaign.offers[0].bonus).toFixed(2)
+        : '0.00',
+      // Info remboursement (visible)
+      reimbursedPrice: campaign.offers[0]?.reimbursedPrice ?? false,
+      reimbursedShipping: campaign.offers[0]?.reimbursedShipping ?? false,
+      // Indicateur qu'il faut KYC
+      requiresKyc: true,
+    }));
+
+    return createPaginatedResponse(blurredData, total, page, limit);
   }
 }

@@ -172,6 +172,7 @@ model Profile {
   birthDate              DateTime? @map("birth_date") // Date de naissance pour calculer l'âge
   gender                 String? // M, F, Other
   location               String? // Ville/région
+  country                String? // Code pays (ex: FR, US)
   averageRating          Decimal?  @default(0) @map("average_rating") @db.Decimal(3, 2) // Note moyenne (0-5)
   completedSessionsCount Int       @default(0) @map("completed_sessions_count") // Nombre de tests complétés
   preferredCategories    String[]  @map("preferred_categories") // IDs des catégories préférées
