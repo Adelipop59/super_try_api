@@ -20,6 +20,7 @@ import { SessionsService } from './sessions.service';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireKyc } from '../../common/decorators/require-kyc.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApplySessionDto } from './dto/apply-session.dto';
@@ -45,11 +46,12 @@ export class SessionsController {
    */
   @Post('apply')
   @Roles('USER')
+  @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Postuler à une campagne de test (USER)',
     description:
-      "Permet à un testeur de postuler pour participer à une campagne de test. La candidature sera en attente d'acceptation par le vendeur.",
+      "Permet à un testeur de postuler pour participer à une campagne de test. La candidature sera en attente d'acceptation par le vendeur. Nécessite une vérification KYC complétée.",
   })
   @ApiResponse({
     status: 201,
@@ -61,7 +63,7 @@ export class SessionsController {
     description: 'Campagne non active ou déjà postulé',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'Rôle USER requis' })
+  @ApiResponse({ status: 403, description: 'KYC non vérifié ou rôle USER requis' })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
   async applyToCampaign(
     @CurrentUser() user: AuthenticatedUser,
@@ -145,6 +147,7 @@ export class SessionsController {
    */
   @Patch(':id/validate-price')
   @Roles('USER')
+  @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Valider le prix du produit trouvé (USER)',
@@ -181,6 +184,7 @@ export class SessionsController {
    */
   @Patch(':id/submit-purchase')
   @Roles('USER')
+  @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: "Soumettre la preuve d'achat (USER)",
@@ -214,6 +218,7 @@ export class SessionsController {
    */
   @Patch(':id/submit-test')
   @Roles('USER')
+  @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Soumettre le test complété (USER)',

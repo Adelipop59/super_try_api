@@ -32,6 +32,7 @@ import { ChatOrdersModule } from './modules/chat-orders/chat-orders.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { KycVerifiedGuard } from './common/guards/kyc-verified.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
@@ -102,6 +103,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    // Global KYC verification guard
+    {
+      provide: APP_GUARD,
+      useClass: KycVerifiedGuard,
     },
     // Global logging interceptor
     {
