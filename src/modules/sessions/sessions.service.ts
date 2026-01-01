@@ -8,7 +8,8 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { WalletsService } from '../wallets/wallets.service';
-import { LogCategory, SessionStatus, Prisma } from '@prisma/client';
+import { StripeService } from '../stripe/stripe.service';
+import { LogCategory, SessionStatus, Prisma, TransactionType, TransactionStatus } from '@prisma/client';
 import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
@@ -36,6 +37,7 @@ export class SessionsService {
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
     private readonly walletsService: WalletsService,
+    private readonly stripeService: StripeService,
     private readonly campaignCriteriaService: CampaignCriteriaService,
   ) {}
 
@@ -94,42 +96,109 @@ export class SessionsService {
       );
     }
 
-    // Créer la session
-    const session = await this.prisma.session.create({
-      data: {
-        campaignId: dto.campaignId,
-        testerId: userId,
-        applicationMessage: dto.applicationMessage,
-        status: SessionStatus.PENDING,
-      },
-      include: {
-        campaign: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
-        },
-        tester: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+    // Déterminer le statut initial selon le mode d'acceptation
+    const initialStatus = campaign.autoAcceptApplications
+      ? SessionStatus.ACCEPTED
+      : SessionStatus.PENDING;
 
-    await this.logsService.logSuccess(
-      LogCategory.SESSION,
-      `✅ Nouvelle candidature pour la campagne "${campaign.title}"`,
-      {
-        sessionId: session.id,
-        testerId: userId,
-        campaignId: dto.campaignId,
-      },
-    );
+    // Si auto-accept, calculer la date d'achat
+    let scheduledPurchaseDate: Date | null = null;
+    if (campaign.autoAcceptApplications) {
+      const distributions = await this.prisma.distribution.findMany({
+        where: { campaignId: dto.campaignId },
+      });
+      scheduledPurchaseDate = calculateNextPurchaseDate(distributions);
+    }
+
+    // Créer la session avec transaction pour décrémenter les slots si auto-accept
+    let session: any;
+
+    if (campaign.autoAcceptApplications && campaign.availableSlots > 0) {
+      // Mode auto-accept: créer en ACCEPTED et décrémenter les slots
+      [session] = await this.prisma.$transaction([
+        this.prisma.session.create({
+          data: {
+            campaignId: dto.campaignId,
+            testerId: userId,
+            applicationMessage: dto.applicationMessage,
+            status: initialStatus,
+            acceptedAt: new Date(),
+            scheduledPurchaseDate,
+          },
+          include: {
+            campaign: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+              },
+            },
+            tester: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        }),
+        this.prisma.campaign.update({
+          where: { id: dto.campaignId },
+          data: {
+            availableSlots: { decrement: 1 },
+          },
+        }),
+      ]);
+
+      await this.logsService.logSuccess(
+        LogCategory.SESSION,
+        `✅ Candidature auto-acceptée pour la campagne "${campaign.title}"`,
+        {
+          sessionId: session.id,
+          testerId: userId,
+          campaignId: dto.campaignId,
+          scheduledPurchaseDate,
+        },
+      );
+    } else {
+      // Mode manuel: créer en PENDING
+      session = await this.prisma.session.create({
+        data: {
+          campaignId: dto.campaignId,
+          testerId: userId,
+          applicationMessage: dto.applicationMessage,
+          status: initialStatus,
+        },
+        include: {
+          campaign: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+            },
+          },
+          tester: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+
+      await this.logsService.logSuccess(
+        LogCategory.SESSION,
+        `✅ Nouvelle candidature pour la campagne "${campaign.title}"`,
+        {
+          sessionId: session.id,
+          testerId: userId,
+          campaignId: dto.campaignId,
+        },
+      );
+    }
 
     return session;
   }
@@ -568,40 +637,92 @@ export class SessionsService {
       },
     });
 
-    // Créditer le wallet du testeur si le montant de la récompense est > 0
+    // Payer le testeur via Stripe Transfer si le montant de la récompense est > 0
     if (rewardAmount > 0) {
       try {
-        await this.walletsService.creditWallet(
-          session.testerId,
-          rewardAmount,
-          `Récompense pour test validé - Campagne: ${session.campaign.title}`,
-          sessionId,
-          undefined,
-          {
-            campaignId: session.campaignId,
-            campaignTitle: session.campaign.title,
-            rating: dto.rating,
-          },
-        );
+        // Vérifier que le testeur a un compte Stripe Connect
+        const testerProfile = await this.prisma.profile.findUnique({
+          where: { id: session.testerId },
+          select: { stripeAccountId: true },
+        });
 
-        await this.logsService.logSuccess(
-          LogCategory.WALLET,
-          `💰 Wallet crédité de ${rewardAmount}€ pour session ${sessionId}`,
-          {
+        if (!testerProfile?.stripeAccountId) {
+          // Si pas de compte Stripe, crédit wallet (fallback)
+          this.logger.warn(
+            `Testeur ${session.testerId} n'a pas de compte Stripe Connect, fallback vers wallet`,
+          );
+          await this.walletsService.creditWallet(
+            session.testerId,
+            rewardAmount,
+            `Récompense pour test validé - Campagne: ${session.campaign.title}`,
             sessionId,
-            testerId: session.testerId,
-            amount: rewardAmount,
-          },
-        );
+            undefined,
+            {
+              campaignId: session.campaignId,
+              campaignTitle: session.campaign.title,
+              rating: dto.rating,
+              note: 'Fallback wallet - Stripe Connect non configuré',
+            },
+          );
+
+          await this.logsService.logWarning(
+            LogCategory.WALLET,
+            `⚠️ Wallet crédité (fallback) de ${rewardAmount}€ pour session ${sessionId}`,
+            {
+              sessionId,
+              testerId: session.testerId,
+              amount: rewardAmount,
+              reason: 'No Stripe Connect account',
+            },
+          );
+        } else {
+          // Créer un Stripe Transfer vers le compte Connect du testeur
+          const transfer = await this.stripeService.createTesterTransfer(
+            testerProfile.stripeAccountId,
+            rewardAmount,
+            sessionId,
+            session.campaign.title,
+          );
+
+          // Créer une transaction en BDD pour traçabilité
+          await this.prisma.transaction.create({
+            data: {
+              sessionId,
+              type: TransactionType.CREDIT,
+              amount: rewardAmount,
+              reason: `Paiement test validé - Campagne: ${session.campaign.title}`,
+              status: TransactionStatus.COMPLETED,
+              metadata: {
+                stripeTransferId: transfer.id,
+                campaignId: session.campaignId,
+                campaignTitle: session.campaign.title,
+                rating: dto.rating,
+                testerStripeAccountId: testerProfile.stripeAccountId,
+              },
+            },
+          });
+
+          await this.logsService.logSuccess(
+            LogCategory.WALLET,
+            `💰 Stripe Transfer créé de ${rewardAmount}€ pour session ${sessionId}`,
+            {
+              sessionId,
+              testerId: session.testerId,
+              amount: rewardAmount,
+              stripeTransferId: transfer.id,
+              stripeAccountId: testerProfile.stripeAccountId,
+            },
+          );
+        }
       } catch (error) {
         // Log l'erreur mais ne bloque pas la validation du test
         this.logger.error(
-          `Failed to credit wallet for session ${sessionId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Failed to pay tester for session ${sessionId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
           error instanceof Error ? error.stack : undefined,
         );
         await this.logsService.logError(
           LogCategory.WALLET,
-          `❌ Échec du crédit wallet pour session ${sessionId}`,
+          `❌ Échec du paiement testeur pour session ${sessionId}`,
           {
             sessionId,
             testerId: session.testerId,
@@ -942,6 +1063,15 @@ export class SessionsService {
             title: true,
             description: true,
             status: true,
+            seller: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                companyName: true,
+              },
+            },
           },
         },
         tester: {
@@ -961,7 +1091,13 @@ export class SessionsService {
       skip: filters.offset,
     });
 
-    return sessions;
+    // Enrichir avec seller au niveau racine pour compatibilité frontend
+    const enrichedSessions = sessions.map(session => ({
+      ...session,
+      seller: session.campaign.seller,
+    }));
+
+    return enrichedSessions;
   }
 
   /**
@@ -1018,7 +1154,13 @@ export class SessionsService {
       throw new ForbiddenException('Access denied');
     }
 
-    return session;
+    // Ajouter seller au niveau racine pour compatibilité frontend
+    const enrichedSession = {
+      ...session,
+      seller: session.campaign.seller,
+    };
+
+    return enrichedSession;
   }
 
   /**

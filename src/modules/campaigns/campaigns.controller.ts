@@ -553,6 +553,61 @@ export class CampaignsController {
   }
 
   @Roles('PRO', 'ADMIN')
+  @Get(':campaignId/applications')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Récupérer les candidatures d\'une campagne',
+    description:
+      'Récupère la liste des candidatures (sessions) pour une campagne (propriétaire uniquement ou ADMIN). Filtre par statut optionnel.',
+  })
+  @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'IN_PROGRESS', 'SUBMITTED', 'COMPLETED', 'DISPUTED'],
+    description: 'Filtrer par statut',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Numéro de page (défaut: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Résultats par page (défaut: 20, max: 100)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste des candidatures',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vous ne pouvez voir que les candidatures de vos campagnes',
+  })
+  @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
+  async getCampaignApplications(
+    @Param('campaignId') campaignId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    const isAdmin = user.role === 'ADMIN';
+    return this.campaignsService.getCampaignApplications(
+      campaignId,
+      user.id,
+      isAdmin,
+      status,
+      page,
+      limit,
+    );
+  }
+
+  @Roles('PRO', 'ADMIN')
   @Delete(':id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({

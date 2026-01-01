@@ -153,6 +153,38 @@ export class StripeService {
   }
 
   /**
+   * Créer un Transfer vers un testeur depuis funds de la plateforme
+   * Utilisé pour payer automatiquement un testeur après validation du test
+   */
+  async createTesterTransfer(
+    testerAccountId: string,
+    amount: number,
+    sessionId: string,
+    campaignTitle: string,
+  ): Promise<Stripe.Transfer> {
+    try {
+      const transfer = await this.stripe.transfers.create({
+        amount: Math.round(amount * 100), // Convertir en centimes
+        currency: this.currency,
+        destination: testerAccountId,
+        metadata: {
+          type: 'tester_payment',
+          sessionId,
+          campaignTitle,
+        },
+        description: `Paiement test validé - ${campaignTitle}`,
+      });
+
+      this.logger.log(`✅ Transfer created to tester ${testerAccountId}: ${transfer.id}, amount: ${amount}€`);
+
+      return transfer;
+    } catch (error) {
+      this.logger.error(`Failed to create tester transfer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to create transfer to tester');
+    }
+  }
+
+  /**
    * Créer un Payout (retrait vers compte bancaire)
    */
   async createPayout(data: CreatePayoutDto): Promise<Stripe.Payout> {
@@ -170,7 +202,7 @@ export class StripeService {
   }
 
   /**
-   * Créer un compte Stripe Connect (pour les vendeurs)
+   * Créer un compte Stripe Connect (pour les vendeurs et testeurs)
    */
   async createConnectedAccount(
     userId: string,
@@ -209,6 +241,116 @@ export class StripeService {
     } catch (error) {
       this.logger.error(`Failed to create connected account: ${error.message}`);
       throw new BadRequestException('Failed to create connected account');
+    }
+  }
+
+  /**
+   * Créer un compte Stripe Connect Express pour testeur
+   */
+  async createTesterConnectAccount(
+    userId: string,
+    email: string,
+    country: string = 'FR',
+    businessType: 'individual' | 'company' = 'individual',
+  ): Promise<Stripe.Account> {
+    return this.createConnectedAccount(userId, {
+      email,
+      type: 'express',
+      country,
+      businessType,
+      metadata: {
+        role: 'tester',
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Créer un lien d'onboarding complet pour testeur
+   */
+  async createTesterOnboardingLink(
+    userId: string,
+    email: string,
+    returnUrl: string,
+    refreshUrl: string,
+    country?: string,
+    businessType?: 'individual' | 'company',
+  ): Promise<{
+    onboardingUrl: string;
+    accountId: string;
+    expiresAt: number;
+  }> {
+    try {
+      // Créer ou récupérer le compte Connect
+      const account = await this.createTesterConnectAccount(
+        userId,
+        email,
+        country,
+        businessType,
+      );
+
+      // Créer le lien d'onboarding
+      const accountLink = await this.createAccountLink(
+        account.id,
+        refreshUrl,
+        returnUrl,
+      );
+
+      return {
+        onboardingUrl: accountLink.url,
+        accountId: account.id,
+        expiresAt: accountLink.expires_at,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create tester onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to create onboarding link');
+    }
+  }
+
+  /**
+   * Récupérer le statut du compte Connect d'un testeur
+   */
+  async getTesterConnectStatus(
+    userId: string,
+  ): Promise<{
+    accountId: string | null;
+    isOnboarded: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    currentlyDue: string[] | null;
+    email: string | null;
+  }> {
+    try {
+      const profile = await this.prismaService.profile.findUnique({
+        where: { id: userId },
+      });
+
+      if (!profile?.stripeAccountId) {
+        return {
+          accountId: null,
+          isOnboarded: false,
+          payoutsEnabled: false,
+          detailsSubmitted: false,
+          currentlyDue: null,
+          email: null,
+        };
+      }
+
+      const account = await this.stripe.accounts.retrieve(
+        profile.stripeAccountId,
+      );
+
+      return {
+        accountId: account.id,
+        isOnboarded: account.charges_enabled && account.payouts_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        detailsSubmitted: account.details_submitted,
+        currentlyDue: account.requirements?.currently_due || null,
+        email: account.email || null,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get tester connect status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to get account status');
     }
   }
 

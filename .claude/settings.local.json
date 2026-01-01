@@ -8,7 +8,8 @@
       "Bash(chmod:*)",
       "Bash(export PGPASSWORD=\"1234\":*)",
       "Bash(psql:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

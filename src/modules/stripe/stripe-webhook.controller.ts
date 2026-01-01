@@ -544,19 +544,124 @@ export class StripeWebhookController {
       `Account updated: ${account.id}, charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}`,
     );
 
-    // TODO: Mettre à jour le profil du vendeur
-    // - Marquer le compte comme vérifié si charges_enabled && payouts_enabled
+    try {
+      // Trouver le profil associé à ce compte Stripe
+      const profile = await this.prismaService.profile.findFirst({
+        where: { stripeAccountId: account.id },
+      });
+
+      if (!profile) {
+        this.logger.warn(`No profile found for Stripe account ${account.id}`);
+        return;
+      }
+
+      // Mettre à jour le statut du profil selon les capabilities Stripe
+      const isFullyOnboarded = account.charges_enabled && account.payouts_enabled && account.details_submitted;
+
+      await this.prismaService.profile.update({
+        where: { id: profile.id },
+        data: {
+          isVerified: isFullyOnboarded,
+        },
+      });
+
+      this.logger.log(
+        `Profile ${profile.id} updated: isVerified=${isFullyOnboarded} (Stripe account ${account.id})`,
+      );
+
+      // Si c'est un testeur (USER) et que l'onboarding est complet, envoyer une notification
+      if (profile.role === 'USER' && isFullyOnboarded) {
+        await this.notificationsService.send({
+          userId: profile.id,
+          type: NotificationType.SYSTEM_ALERT,
+          channel: NotificationChannel.IN_APP,
+          title: 'Compte Stripe Connect activé',
+          message:
+            'Votre compte Stripe Connect est maintenant actif. Vous recevrez vos paiements automatiquement après validation des tests.',
+          data: {
+            stripeAccountId: account.id,
+            chargesEnabled: account.charges_enabled,
+            payoutsEnabled: account.payouts_enabled,
+          },
+        });
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle account.updated webhook: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 
   /**
-   * Transfert créé
+   * Transfert créé (paiement testeur)
    */
   private async handleTransferCreated(transfer: Stripe.Transfer): Promise<void> {
     this.logger.log(
-      `Transfer created: ${transfer.id}, amount: ${transfer.amount}, destination: ${transfer.destination}`,
+      `Transfer created: ${transfer.id}, amount: ${transfer.amount / 100}€, destination: ${transfer.destination}`,
     );
 
-    // TODO: Enregistrer le transfert dans la base de données
+    try {
+      const metadata = transfer.metadata;
+      const sessionId = metadata?.sessionId;
+
+      if (!sessionId) {
+        this.logger.warn(`Transfer ${transfer.id} has no sessionId in metadata`);
+        return;
+      }
+
+      // Trouver la session associée
+      const session = await this.prismaService.session.findUnique({
+        where: { id: sessionId },
+        include: {
+          campaign: true,
+          tester: true,
+        },
+      });
+
+      if (!session) {
+        this.logger.warn(`No session found for transfer ${transfer.id}`);
+        return;
+      }
+
+      // Vérifier si une transaction existe déjà pour ce transfer
+      const existingTransaction = await this.prismaService.transaction.findFirst({
+        where: {
+          metadata: {
+            path: ['stripeTransferId'],
+            equals: transfer.id,
+          },
+        },
+      });
+
+      if (existingTransaction) {
+        this.logger.log(`Transaction already exists for transfer ${transfer.id}`);
+        return;
+      }
+
+      // Log success
+      this.logger.log(
+        `Transfer ${transfer.id} confirmed for session ${sessionId} - Testeur ${session.tester.email} paid ${transfer.amount / 100}€`,
+      );
+
+      // Envoyer notification au testeur
+      await this.notificationsService.send({
+        userId: session.testerId,
+        type: NotificationType.PAYMENT_RECEIVED,
+        channel: NotificationChannel.IN_APP,
+        title: 'Paiement reçu',
+        message: `Vous avez reçu ${transfer.amount / 100}€ pour le test "${session.campaign.title}"`,
+        data: {
+          sessionId,
+          campaignId: session.campaignId,
+          amount: transfer.amount / 100,
+          stripeTransferId: transfer.id,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle transfer.created webhook: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 
   /**

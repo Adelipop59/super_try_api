@@ -306,6 +306,9 @@ model Campaign {
   // Status
   status CampaignStatus @default(DRAFT)
 
+  // Application acceptance mode
+  autoAcceptApplications Boolean @default(false) @map("auto_accept_applications") // Si true, candidatures éligibles acceptées automatiquement
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -322,6 +325,7 @@ model Campaign {
   @@index([status])
   @@index([startDate])
   @@index([endDate])
+  @@index([autoAcceptApplications])
   @@map("campaigns")
 }
 

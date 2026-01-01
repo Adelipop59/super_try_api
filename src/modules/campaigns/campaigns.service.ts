@@ -573,13 +573,15 @@ export class CampaignsService {
       throw new ForbiddenException('You can only update your own campaigns');
     }
 
-    // Cannot update COMPLETED or CANCELLED campaigns
+    // Cannot update COMPLETED, CANCELLED, ACTIVE or PENDING_PAYMENT campaigns
     if (
       campaign.status === CampaignStatus.COMPLETED ||
-      campaign.status === CampaignStatus.CANCELLED
+      campaign.status === CampaignStatus.CANCELLED ||
+      campaign.status === CampaignStatus.ACTIVE ||
+      campaign.status === CampaignStatus.PENDING_PAYMENT
     ) {
       throw new BadRequestException(
-        `Cannot update ${campaign.status.toLowerCase()} campaign`,
+        `Cannot update ${campaign.status.toLowerCase()} campaign. Only DRAFT campaigns can be modified.`,
       );
     }
 
@@ -846,9 +848,10 @@ export class CampaignsService {
     }
 
     // Only DRAFT campaigns can be deleted
+    // PENDING_PAYMENT, ACTIVE, COMPLETED, CANCELLED cannot be deleted
     if (campaign.status !== CampaignStatus.DRAFT) {
       throw new BadRequestException(
-        `Cannot delete ${campaign.status.toLowerCase()} campaign. Use cancel instead.`,
+        `Cannot delete ${campaign.status.toLowerCase()} campaign. Only DRAFT campaigns can be deleted.`,
       );
     }
 
@@ -1390,5 +1393,92 @@ export class CampaignsService {
     }));
 
     return createPaginatedResponse(blurredData, total, page, limit);
+  }
+
+  /**
+   * Get campaign applications (sessions)
+   */
+  async getCampaignApplications(
+    campaignId: string,
+    userId: string,
+    isAdmin: boolean,
+    status?: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<any> {
+    // Vérifier que la campagne existe
+    const campaign = await this.prismaService.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        sellerId: true,
+        title: true,
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    // Vérifier ownership (sauf admin)
+    if (!isAdmin && campaign.sellerId !== userId) {
+      throw new ForbiddenException('You can only view applications for your own campaigns');
+    }
+
+    // Construire le filtre
+    const where: any = {
+      campaignId,
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    // Pagination
+    const offset = calculateOffset(page, Math.min(limit, 100));
+    const take = Math.min(limit, 100);
+
+    // Récupérer les candidatures
+    const [applications, total] = await Promise.all([
+      this.prismaService.session.findMany({
+        where,
+        select: {
+          id: true,
+          status: true,
+          applicationMessage: true,
+          appliedAt: true,
+          acceptedAt: true,
+          rejectedAt: true,
+          rejectionReason: true,
+          scheduledPurchaseDate: true,
+          purchasedAt: true,
+          submittedAt: true,
+          completedAt: true,
+          cancelledAt: true,
+          cancellationReason: true,
+          rating: true,
+          ratingComment: true,
+          tester: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              averageRating: true,
+              completedSessionsCount: true,
+            },
+          },
+        },
+        orderBy: {
+          appliedAt: 'desc',
+        },
+        skip: offset,
+        take,
+      }),
+      this.prismaService.session.count({ where }),
+    ]);
+
+    return createPaginatedResponse(applications, total, page, take);
   }
 }
