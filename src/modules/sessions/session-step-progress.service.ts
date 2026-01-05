@@ -143,7 +143,11 @@ export class SessionStepProgressService {
       data: {
         isCompleted: true,
         completedAt: new Date(),
-        submissionData: dto.submissionData,
+        submissionData: {
+          response: dto.response,
+          comment: dto.comment,
+          attachments: dto.attachments,
+        },
       },
       include: {
         step: true,

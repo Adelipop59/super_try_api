@@ -62,4 +62,10 @@ export default () => ({
       config: process.env.FIREBASE_CONFIG,
     },
   },
+
+  features: {
+    // Si true: le PRO peut définir isRequired=true/false pour chaque étape
+    // Si false: toutes les étapes sont automatiquement isRequired=true
+    allowOptionalSteps: process.env.ALLOW_OPTIONAL_STEPS === 'true',
+  },
 });

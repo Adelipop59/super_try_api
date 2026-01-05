@@ -34,6 +34,15 @@ import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
 import { SessionResponseDto } from './dto/session-response.dto';
+import { ValidatePurchaseDto } from './dto/validate-purchase.dto';
+import { RejectPurchaseDto } from './dto/reject-purchase.dto';
+import { ValidateAndRequestUGCDto } from './dto/ugc-request.dto';
+import { SubmitUGCDto } from './dto/submit-ugc.dto';
+import { DeclineUGCDto } from './dto/decline-ugc.dto';
+import { ValidateUGCDto } from './dto/validate-ugc.dto';
+import { RejectUGCDto } from './dto/reject-ugc.dto';
+import { CloseSessionDto } from './dto/close-session.dto';
+import { CompleteStepDto } from './dto/complete-step.dto';
 
 @ApiTags('sessions')
 @Controller('sessions')
@@ -412,7 +421,65 @@ export class SessionsController {
   }
 
   /**
-   * 9. Lister les sessions avec filtres
+   * 9. Compléter une étape de test (USER uniquement)
+   * IMPORTANT: Cette route doit être AVANT @Get(':id') pour être matchée correctement
+   */
+  @Post(':id/steps/:stepId/complete')
+  @Roles('USER')
+  @RequireKyc()
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Compléter une étape de test (USER)',
+    description:
+      'Permet au testeur de compléter une étape spécifique du test. La progression est sauvegardée automatiquement. Quand toutes les étapes obligatoires sont complétées, la session passe automatiquement à PROCEDURES_COMPLETED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiParam({ name: 'stepId', description: 'ID de l\'étape à compléter' })
+  @ApiResponse({
+    status: 201,
+    description: 'Étape complétée avec succès',
+    schema: {
+      type: 'object',
+      properties: {
+        stepProgress: {
+          type: 'object',
+          description: 'Enregistrement de progression de l\'étape',
+        },
+        allRequiredStepsCompleted: {
+          type: 'boolean',
+          description: 'Toutes les étapes obligatoires sont-elles complétées?',
+        },
+        sessionStatus: {
+          type: 'string',
+          description: 'Nouveau statut de la session',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Statut invalide, étape non trouvée ou réponse invalide pour le type d\'étape',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'KYC non vérifié ou pas le testeur' })
+  @ApiResponse({ status: 404, description: 'Session ou étape non trouvée' })
+  async completeStep(
+    @Param('id') sessionId: string,
+    @Param('stepId') stepId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CompleteStepDto,
+  ): Promise<any> {
+    return this.sessionsService.completeStep(
+      sessionId,
+      stepId,
+      user.id,
+      dto,
+    );
+  }
+
+  /**
+   * 10. Lister les sessions avec filtres
    */
   @Get()
   @ApiBearerAuth('supabase-auth')
@@ -461,7 +528,248 @@ export class SessionsController {
   }
 
   /**
-   * 11. Supprimer une session (ADMIN uniquement)
+   * 12. Valider l'achat (PRO uniquement)
+   */
+  @Patch(':id/validate-purchase')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Valider l\'achat soumis par le testeur (PRO)',
+    description:
+      'Permet au vendeur de valider l\'achat après soumission du numéro de commande. Passe la session de PURCHASE_SUBMITTED à PURCHASE_VALIDATED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Achat validé avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Statut invalide ou numéro de commande manquant',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async validatePurchase(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ValidatePurchaseDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.validatePurchase(id, user.id, dto);
+  }
+
+  /**
+   * 13. Rejeter l'achat (PRO uniquement)
+   */
+  @Patch(':id/reject-purchase')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Rejeter l\'achat soumis par le testeur (PRO)',
+    description:
+      'Permet au vendeur de rejeter l\'achat avec une raison obligatoire. Le testeur devra corriger et resoumettre.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Achat rejeté avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async rejectPurchase(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RejectPurchaseDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.rejectPurchase(id, user.id, dto);
+  }
+
+  /**
+   * 14. Valider le test et demander des UGC (PRO uniquement)
+   */
+  @Patch(':id/validate-and-request-ugc')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Valider le test et demander des UGC supplémentaires (PRO)',
+    description:
+      'Permet au vendeur de valider le test soumis, noter le testeur et demander des contenus UGC (vidéos, photos, avis) avec des bonus. Passe de SUBMITTED à UGC_REQUESTED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Test validé et UGC demandés avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Statut invalide, note incorrecte ou aucune demande UGC',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async validateAndRequestUGC(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ValidateAndRequestUGCDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.validateAndRequestUGC(id, user.id, dto);
+  }
+
+  /**
+   * 15. Soumettre les UGC (USER uniquement)
+   */
+  @Patch(':id/submit-ugc')
+  @Roles('USER')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Soumettre les contenus UGC demandés (USER)',
+    description:
+      'Permet au testeur de soumettre les contenus UGC demandés par le vendeur (vidéos, photos, avis). Passe de UGC_REQUESTED à UGC_SUBMITTED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'UGC soumis avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Statut invalide ou aucune soumission',
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas le testeur' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async submitUGC(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitUGCDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.submitUGC(id, user.id, dto);
+  }
+
+  /**
+   * 16. Refuser de soumettre les UGC (USER uniquement)
+   */
+  @Patch(':id/decline-ugc')
+  @Roles('USER')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Refuser de soumettre les UGC (USER)',
+    description:
+      'Permet au testeur de refuser de soumettre les UGC avec une raison obligatoire. Passe de UGC_REQUESTED à PENDING_CLOSURE sans bonus.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Refus enregistré avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas le testeur' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async declineUGC(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DeclineUGCDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.declineUGC(id, user.id, dto);
+  }
+
+  /**
+   * 17. Valider les UGC soumis (PRO uniquement)
+   */
+  @Patch(':id/validate-ugc')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Valider les UGC soumis par le testeur (PRO)',
+    description:
+      'Permet au vendeur de valider les UGC soumis. Passe de UGC_SUBMITTED à PENDING_CLOSURE.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'UGC validés avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async validateUGC(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ValidateUGCDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.validateUGC(id, user.id, dto);
+  }
+
+  /**
+   * 18. Rejeter les UGC soumis (PRO uniquement)
+   */
+  @Patch(':id/reject-ugc')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Rejeter les UGC soumis par le testeur (PRO)',
+    description:
+      'Permet au vendeur de rejeter les UGC avec une raison obligatoire. Repasse de UGC_SUBMITTED à UGC_REQUESTED pour correction.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'UGC rejetés avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async rejectUGC(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RejectUGCDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.rejectUGC(id, user.id, dto);
+  }
+
+  /**
+   * 19. Clôturer la session (PRO uniquement)
+   */
+  @Patch(':id/close')
+  @Roles('PRO', 'ADMIN')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Clôturer la session (PRO)',
+    description:
+      'Permet au vendeur de clôturer définitivement la session. Si des UGC ont été validés, crédite le bonus au testeur. Passe de PENDING_CLOSURE à COMPLETED.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Session clôturée avec succès',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - pas propriétaire' })
+  @ApiResponse({ status: 404, description: 'Session non trouvée' })
+  async closeSession(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CloseSessionDto,
+  ): Promise<SessionResponseDto> {
+    return this.sessionsService.closeSession(id, user.id, dto);
+  }
+
+  /**
+   * 20. Supprimer une session (ADMIN uniquement)
    */
   @Delete(':id')
   @Roles('ADMIN')

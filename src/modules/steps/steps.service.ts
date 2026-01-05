@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { CreateStepDto } from './dto/create-step.dto';
@@ -16,6 +17,7 @@ export class StepsService {
   constructor(
     private prismaService: PrismaService,
     private logsService: LogsService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -53,10 +55,20 @@ export class StepsService {
       );
     }
 
+    // Gérer isRequired selon la configuration
+    const allowOptionalSteps = this.configService.get<boolean>(
+      'features.allowOptionalSteps',
+      false,
+    );
+    const isRequired = allowOptionalSteps
+      ? createStepDto.isRequired ?? true // Si autorisé, utiliser la valeur du DTO (défaut true)
+      : true; // Sinon, forcer à true
+
     const step = await this.prismaService.step.create({
       data: {
         ...createStepDto,
         procedureId,
+        isRequired, // Utiliser la valeur calculée
         checklistItems: createStepDto.checklistItems || undefined,
       },
     });
@@ -137,15 +149,27 @@ export class StepsService {
       );
     }
 
+    // Gérer isRequired selon la configuration
+    const allowOptionalSteps = this.configService.get<boolean>(
+      'features.allowOptionalSteps',
+      false,
+    );
+    const dataToUpdate: any = {
+      ...updateStepDto,
+      checklistItems:
+        updateStepDto.checklistItems !== undefined
+          ? updateStepDto.checklistItems
+          : undefined,
+    };
+
+    // Si allowOptionalSteps est false, forcer isRequired à true
+    if (!allowOptionalSteps) {
+      dataToUpdate.isRequired = true;
+    }
+
     const updated = await this.prismaService.step.update({
       where: { id },
-      data: {
-        ...updateStepDto,
-        checklistItems:
-          updateStepDto.checklistItems !== undefined
-            ? updateStepDto.checklistItems
-            : undefined,
-      },
+      data: dataToUpdate,
     });
 
     await this.logsService.logSuccess(

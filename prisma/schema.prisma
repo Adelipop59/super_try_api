@@ -89,11 +89,21 @@ enum NotificationChannel {
 
 // Enum for testing session status
 enum SessionStatus {
-  PENDING // En attente d'acceptation par le vendeur
-  ACCEPTED // Acceptée par le vendeur
-  IN_PROGRESS // Test en cours (produit acheté)
-  SUBMITTED // Test soumis, en attente de validation
-  COMPLETED // Test validé et payé
+  // Flow principal
+  PENDING // 1. En attente d'acceptation par le vendeur
+  ACCEPTED // 2. Acceptée par le vendeur, testeur peut valider le prix
+  PRICE_VALIDATED // 3. Prix validé par le testeur, peut commander
+  PURCHASE_SUBMITTED // 4. Commande passée, numéro soumis, attente validation PRO
+  PURCHASE_VALIDATED // 5. Commande validée par PRO, peut commencer procédures
+  IN_PROGRESS // 6. Test en cours (procédures en cours)
+  PROCEDURES_COMPLETED // 7. Toutes procédures complétées, peut soumettre
+  SUBMITTED // 8. Test soumis, en attente validation PRO
+  UGC_REQUESTED // 9. PRO demande des UGC supplémentaires
+  UGC_SUBMITTED // 10. UGC soumis par testeur
+  PENDING_CLOSURE // 11. En attente de clôture finale par PRO
+  COMPLETED // 12. Session terminée et payée
+
+  // Statuts d'exception
   REJECTED // Refusée par le vendeur
   CANCELLED // Annulée par le testeur
   DISPUTED // En litige (besoin intervention admin)
@@ -755,6 +765,30 @@ model Session {
   ratingComment String?   @map("rating_comment") @db.Text
   ratedAt       DateTime? @map("rated_at")
 
+  // Purchase validation (PRO validates order after submission)
+  purchaseValidatedAt        DateTime? @map("purchase_validated_at") // Date validation achat par PRO
+  purchaseValidationComment  String?   @map("purchase_validation_comment") @db.Text // Commentaire validation
+  purchaseRejectionReason    String?   @map("purchase_rejection_reason") @db.Text // Raison rejet achat
+  purchaseRejectedAt         DateTime? @map("purchase_rejected_at") // Date rejet achat
+
+  // UGC (User Generated Content) workflow
+  ugcRequests            Json?     @map("ugc_requests") // JSON: demandes UGC du PRO [{type, description, bonus, deadline}]
+  ugcRequestedAt         DateTime? @map("ugc_requested_at") // Date demande UGC par PRO
+  potentialUGCBonus      Decimal?  @default(0) @map("potential_ugc_bonus") @db.Decimal(10, 2) // Bonus total potentiel
+  ugcSubmissions         Json?     @map("ugc_submissions") // JSON: soumissions UGC du testeur [{type, contentUrl, comment}]
+  ugcSubmittedAt         DateTime? @map("ugc_submitted_at") // Date soumission UGC
+  ugcSubmissionMessage   String?   @map("ugc_submission_message") @db.Text // Message testeur
+  ugcValidated           Boolean   @default(false) @map("ugc_validated") // UGC validés par PRO
+  ugcValidationComment   String?   @map("ugc_validation_comment") @db.Text // Commentaire validation UGC
+  ugcValidatedAt         DateTime? @map("ugc_validated_at") // Date validation UGC
+  ugcRejectionReason     String?   @map("ugc_rejection_reason") @db.Text // Raison rejet UGC
+  ugcRejectedAt          DateTime? @map("ugc_rejected_at") // Date rejet UGC
+  ugcDeclined            Boolean   @default(false) @map("ugc_declined") // Testeur refuse de soumettre UGC
+  ugcDeclineReason       String?   @map("ugc_decline_reason") @db.Text // Raison refus UGC
+  ugcDeclinedAt          DateTime? @map("ugc_declined_at") // Date refus UGC
+  finalUGCBonus          Decimal?  @default(0) @map("final_ugc_bonus") @db.Decimal(10, 2) // Bonus UGC final crédité
+  closingMessage         String?   @map("closing_message") @db.Text // Message de clôture PRO
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -772,6 +806,10 @@ model Session {
   @@index([appliedAt])
   @@index([createdAt])
   @@index([isConversationLocked])
+  @@index([ugcRequestedAt])
+  @@index([ugcSubmittedAt])
+  @@index([ugcValidated])
+  @@index([purchaseValidatedAt])
   @@map("sessions")
 }
 
@@ -971,6 +1009,7 @@ enum TransactionType {
   CHAT_ORDER_ESCROW // Paiement PRO → Escrow (bloqué en transit)
   CHAT_ORDER_RELEASE // Escrow → Wallet testeur (libéré après validation)
   CHAT_ORDER_REFUND // Escrow → PRO (remboursé en cas de litige)
+  UGC_BONUS // Bonus pour contenu UGC validé
 }
 
 // Enum for transaction status
