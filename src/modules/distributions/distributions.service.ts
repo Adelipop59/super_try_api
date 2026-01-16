@@ -307,8 +307,8 @@ export class DistributionsService {
         const specificDate = new Date(dto.specificDate);
         specificDate.setHours(0, 0, 0, 0);
 
-        // Règle 1: Date pas dans le passé
-        if (specificDate < today) {
+        // Règle 1: Date pas dans le passé (skip en mode test)
+        if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
           throw new BadRequestException(
             `Distribution ${i + 1}: La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
           );
@@ -497,8 +497,8 @@ export class DistributionsService {
         const specificDate = new Date(dto.specificDate);
         specificDate.setHours(0, 0, 0, 0);
 
-        // Règle 1: Date pas dans le passé
-        if (specificDate < today) {
+        // Règle 1: Date pas dans le passé (skip en mode test)
+        if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
           errors.push({
             index: i,
             field: 'specificDate',
@@ -596,8 +596,8 @@ export class DistributionsService {
       const specificDate = new Date(dto.specificDate);
       specificDate.setHours(0, 0, 0, 0);
 
-      // Règle 1: Date pas dans le passé
-      if (specificDate < today) {
+      // Règle 1: Date pas dans le passé (skip en mode test)
+      if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
         throw new BadRequestException(
           `La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
         );

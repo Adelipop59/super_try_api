@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
@@ -23,12 +24,16 @@ import { DisputeOrderDto } from './dto/dispute-order.dto';
 import { ResolveOrderDisputeDto } from './dto/resolve-order-dispute.dto';
 import { MessagesGateway } from '../messages/messages.gateway';
 import { NotificationEventsHelper } from '../notifications/helpers/notification-events.helper';
+import { StripeService } from '../stripe/stripe.service';
 
 @Injectable()
 export class ChatOrdersService {
+  private readonly logger = new Logger(ChatOrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly logsService: LogsService,
+    private readonly stripeService: StripeService,
     @Inject(forwardRef(() => MessagesGateway))
     private readonly messagesGateway?: MessagesGateway,
     @Inject(forwardRef(() => NotificationEventsHelper))
@@ -42,7 +47,21 @@ export class ChatOrdersService {
   ): Promise<ChatOrder> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
-      include: { campaign: true, tester: true },
+      include: {
+        campaign: {
+          include: {
+            seller: {
+              select: {
+                id: true,
+                stripeCustomerId: true,
+                firstName: true,
+                email: true,
+              }
+            }
+          }
+        },
+        tester: true
+      },
     });
 
     if (!session) {
@@ -53,93 +72,59 @@ export class ChatOrdersService {
       throw new ForbiddenException('Only seller can create orders');
     }
 
-    const order = await this.prisma.$transaction(async (tx) => {
-      const newOrder = await tx.chatOrder.create({
-        data: {
-          sessionId,
-          buyerId,
-          sellerId: session.testerId,
-          type: dto.type,
-          amount: dto.amount,
-          description: dto.description,
-          deliveryDeadline: dto.deliveryDeadline
-            ? new Date(dto.deliveryDeadline)
-            : null,
-          metadata: dto.metadata as any,
-        },
-      });
+    // Validation: prix minimum 10€
+    if (dto.amount < 10) {
+      throw new BadRequestException('Le prix minimum pour une commande UGC est de 10€');
+    }
 
-      if (dto.type !== ChatOrderType.TIP) {
-        const escrowTransaction = await tx.transaction.create({
-          data: {
-            type: TransactionType.CHAT_ORDER_ESCROW,
-            status: TransactionStatus.ESCROW,
-            amount: dto.amount,
-            reason: `Escrow for ${dto.type}: ${dto.description.substring(0, 50)}`,
-            sessionId,
-            chatOrderId: newOrder.id,
-          },
-        });
+    // Vérifier que le PRO a un Stripe Customer ID
+    if (!session.campaign.seller.stripeCustomerId) {
+      throw new BadRequestException(
+        'Vous devez configurer votre méthode de paiement avant de créer une commande',
+      );
+    }
 
-        await tx.chatOrder.update({
-          where: { id: newOrder.id },
-          data: { escrowTransactionId: escrowTransaction.id },
-        });
-
-        const sellerWallet = await tx.wallet.findUnique({
-          where: { userId: session.testerId },
-        });
-
-        if (sellerWallet) {
-          await tx.wallet.update({
-            where: { userId: session.testerId },
-            data: {
-              pendingBalance: {
-                increment: dto.amount,
-              },
-            },
-          });
-        }
-      } else {
-        const testerWallet = await tx.wallet.upsert({
-          where: { userId: session.testerId },
-          create: {
-            userId: session.testerId,
-            balance: dto.amount,
-            totalEarned: dto.amount,
-            lastCreditedAt: new Date(),
-          },
-          update: {
-            balance: { increment: dto.amount },
-            totalEarned: { increment: dto.amount },
-            lastCreditedAt: new Date(),
-          },
-        });
-
-        const releaseTransaction = await tx.transaction.create({
-          data: {
-            walletId: testerWallet.id,
-            type: TransactionType.CHAT_ORDER_RELEASE,
-            status: TransactionStatus.COMPLETED,
-            amount: dto.amount,
-            reason: `Tip from seller: ${dto.description.substring(0, 50)}`,
-            sessionId,
-            chatOrderId: newOrder.id,
-          },
-        });
-
-        await tx.chatOrder.update({
-          where: { id: newOrder.id },
-          data: {
-            status: ChatOrderStatus.COMPLETED,
-            validatedAt: new Date(),
-            releaseTransactionId: releaseTransaction.id,
-          },
-        });
-      }
-
-      return newOrder;
+    // Créer d'abord l'order sans Payment Intent
+    const tempOrder = await this.prisma.chatOrder.create({
+      data: {
+        sessionId,
+        buyerId,
+        sellerId: session.testerId,
+        type: dto.type,
+        amount: dto.amount,
+        description: dto.description,
+        deliveryDeadline: dto.deliveryDeadline
+          ? new Date(dto.deliveryDeadline)
+          : null,
+        metadata: dto.metadata as any,
+      },
     });
+
+    let order: ChatOrder;
+    try {
+      // Créer Payment Intent Stripe (argent bloqué sur carte bleue)
+      const paymentIntent = await this.stripeService.createChatOrderPaymentIntent(
+        Number(dto.amount),
+        session.campaign.seller.stripeCustomerId,
+        {
+          orderId: tempOrder.id,
+          sessionId,
+          description: dto.description,
+        },
+      );
+
+      // Mettre à jour avec le Payment Intent ID
+      order = await this.prisma.chatOrder.update({
+        where: { id: tempOrder.id },
+        data: {
+          stripePaymentIntentId: paymentIntent.id,
+        } as any, // TODO: Régénérer Prisma client après migration
+      });
+    } catch (error) {
+      // Si erreur Stripe, supprimer l'order créé
+      await this.prisma.chatOrder.delete({ where: { id: tempOrder.id } });
+      throw error;
+    }
 
     await this.logsService.logInfo(
       'CAMPAIGN' as any,
@@ -165,7 +150,7 @@ export class ChatOrdersService {
       );
     }
 
-    if (this.notificationEventsHelper && dto.type !== ChatOrderType.TIP) {
+    if (this.notificationEventsHelper) {
       await this.notificationEventsHelper.chatOrderCreated({
         testerId: session.testerId,
         testerName:
@@ -236,6 +221,10 @@ export class ChatOrdersService {
     return updated;
   }
 
+  /**
+   * Testeur refuse la demande UGC
+   * → Annule le Payment Intent Stripe (argent débloqué sur carte PRO)
+   */
   async rejectOrder(
     orderId: string,
     userId: string,
@@ -243,7 +232,6 @@ export class ChatOrdersService {
   ): Promise<ChatOrder> {
     const order = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
-      include: { escrowTransaction: true },
     });
 
     if (!order) {
@@ -258,40 +246,27 @@ export class ChatOrdersService {
       throw new BadRequestException('Order not pending');
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const rejected = await tx.chatOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ChatOrderStatus.REJECTED,
-          rejectedAt: new Date(),
-          rejectionReason: dto.reason,
-        },
-      });
-
-      if (order.escrowTransactionId) {
-        await tx.transaction.update({
-          where: { id: order.escrowTransactionId },
-          data: { status: TransactionStatus.REFUNDED },
-        });
-
-        await tx.wallet.update({
-          where: { userId: order.sellerId },
-          data: { pendingBalance: { decrement: order.amount } },
-        });
-
-        await tx.transaction.create({
-          data: {
-            type: TransactionType.CHAT_ORDER_REFUND,
-            status: TransactionStatus.COMPLETED,
-            amount: order.amount,
-            reason: `Refund: Order rejected - ${dto.reason}`,
-            sessionId: order.sessionId,
-            chatOrderId: order.id,
-          },
-        });
+    // Annuler le Payment Intent Stripe
+    const orderAny = order as any;
+    if (orderAny.stripePaymentIntentId) {
+      try {
+        await this.stripeService.cancelChatOrderPaymentIntent(
+          orderAny.stripePaymentIntentId,
+        );
+        this.logger.log(`Payment Intent cancelled for order ${orderId}`);
+      } catch (error) {
+        this.logger.error(`Failed to cancel Payment Intent: ${error.message}`);
+        // Continue quand même, l'order sera rejeté
       }
+    }
 
-      return rejected;
+    const updated = await this.prisma.chatOrder.update({
+      where: { id: orderId },
+      data: {
+        status: ChatOrderStatus.REJECTED,
+        rejectedAt: new Date(),
+        rejectionReason: dto.reason,
+      } as any,
     });
 
     await this.logsService.logInfo(
@@ -322,6 +297,10 @@ export class ChatOrdersService {
     return updated;
   }
 
+  /**
+   * PRO annule sa demande UGC (avant que le testeur accepte)
+   * → Annule le Payment Intent Stripe
+   */
   async cancelOrder(orderId: string, userId: string): Promise<ChatOrder> {
     const order = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
@@ -339,39 +318,26 @@ export class ChatOrdersService {
       throw new BadRequestException('Can only cancel pending orders');
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const cancelled = await tx.chatOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ChatOrderStatus.CANCELLED,
-          cancelledAt: new Date(),
-        },
-      });
-
-      if (order.escrowTransactionId) {
-        await tx.transaction.update({
-          where: { id: order.escrowTransactionId },
-          data: { status: TransactionStatus.REFUNDED },
-        });
-
-        await tx.wallet.update({
-          where: { userId: order.sellerId },
-          data: { pendingBalance: { decrement: order.amount } },
-        });
-
-        await tx.transaction.create({
-          data: {
-            type: TransactionType.CHAT_ORDER_REFUND,
-            status: TransactionStatus.COMPLETED,
-            amount: order.amount,
-            reason: 'Refund: Order cancelled by buyer',
-            sessionId: order.sessionId,
-            chatOrderId: order.id,
-          },
-        });
+    // Annuler le Payment Intent Stripe
+    const orderAny = order as any;
+    if (orderAny.stripePaymentIntentId) {
+      try {
+        await this.stripeService.cancelChatOrderPaymentIntent(
+          orderAny.stripePaymentIntentId,
+        );
+        this.logger.log(`Payment Intent cancelled for order ${orderId}`);
+      } catch (error) {
+        this.logger.error(`Failed to cancel Payment Intent: ${error.message}`);
+        // Continue quand même
       }
+    }
 
-      return cancelled;
+    const updated = await this.prisma.chatOrder.update({
+      where: { id: orderId },
+      data: {
+        status: ChatOrderStatus.CANCELLED,
+        cancelledAt: new Date(),
+      } as any,
     });
 
     await this.logsService.logInfo(
@@ -467,10 +433,24 @@ export class ChatOrdersService {
     return updated;
   }
 
+  /**
+   * PRO valide la livraison UGC
+   * → Capture Payment Intent (prélèvement sur carte bleue)
+   * → Transfer au testeur (avec déduction fees)
+   */
   async validateDelivery(orderId: string, userId: string): Promise<ChatOrder> {
     const order = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
-      include: { escrowTransaction: true },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            stripeAccountId: true,
+            firstName: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!order) {
@@ -485,54 +465,64 @@ export class ChatOrdersService {
       throw new BadRequestException('Order not delivered yet');
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const testerWallet = await tx.wallet.upsert({
-        where: { userId: order.sellerId },
-        create: {
-          userId: order.sellerId,
-          balance: order.amount,
-          pendingBalance: 0,
-          totalEarned: order.amount,
-          lastCreditedAt: new Date(),
-        },
-        update: {
-          balance: { increment: order.amount },
-          pendingBalance: { decrement: order.amount },
-          totalEarned: { increment: order.amount },
-          lastCreditedAt: new Date(),
-        },
-      });
+    const orderAny = order as any;
+    if (!orderAny.stripePaymentIntentId) {
+      throw new BadRequestException('No Payment Intent found for this order');
+    }
 
-      const releaseTransaction = await tx.transaction.create({
-        data: {
-          walletId: testerWallet.id,
-          type: TransactionType.CHAT_ORDER_RELEASE,
-          status: TransactionStatus.COMPLETED,
-          amount: order.amount,
-          reason: `Payment released: ${order.description.substring(0, 50)}`,
-          sessionId: order.sessionId,
-          chatOrderId: order.id,
+    if (!order.seller.stripeAccountId) {
+      throw new BadRequestException(
+        'Le testeur doit avoir un compte Stripe Connect configuré',
+      );
+    }
+
+    // 1. Capturer le Payment Intent (prélever l'argent sur carte bleue du PRO)
+    const paymentIntent = await this.stripeService.captureChatOrderPaymentIntent(
+      orderAny.stripePaymentIntentId,
+    );
+
+    // 2. Calculer les fees
+    const commissionCalc = this.stripeService.calculateUGCCommission(Number(order.amount));
+    const amountAfterCommission = commissionCalc.amountAfterCommission / 100;
+
+    // 3. Créer Transfer vers testeur (depuis compte plateforme vers Stripe Connect testeur)
+    const transfer = await this.stripeService.createChatOrderTransferToTester(
+      order.seller.stripeAccountId,
+      commissionCalc.amountAfterCommission, // Montant en centimes après déduction fees
+      order.id,
+      order.description,
+    );
+
+    // 4. Créer Transaction record
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        type: TransactionType.CHAT_ORDER_RELEASE,
+        status: TransactionStatus.COMPLETED,
+        amount: amountAfterCommission,
+        reason: `Payment released: ${order.description.substring(0, 50)}`,
+        sessionId: order.sessionId,
+        chatOrderId: order.id,
+        stripePaymentIntentId: paymentIntent.id,
+        metadata: {
+          transferId: transfer.id,
+          commission: commissionCalc.commission / 100,
+          originalAmount: commissionCalc.originalAmount / 100,
         },
-      });
+      },
+    });
 
-      if (order.escrowTransactionId) {
-        await tx.transaction.update({
-          where: { id: order.escrowTransactionId },
-          data: { status: TransactionStatus.COMPLETED },
-        });
-      }
-
-      const validated = await tx.chatOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ChatOrderStatus.COMPLETED,
-          validatedAt: new Date(),
-          validatedBy: userId,
-          releaseTransactionId: releaseTransaction.id,
-        },
-      });
-
-      return validated;
+    // 5. Mettre à jour l'order
+    const updated = await this.prisma.chatOrder.update({
+      where: { id: orderId },
+      data: {
+        status: ChatOrderStatus.COMPLETED,
+        validatedAt: new Date(),
+        validatedBy: userId,
+        stripeTransferId: transfer.id,
+        paidAt: new Date(),
+        paidAmount: amountAfterCommission,
+        transactionId: transaction.id,
+      } as any,
     });
 
     await this.logsService.logSuccess(
@@ -654,6 +644,11 @@ export class ChatOrdersService {
     return updated;
   }
 
+  /**
+   * Admin résout un litige
+   * - REFUND_BUYER : Annule Payment Intent → Argent retourné au PRO
+   * - RELEASE_SELLER : Capture Payment Intent + Transfer au testeur
+   */
   async resolveDispute(
     orderId: string,
     adminId: string,
@@ -661,7 +656,14 @@ export class ChatOrdersService {
   ): Promise<ChatOrder> {
     const order = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
-      include: { escrowTransaction: true },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            stripeAccountId: true,
+          },
+        },
+      },
     });
 
     if (!order) {
@@ -672,89 +674,89 @@ export class ChatOrdersService {
       throw new BadRequestException('Order not disputed');
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      if (dto.resolution === 'REFUND_BUYER') {
-        if (order.escrowTransactionId) {
-          await tx.transaction.update({
-            where: { id: order.escrowTransactionId },
-            data: { status: TransactionStatus.REFUNDED },
-          });
+    const orderAny = order as any;
+    let updated: ChatOrder;
 
-          await tx.wallet.update({
-            where: { userId: order.sellerId },
-            data: { pendingBalance: { decrement: order.amount } },
-          });
-
-          await tx.transaction.create({
-            data: {
-              type: TransactionType.CHAT_ORDER_REFUND,
-              status: TransactionStatus.COMPLETED,
-              amount: order.amount,
-              reason: `Dispute resolved: Refund to buyer - ${dto.adminNotes}`,
-              sessionId: order.sessionId,
-              chatOrderId: order.id,
-            },
-          });
+    if (dto.resolution === 'REFUND_BUYER') {
+      // Annuler le Payment Intent → Remboursement PRO
+      if (orderAny.stripePaymentIntentId) {
+        try {
+          await this.stripeService.cancelChatOrderPaymentIntent(
+            orderAny.stripePaymentIntentId,
+          );
+          this.logger.log(`Payment Intent cancelled (dispute resolved): ${orderId}`);
+        } catch (error) {
+          this.logger.error(`Failed to cancel Payment Intent: ${error.message}`);
         }
-
-        return tx.chatOrder.update({
-          where: { id: orderId },
-          data: {
-            status: ChatOrderStatus.REFUNDED,
-            disputeResolvedAt: new Date(),
-            disputeResolution: dto.adminNotes,
-            disputeResolvedBy: adminId,
-          },
-        });
-      } else {
-        const testerWallet = await tx.wallet.upsert({
-          where: { userId: order.sellerId },
-          create: {
-            userId: order.sellerId,
-            balance: order.amount,
-            pendingBalance: 0,
-            totalEarned: order.amount,
-            lastCreditedAt: new Date(),
-          },
-          update: {
-            balance: { increment: order.amount },
-            pendingBalance: { decrement: order.amount },
-            totalEarned: { increment: order.amount },
-            lastCreditedAt: new Date(),
-          },
-        });
-
-        const releaseTransaction = await tx.transaction.create({
-          data: {
-            walletId: testerWallet.id,
-            type: TransactionType.CHAT_ORDER_RELEASE,
-            status: TransactionStatus.COMPLETED,
-            amount: order.amount,
-            reason: `Dispute resolved: Payment to seller - ${dto.adminNotes}`,
-            sessionId: order.sessionId,
-            chatOrderId: order.id,
-          },
-        });
-
-        if (order.escrowTransactionId) {
-          await tx.transaction.update({
-            where: { id: order.escrowTransactionId },
-            data: { status: TransactionStatus.COMPLETED },
-          });
-        }
-
-        return tx.chatOrder.update({
-          where: { id: orderId },
-          data: {
-            status: ChatOrderStatus.COMPLETED,
-            disputeResolvedAt: new Date(),
-            disputeResolution: dto.adminNotes,
-            disputeResolvedBy: adminId,
-            releaseTransactionId: releaseTransaction.id,
-          },
-        });
       }
-    });
+
+      updated = await this.prisma.chatOrder.update({
+        where: { id: orderId },
+        data: {
+          status: ChatOrderStatus.REFUNDED,
+          disputeResolvedAt: new Date(),
+          disputeResolution: dto.adminNotes,
+          disputeResolvedBy: adminId,
+        } as any,
+      });
+    } else {
+      // RELEASE_SELLER : Payer le testeur
+      if (!orderAny.stripePaymentIntentId) {
+        throw new BadRequestException('No Payment Intent found');
+      }
+
+      if (!order.seller.stripeAccountId) {
+        throw new BadRequestException('Testeur sans compte Stripe Connect');
+      }
+
+      // Capturer Payment Intent
+      const paymentIntent = await this.stripeService.captureChatOrderPaymentIntent(
+        orderAny.stripePaymentIntentId,
+      );
+
+      // Calculer fees
+      const commissionCalc = this.stripeService.calculateUGCCommission(Number(order.amount));
+      const amountAfterCommission = commissionCalc.amountAfterCommission / 100;
+
+      // Transfer au testeur (depuis compte plateforme vers Stripe Connect testeur)
+      const transfer = await this.stripeService.createChatOrderTransferToTester(
+        order.seller.stripeAccountId,
+        commissionCalc.amountAfterCommission, // Montant en centimes après déduction fees
+        order.id,
+        order.description,
+      );
+
+      // Créer transaction
+      const transaction = await this.prisma.transaction.create({
+        data: {
+          type: TransactionType.CHAT_ORDER_RELEASE,
+          status: TransactionStatus.COMPLETED,
+          amount: amountAfterCommission,
+          reason: `Dispute resolved: Payment to seller - ${dto.adminNotes}`,
+          sessionId: order.sessionId,
+          chatOrderId: order.id,
+          stripePaymentIntentId: paymentIntent.id,
+          metadata: {
+            transferId: transfer.id,
+            commission: commissionCalc.commission / 100,
+          },
+        },
+      });
+
+      updated = await this.prisma.chatOrder.update({
+        where: { id: orderId },
+        data: {
+          status: ChatOrderStatus.COMPLETED,
+          disputeResolvedAt: new Date(),
+          disputeResolution: dto.adminNotes,
+          disputeResolvedBy: adminId,
+          stripeTransferId: transfer.id,
+          paidAt: new Date(),
+          paidAmount: amountAfterCommission,
+          transactionId: transaction.id,
+        } as any,
+      });
+    }
 
     await this.logsService.logSuccess(
       'ADMIN' as any,
@@ -867,8 +869,7 @@ export class ChatOrdersService {
             campaign: true,
           },
         },
-        escrowTransaction: true,
-        releaseTransaction: true,
+        // Les transactions sont accessibles via la relation transactions (pluriel)
       },
     });
 
@@ -921,5 +922,95 @@ export class ChatOrdersService {
         await this.notificationEventsHelper.chatOrderDisputeResolved(notification.params);
       }
     }
+  }
+
+  /**
+   * Annuler les orders UGC dont la deadline est dépassée
+   * Appelé par CRON job toutes les 10 minutes
+   * @returns Nombre d'orders annulées
+   */
+  async cancelExpiredOrders(): Promise<number> {
+    const now = new Date();
+
+    // Trouver tous les orders ACCEPTED avec deadline dépassée
+    const expiredOrders = await this.prisma.chatOrder.findMany({
+      where: {
+        status: ChatOrderStatus.ACCEPTED,
+        deliveryDeadline: {
+          lt: now, // deadline < maintenant
+        },
+      },
+    });
+
+    if (expiredOrders.length === 0) {
+      return 0;
+    }
+
+    this.logger.log(`Found ${expiredOrders.length} expired chat orders`);
+
+    let cancelledCount = 0;
+
+    // Annuler chaque order
+    for (const order of expiredOrders) {
+      try {
+        const orderAny = order as any;
+
+        // Annuler le Payment Intent Stripe
+        if (orderAny.stripePaymentIntentId) {
+          try {
+            await this.stripeService.cancelChatOrderPaymentIntent(
+              orderAny.stripePaymentIntentId,
+            );
+            this.logger.log(
+              `Payment Intent cancelled (expired): ${order.id} - ${orderAny.stripePaymentIntentId}`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to cancel Payment Intent for order ${order.id}: ${error.message}`,
+            );
+            // Continue quand même pour mettre à jour le statut
+          }
+        }
+
+        // Mettre à jour le statut
+        await this.prisma.chatOrder.update({
+          where: { id: order.id },
+          data: {
+            status: ChatOrderStatus.CANCELLED,
+            cancelledAt: now,
+          } as any,
+        });
+
+        // Émettre événement WebSocket
+        const orderWithRelations = await this.prisma.chatOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            buyer: { select: { id: true, firstName: true, email: true } },
+            seller: { select: { id: true, firstName: true, email: true } },
+            session: { include: { campaign: { select: { title: true } } } },
+          },
+        });
+
+        if (this.messagesGateway && orderWithRelations) {
+          this.messagesGateway.emitChatOrderEvent(
+            order.sessionId,
+            'chat-order:expired',
+            orderWithRelations,
+          );
+        }
+
+        // TODO: Notifier le PRO que sa demande a expiré
+
+        cancelledCount++;
+      } catch (error) {
+        this.logger.error(
+          `Failed to cancel expired order ${order.id}: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(`Successfully cancelled ${cancelledCount}/${expiredOrders.length} expired orders`);
+
+    return cancelledCount;
   }
 }

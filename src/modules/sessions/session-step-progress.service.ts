@@ -6,13 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CompleteStepDto } from './dto/complete-step.dto';
-import { ValidatePriceStepDto } from './dto/validate-price-step.dto';
 import {
   SessionStepProgressResponseDto,
   StepInfoDto,
 } from './dto/session-step-progress-response.dto';
-import { PriceRangeResponseDto } from './dto/price-range-response.dto';
-import { StepType, SessionStatus } from '@prisma/client';
+import { SessionStatus } from '@prisma/client';
 
 @Injectable()
 export class SessionStepProgressService {
@@ -122,12 +120,6 @@ export class SessionStepProgressService {
       throw new NotFoundException(`Step ${stepId} not found`);
     }
 
-    // Vérifier que c'est pas un step PRICE_VALIDATION (utiliser validatePriceStep à la place)
-    if (step.type === StepType.PRICE_VALIDATION) {
-      throw new BadRequestException(
-        'Use validatePriceStep endpoint for PRICE_VALIDATION steps',
-      );
-    }
 
     // Vérifier que tous les steps précédents sont complétés
     await this.checkPreviousStepsCompleted(sessionId, step.order, step.procedureId);
@@ -165,143 +157,6 @@ export class SessionStepProgressService {
     return this.formatProgressResponse(progress);
   }
 
-  /**
-   * Validate price step (final step)
-   */
-  async validatePriceStep(
-    sessionId: string,
-    stepId: string,
-    testerId: string,
-    dto: ValidatePriceStepDto,
-  ): Promise<SessionStepProgressResponseDto> {
-    // Vérifier que la session appartient au testeur
-    const session = await this.prismaService.session.findUnique({
-      where: { id: sessionId },
-      include: {
-        campaign: {
-          include: {
-            offers: {
-              include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Session ${sessionId} not found`);
-    }
-
-    if (session.testerId !== testerId) {
-      throw new ForbiddenException(
-        'You can only validate price in your own sessions',
-      );
-    }
-
-    // Vérifier que le step existe et est de type PRICE_VALIDATION
-    const step = await this.prismaService.step.findUnique({
-      where: { id: stepId },
-    });
-
-    if (!step) {
-      throw new NotFoundException(`Step ${stepId} not found`);
-    }
-
-    if (step.type !== StepType.PRICE_VALIDATION) {
-      throw new BadRequestException(
-        'This endpoint is only for PRICE_VALIDATION steps',
-      );
-    }
-
-    // Vérifier que tous les steps précédents sont complétés
-    await this.checkPreviousStepsCompleted(sessionId, step.order, step.procedureId);
-
-    // Récupérer l'offre pour vérifier le prix
-    // Note: On suppose qu'il y a une seule offre par campagne pour simplifier
-    // Si plusieurs produits, il faudra passer le productId
-    const offer = session.campaign.offers[0];
-
-    if (!offer) {
-      throw new NotFoundException('No offer found for this campaign');
-    }
-
-    // Vérifier que le prix est dans la tranche autorisée
-    const priceRangeMin = parseFloat(offer.priceRangeMin.toString());
-    const priceRangeMax = parseFloat(offer.priceRangeMax.toString());
-
-    if (dto.price < priceRangeMin || dto.price > priceRangeMax) {
-      throw new BadRequestException(
-        `Price must be between ${priceRangeMin} and ${priceRangeMax}`,
-      );
-    }
-
-    // Mettre à jour le progress
-    const progress = await this.prismaService.sessionStepProgress.update({
-      where: {
-        sessionId_stepId: {
-          sessionId,
-          stepId,
-        },
-      },
-      data: {
-        isCompleted: true,
-        completedAt: new Date(),
-        validatedPrice: dto.price,
-      },
-      include: {
-        step: true,
-      },
-    });
-
-    // Mettre à jour la session avec le prix validé
-    await this.prismaService.session.update({
-      where: { id: sessionId },
-      data: {
-        validatedProductPrice: dto.price,
-        priceValidatedAt: new Date(),
-      },
-    });
-
-    return this.formatProgressResponse(progress);
-  }
-
-  /**
-   * Get price range for a session (for PRICE_VALIDATION step)
-   */
-  async getPriceRange(sessionId: string): Promise<PriceRangeResponseDto> {
-    const session = await this.prismaService.session.findUnique({
-      where: { id: sessionId },
-      include: {
-        campaign: {
-          include: {
-            offers: true,
-          },
-        },
-      },
-    });
-
-    if (!session) {
-      throw new NotFoundException(`Session ${sessionId} not found`);
-    }
-
-    // Récupérer la première offre (ou adapter si plusieurs produits)
-    const offer = session.campaign.offers[0];
-
-    if (!offer) {
-      throw new NotFoundException('No offer found for this campaign');
-    }
-
-    const priceRangeMin = parseFloat(offer.priceRangeMin.toString());
-    const priceRangeMax = parseFloat(offer.priceRangeMax.toString());
-
-    return {
-      priceRangeMin,
-      priceRangeMax,
-      message: `Saisissez le prix exact du produit (entre ${priceRangeMin}€ et ${priceRangeMax}€)`,
-    };
-  }
 
   /**
    * Get overall progress percentage
@@ -377,9 +232,6 @@ export class SessionStepProgressService {
       isCompleted: progress.isCompleted,
       completedAt: progress.completedAt,
       submissionData: progress.submissionData,
-      validatedPrice: progress.validatedPrice
-        ? parseFloat(progress.validatedPrice.toString())
-        : null,
       createdAt: progress.createdAt,
       updatedAt: progress.updatedAt,
     };

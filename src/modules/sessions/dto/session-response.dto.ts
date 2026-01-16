@@ -156,6 +156,37 @@ export class SessionResponseDto {
   @ApiProperty({ description: 'Date de mise à jour' })
   updatedAt!: Date;
 
+  @ApiProperty({
+    description: "Date programmée pour l'achat (deadline)",
+    required: false,
+  })
+  scheduledPurchaseDate?: Date | null;
+
+  @ApiProperty({
+    description: "Informations sur la deadline d'achat",
+    required: false,
+    example: {
+      scheduledDate: '2026-01-15T00:00:00.000Z',
+      deadline: '2026-01-15T23:59:59.999Z',
+      isPast: false,
+      isToday: false,
+      isUrgent: true,
+      hoursRemaining: 23,
+      minutesRemaining: 45,
+      formattedDate: '15/01/2026',
+    },
+  })
+  deadlineInfo?: {
+    scheduledDate: Date;
+    deadline: Date;
+    isPast: boolean;
+    isToday: boolean;
+    isUrgent: boolean;
+    hoursRemaining: number | null;
+    minutesRemaining: number | null;
+    formattedDate: string;
+  } | null;
+
   // Relations optionnelles (populated si include)
   @ApiProperty({
     description: 'Informations de la campagne',

@@ -48,9 +48,6 @@ export class SessionStepProgressResponseDto {
   })
   submissionData?: any | null;
 
-  @ApiProperty({ example: 1199.0, required: false })
-  validatedPrice?: number | null;
-
   @ApiProperty()
   createdAt!: Date;
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -58,6 +59,9 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
       }),
       inject: [ConfigService],
     }),
+
+    // Schedule module for cron jobs (global)
+    ScheduleModule.forRoot(),
 
     // Global modules
     PrismaModule,

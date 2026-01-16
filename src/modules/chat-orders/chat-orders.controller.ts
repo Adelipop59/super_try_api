@@ -176,17 +176,17 @@ export class ChatOrdersController {
   @Roles('PRO')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Valider la livraison (PRO)',
+    summary: 'Valider la livraison UGC (PRO)',
     description:
-      'Permet au vendeur de valider la livraison. L\'argent en escrow est libéré et versé au testeur.',
+      'Permet au vendeur de valider la livraison UGC. Le Payment Intent Stripe est capturé (prélèvement carte bleue) et l\'argent est transféré au testeur (avec déduction des fees).',
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
     status: 200,
-    description: 'Livraison validée, paiement libéré',
+    description: 'Livraison validée, paiement capturé et transféré',
     type: ChatOrderResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Statut invalide' })
+  @ApiResponse({ status: 400, description: 'Statut invalide ou Payment Intent manquant' })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Accès refusé' })
   @ApiResponse({ status: 404, description: 'Commande non trouvée' })

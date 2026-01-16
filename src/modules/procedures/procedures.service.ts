@@ -202,56 +202,6 @@ export class ProceduresService {
   }
 
   /**
-   * S'assurer qu'un step PRICE_VALIDATION existe à la fin de chaque procédure de la campagne
-   * Cette méthode doit être appelée lors de la publication de la campagne
-   */
-  async ensurePriceValidationSteps(campaignId: string): Promise<void> {
-    const procedures = await this.prismaService.procedure.findMany({
-      where: { campaignId },
-      include: {
-        steps: {
-          orderBy: { order: 'asc' },
-        },
-      },
-    });
-
-    for (const procedure of procedures) {
-      // Vérifier s'il existe déjà un step PRICE_VALIDATION
-      const hasPriceValidationStep = procedure.steps.some(
-        (step) => step.type === StepType.PRICE_VALIDATION,
-      );
-
-      if (!hasPriceValidationStep) {
-        // Trouver le dernier order
-        const maxOrder =
-          procedure.steps.length > 0
-            ? Math.max(...procedure.steps.map((s) => s.order))
-            : 0;
-
-        // Créer le step PRICE_VALIDATION
-        await this.prismaService.step.create({
-          data: {
-            procedureId: procedure.id,
-            title: 'Validation du prix',
-            description:
-              'Saisissez le prix exact du produit trouvé. Cette étape permet de vérifier que vous avez bien identifié le bon produit.',
-            type: StepType.PRICE_VALIDATION,
-            order: maxOrder + 1,
-            isRequired: true,
-          },
-        });
-
-        await this.logsService.logSuccess(
-          LogCategory.PROCEDURE,
-          `✅ [PROCEDURE] Step PRICE_VALIDATION ajouté automatiquement à ${procedure.title}`,
-          { procedureId: procedure.id, campaignId },
-          'system',
-        );
-      }
-    }
-  }
-
-  /**
    * Formater la réponse
    */
   private formatResponse(procedure: any): ProcedureResponseDto {

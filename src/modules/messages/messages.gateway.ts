@@ -13,6 +13,8 @@ import { WsAuthGuard } from './guards/ws-auth.guard';
 import { MessagesService } from './messages.service';
 import { WsCurrentUser } from './decorators/ws-current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { SupabaseService } from '../../common/supabase/supabase.service';
+import { PrismaService } from '../../database/prisma.service';
 
 interface TypingPayload {
   sessionId: string;
@@ -53,7 +55,11 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Mapping: sessionId -> Set<userId> (qui est en train de taper)
   private readonly typingUsers = new Map<string, Set<string>>();
 
-  constructor(private readonly messagesService: MessagesService) {}
+  constructor(
+    private readonly messagesService: MessagesService,
+    private readonly supabaseService: SupabaseService,
+    private readonly prismaService: PrismaService,
+  ) {}
 
   /**
    * Gère la connexion d'un client WebSocket
@@ -348,24 +354,35 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
     token: string,
   ): Promise<AuthenticatedUser | null> {
     try {
-      // Le WsAuthGuard va vérifier le token et attacher les données à client.data
-      // On simule l'exécution du guard manuellement ici
-      const guard = new (require('./guards/ws-auth.guard').WsAuthGuard)(
-        require('../../common/supabase/supabase.service').SupabaseService,
-        require('../../database/prisma.service').PrismaService,
-      );
-
-      // Pour simplifier, on vérifie juste que client.data est rempli après connexion
-      if (client.data.userId && client.data.userRole) {
-        return {
-          id: client.data.userId,
-          supabaseUserId: client.data.supabaseUserId,
-          email: client.data.email,
-          role: client.data.userRole,
-        };
+      // Vérifier avec Supabase
+      const supabaseUser = await this.supabaseService.verifyToken(token);
+      if (!supabaseUser) {
+        this.logger.warn('Invalid Supabase token');
+        return null;
       }
 
-      return null;
+      // Récupérer le profil
+      const profile = await this.prismaService.profile.findUnique({
+        where: { supabaseUserId: supabaseUser.id },
+      });
+
+      if (!profile || !profile.isActive) {
+        this.logger.warn(`Profile not found or inactive for Supabase user ${supabaseUser.id}`);
+        return null;
+      }
+
+      // Attacher les infos au socket pour réutilisation
+      client.data.userId = profile.id;
+      client.data.supabaseUserId = profile.supabaseUserId;
+      client.data.userRole = profile.role;
+      client.data.email = profile.email;
+
+      return {
+        id: profile.id,
+        supabaseUserId: profile.supabaseUserId,
+        email: profile.email,
+        role: profile.role,
+      };
     } catch (error) {
       this.logger.error(`Token verification failed: ${error.message}`);
       return null;

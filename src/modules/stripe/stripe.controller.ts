@@ -102,8 +102,8 @@ export class StripeController {
   }
 
   /**
-   * Créer un Payment Intent pour pré-payer une campagne
-   * Utilisé par les vendeurs pour activer leurs campagnes
+   * ⚠️ DEPRECATED: This endpoint uses the old payment system
+   * Use POST /stripe/campaign-checkout-session instead
    */
   @Post('campaign-payment-intents')
   @Roles(UserRole.PRO, UserRole.ADMIN)
@@ -111,135 +111,9 @@ export class StripeController {
     @Body() dto: CreateCampaignPaymentIntentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const userId = user.id;
-
-    // Récupérer la campagne avec ses offres
-    const campaign = await this.prismaService.campaign.findUnique({
-      where: { id: dto.campaignId },
-      include: {
-        seller: true,
-        offers: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
-    if (!campaign) {
-      throw new NotFoundException('Campaign not found');
-    }
-
-    // Vérifier que l'utilisateur est bien le propriétaire de la campagne
-    if (campaign.sellerId !== userId) {
-      throw new ForbiddenException('You are not the owner of this campaign');
-    }
-
-    // Vérifier que la campagne est en DRAFT ou PENDING_PAYMENT
-    if (campaign.status !== CampaignStatus.DRAFT && campaign.status !== CampaignStatus.PENDING_PAYMENT) {
-      throw new BadRequestException(
-        `Campaign cannot be paid in status ${campaign.status}. Only DRAFT or PENDING_PAYMENT campaigns can be paid.`,
-      );
-    }
-
-    // Vérifier qu'il n'y a pas déjà un paiement en cours pour cette campagne
-    const existingPayment = await this.prismaService.transaction.findFirst({
-      where: {
-        campaignId: dto.campaignId,
-        type: TransactionType.CAMPAIGN_PAYMENT,
-        status: TransactionStatus.PENDING,
-      },
-    });
-
-    if (existingPayment) {
-      throw new BadRequestException(
-        'A payment is already pending for this campaign',
-      );
-    }
-
-    // Calculer le montant total à payer pour la campagne
-    // = somme de (prix attendu + livraison + bonus) * quantité pour chaque offre
-    let totalAmount = new Decimal(0);
-
-    for (const offer of campaign.offers) {
-      const offerTotal = new Decimal(offer.expectedPrice.toString())
-        .add(new Decimal(offer.shippingCost.toString()))
-        .add(new Decimal(offer.bonus.toString()))
-        .mul(offer.quantity);
-
-      totalAmount = totalAmount.add(offerTotal);
-    }
-
-    // Appliquer les frais de plateforme (10% par défaut)
-    const amountInCents = Math.round(totalAmount.toNumber() * 100);
-    const { platformFee, totalAmount: totalWithFee } = this.stripeService.calculatePlatformFee(amountInCents);
-
-    // Créer le Payment Intent
-    const paymentIntent = await this.stripeService.createPaymentIntent({
-      amount: totalWithFee,
-      description: `Payment for campaign "${campaign.title}"`,
-      metadata: {
-        userId,
-        campaignId: dto.campaignId,
-        type: 'campaign_payment',
-        campaignTitle: campaign.title,
-      },
-    });
-
-    // Utiliser une transaction atomique pour les opérations en base
-    await this.prismaService.$transaction(async (prisma) => {
-      // Créer une transaction PENDING dans la base de données
-      await prisma.transaction.create({
-        data: {
-          type: TransactionType.CAMPAIGN_PAYMENT,
-          amount: totalAmount,
-          reason: `Pré-paiement campagne "${campaign.title}"`,
-          campaignId: dto.campaignId,
-          stripePaymentIntentId: paymentIntent.id,
-          status: TransactionStatus.PENDING,
-          metadata: {
-            platformFee: platformFee / 100,
-            totalWithFee: totalWithFee / 100,
-            breakdown: campaign.offers.map(offer => ({
-              productName: offer.product.name,
-              expectedPrice: offer.expectedPrice.toString(),
-              shippingCost: offer.shippingCost.toString(),
-              bonus: offer.bonus.toString(),
-              quantity: offer.quantity,
-            })),
-          },
-        },
-      });
-
-      // Mettre à jour le statut de la campagne à PENDING_PAYMENT
-      if (campaign.status === CampaignStatus.DRAFT) {
-        await prisma.campaign.update({
-          where: { id: dto.campaignId },
-          data: { status: CampaignStatus.PENDING_PAYMENT },
-        });
-      }
-    });
-
-    return {
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: totalAmount.toNumber(),
-      platformFee: platformFee / 100,
-      totalWithFee: totalWithFee / 100,
-      currency: 'eur',
-      breakdown: campaign.offers.map(offer => ({
-        productName: offer.product.name,
-        expectedPrice: offer.expectedPrice.toNumber(),
-        shippingCost: offer.shippingCost.toNumber(),
-        bonus: offer.bonus.toNumber(),
-        quantity: offer.quantity,
-        subtotal: new Decimal(offer.expectedPrice.toString())
-          .add(new Decimal(offer.shippingCost.toString()))
-          .add(new Decimal(offer.bonus.toString()))
-          .mul(offer.quantity)
-          .toNumber(),
-      })),
-    };
+    throw new BadRequestException(
+      'This endpoint is deprecated. Please use POST /stripe/campaign-checkout-session instead',
+    );
   }
 
   /**
@@ -337,10 +211,10 @@ export class StripeController {
       );
     }
 
-    // Vérifier qu'il n'y a pas de sessions actives
+    // Vérifier qu'il n'y a pas de sessions actives (non REJECTED, non CANCELLED)
     if (campaign.sessions.length > 0) {
       throw new BadRequestException(
-        `Cannot refund campaign with active sessions. ${campaign.sessions.length} session(s) found.`,
+        `Cannot refund campaign with active sessions. ${campaign.sessions.length} session(s) found. Please cancel or complete all sessions first.`,
       );
     }
 
@@ -369,10 +243,52 @@ export class StripeController {
       throw new BadRequestException('A refund has already been processed for this campaign');
     }
 
-    // Créer le remboursement Stripe
+    // ✅ Calculer le montant déjà versé aux testeurs
+    // On compte toutes les transactions CREDIT et UGC_BONUS complétées pour cette campagne
+    const paidToTestersResult = await this.prismaService.transaction.aggregate({
+      where: {
+        campaignId,
+        type: {
+          in: [TransactionType.CREDIT, TransactionType.UGC_BONUS],
+        },
+        status: TransactionStatus.COMPLETED,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const totalPaidToTesters = paidToTestersResult._sum.amount
+      ? Number(paidToTestersResult._sum.amount)
+      : 0;
+
+    // Le montant payé par le PRO (incluant la commission)
+    const totalPaidBySeller = Number(paymentTransaction.amount);
+
+    // ✅ Calculer le montant remboursable
+    // Montant remboursable = Montant payé - Montant déjà versé aux testeurs
+    const refundableAmount = totalPaidBySeller - totalPaidToTesters;
+
+    // Si rien à rembourser, refuser
+    if (refundableAmount <= 0) {
+      throw new BadRequestException(
+        `No refundable amount remaining. Seller paid ${totalPaidBySeller}€, already distributed ${totalPaidToTesters}€ to testers.`,
+      );
+    }
+
+    // ⚠️ IMPORTANT: Si le montant remboursable est très faible (< 1€), on peut choisir de ne pas rembourser
+    // pour éviter les frais Stripe. C'est optionnel.
+    const minimumRefundAmount = 1; // 1€ minimum
+    if (refundableAmount < minimumRefundAmount) {
+      throw new BadRequestException(
+        `Refundable amount (${refundableAmount.toFixed(2)}€) is below minimum threshold (${minimumRefundAmount}€). Cannot process refund.`,
+      );
+    }
+
+    // ✅ Créer le remboursement PARTIEL Stripe
     const refund = await this.stripeService.createRefund(
       paymentTransaction.stripePaymentIntentId,
-      undefined, // Remboursement total
+      Math.round(refundableAmount * 100), // Montant en centimes
       'requested_by_customer',
     );
 
@@ -382,14 +298,19 @@ export class StripeController {
       const refundTransaction = await prisma.transaction.create({
         data: {
           type: TransactionType.CAMPAIGN_REFUND,
-          amount: paymentTransaction.amount,
-          reason: `Remboursement campagne annulée "${campaign.title}"`,
+          amount: refundableAmount, // ✅ Montant RÉEL remboursé
+          reason: `Remboursement partiel campagne annulée "${campaign.title}"`,
           campaignId,
           status: TransactionStatus.COMPLETED,
           metadata: {
             originalTransactionId: paymentTransaction.id,
             stripeRefundId: refund.id,
             refundedAt: new Date().toISOString(),
+            // ✅ Détails du calcul
+            totalPaidBySeller: totalPaidBySeller,
+            totalPaidToTesters: totalPaidToTesters,
+            refundableAmount: refundableAmount,
+            refundType: totalPaidToTesters > 0 ? 'partial' : 'full',
           },
         },
       });
@@ -409,9 +330,15 @@ export class StripeController {
       success: true,
       refundId: refund.id,
       transactionId: result.id,
-      amount: paymentTransaction.amount,
+      amount: refundableAmount,
       status: refund.status,
-      message: `Refund of ${paymentTransaction.amount}€ processed successfully`,
+      message: `Refund of ${refundableAmount.toFixed(2)}€ processed successfully`,
+      details: {
+        totalPaid: totalPaidBySeller,
+        paidToTesters: totalPaidToTesters,
+        refunded: refundableAmount,
+        refundType: totalPaidToTesters > 0 ? 'partial' : 'full',
+      },
     };
   }
 
@@ -676,21 +603,19 @@ export class StripeController {
   }
 
   /**
-   * Calculer les frais de plateforme
+   * ⚠️ DEPRECATED: Calculate platform fees
+   *
+   * This endpoint cannot be used anymore because commissions are now variable
+   * (FIXED_PER_PRODUCT or PERCENTAGE for campaigns, FIXED or PERCENTAGE for UGC).
+   * Fee calculation requires full campaign context (number of products, etc.)
+   *
+   * Use the checkout session creation which handles commission calculation automatically.
    */
   @Post('calculate-fees')
   calculateFees(@Body('amount') amount: number) {
-    if (!amount || amount <= 0) {
-      throw new BadRequestException('Amount must be positive');
-    }
-
-    const amountInCents = amount * 100;
-    const fees = this.stripeService.calculatePlatformFee(amountInCents);
-
-    return {
-      totalAmount: fees.totalAmount / 100,
-      platformFee: fees.platformFee / 100,
-      sellerAmount: fees.sellerAmount / 100,
-    };
+    throw new BadRequestException(
+      'This endpoint is deprecated. Commission calculation now requires campaign context. ' +
+      'Use POST /stripe/campaign-checkout-session which handles fees automatically.',
+    );
   }
 }

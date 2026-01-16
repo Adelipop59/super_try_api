@@ -5,10 +5,12 @@ import { MessagesGateway } from './messages.gateway';
 import { PrismaModule } from '../../database/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UploadModule } from '../upload/upload.module';
+import { SupabaseModule } from '../../common/supabase/supabase.module';
 
 @Module({
   imports: [
     PrismaModule,
+    SupabaseModule,
     forwardRef(() => NotificationsModule), // forwardRef pour éviter circular dependency
     UploadModule,
   ],

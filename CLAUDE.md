@@ -115,6 +115,12 @@ Exemple de logique backend :
 - **Pas de questions inutiles** : Si c'est évident, le faire sans demander
 - **Si erreur** : Corriger directement sans demander de confirmation
 
+## Recherche dans le code
+
+Quand tu dois chercher dans le code :
+- utilise le tool **mgrep**
+- évite grep et la lecture exhaustive des fichiers
+
 ### Documentation
 - **NE JAMAIS créer de fichiers README ou documentation** sauf si explicitement demandé
 - **NE PAS créer de fichiers .md** automatiquement

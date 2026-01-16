@@ -21,8 +21,10 @@ import { CancelSessionDto } from './dto/cancel-session.dto';
 import { DisputeSessionDto } from './dto/dispute-session.dto';
 import { SessionFilterDto } from './dto/session-filter.dto';
 import {
-  calculateNextPurchaseDate,
+  calculateNextPurchaseDateSmart,
   isValidPurchaseDate,
+  isPurchaseDeadlineExpired,
+  getTimeUntilDeadline,
   formatDate,
 } from './utils/distribution.util';
 
@@ -101,13 +103,17 @@ export class SessionsService {
       ? SessionStatus.ACCEPTED
       : SessionStatus.PENDING;
 
-    // Si auto-accept, calculer la date d'achat
+    // Si auto-accept, calculer la date d'achat intelligemment
     let scheduledPurchaseDate: Date | null = null;
     if (campaign.autoAcceptApplications) {
       const distributions = await this.prisma.distribution.findMany({
-        where: { campaignId: dto.campaignId },
+        where: { campaignId: dto.campaignId, isActive: true },
       });
-      scheduledPurchaseDate = calculateNextPurchaseDate(distributions);
+      scheduledPurchaseDate = await calculateNextPurchaseDateSmart(
+        distributions,
+        dto.campaignId,
+        this.prisma,
+      );
     }
 
     // Créer la session avec transaction pour décrémenter les slots si auto-accept
@@ -241,9 +247,11 @@ export class SessionsService {
       throw new BadRequestException('No slots available');
     }
 
-    // Calculer la prochaine date d'achat basée sur les distributions
-    const scheduledPurchaseDate = calculateNextPurchaseDate(
+    // Calculer la prochaine date d'achat intelligemment basée sur les distributions
+    const scheduledPurchaseDate = await calculateNextPurchaseDateSmart(
       session.campaign.distributions,
+      session.campaignId,
+      this.prisma,
     );
 
     if (!scheduledPurchaseDate) {
@@ -416,10 +424,10 @@ export class SessionsService {
       throw new ForbiddenException('Access denied');
     }
 
-    // Vérifier que la session est ACCEPTED
-    if (session.status !== SessionStatus.ACCEPTED) {
+    // Vérifier que la session est PROCEDURES_COMPLETED
+    if (session.status !== SessionStatus.PROCEDURES_COMPLETED) {
       throw new BadRequestException(
-        'Session must be ACCEPTED to validate product price',
+        'You must complete all procedures before validating the price',
       );
     }
 
@@ -439,12 +447,13 @@ export class SessionsService {
     // basées sur le expectedPrice (prix du produit)
     const minPrice = Number(offer.priceRangeMin);
     const maxPrice = Number(offer.priceRangeMax);
+    const expectedPrice = Number(offer.expectedPrice);
 
-    // Vérifier que le prix saisi est dans la tranche acceptable
+    // Vérifier d'abord que le prix est dans la tranche (pour guider le testeur)
     if (productPrice < minPrice || productPrice > maxPrice) {
       await this.logsService.logWarning(
         LogCategory.SESSION,
-        `❌ Prix invalide pour session ${sessionId}: ${productPrice}€ (attendu: ${minPrice}€ - ${maxPrice}€)`,
+        `❌ Prix hors fourchette pour session ${sessionId}: ${productPrice}€ (fourchette: ${minPrice}€ - ${maxPrice}€)`,
         {
           sessionId,
           enteredPrice: productPrice,
@@ -457,12 +466,30 @@ export class SessionsService {
       );
     }
 
-    // Valider et stocker le prix
+    // Vérifier que le prix saisi est EXACTEMENT le prix attendu
+    if (productPrice !== expectedPrice) {
+      await this.logsService.logWarning(
+        LogCategory.SESSION,
+        `❌ Prix inexact pour session ${sessionId}: ${productPrice}€ (attendu exactement: ${expectedPrice}€)`,
+        {
+          sessionId,
+          enteredPrice: productPrice,
+          expectedPrice: expectedPrice,
+        },
+      );
+
+      throw new BadRequestException(
+        `Prix incorrect. Vérifiez que vous êtes bien sur le bon produit, ou contactez le vendeur pour plus d'aide.`,
+      );
+    }
+
+    // Valider et stocker le prix + transition vers PRICE_VALIDATED
     const updatedSession = await this.prisma.session.update({
       where: { id: sessionId },
       data: {
         validatedProductPrice: productPrice,
         priceValidatedAt: new Date(),
+        status: SessionStatus.PRICE_VALIDATED,
       },
       include: {
         campaign: true,
@@ -505,34 +532,61 @@ export class SessionsService {
       throw new ForbiddenException('Access denied');
     }
 
-    // Vérifier que la session est ACCEPTED
-    if (session.status !== SessionStatus.ACCEPTED) {
+    // Vérifier que la session est PRICE_VALIDATED
+    if (session.status !== SessionStatus.PRICE_VALIDATED) {
       throw new BadRequestException(
-        'Session must be ACCEPTED to submit purchase proof',
+        'You must validate the product price before submitting purchase',
       );
     }
 
     // Vérifier que le prix du produit a été validé
     if (!session.validatedProductPrice) {
       throw new BadRequestException(
-        'You must validate the product price before submitting purchase proof',
+        'Product price must be validated',
       );
     }
 
     // Vérifier que l'achat est fait au bon jour (si scheduledPurchaseDate est défini)
     if (session.scheduledPurchaseDate) {
+      // Vérifier si la deadline est dépassée (fin du jour prévu = 23:59:59)
+      if (isPurchaseDeadlineExpired(session.scheduledPurchaseDate)) {
+        const formattedDate = formatDate(session.scheduledPurchaseDate);
+        await this.logsService.logWarning(
+          LogCategory.SESSION,
+          `⏰ Deadline d'achat dépassée pour session ${sessionId} (date prévue: ${formattedDate})`,
+          {
+            sessionId,
+            scheduledDate: session.scheduledPurchaseDate,
+            currentDate: new Date(),
+          },
+        );
+
+        throw new BadRequestException(
+          `Purchase deadline expired. You were supposed to purchase on ${formattedDate}. Please contact the seller for assistance.`,
+        );
+      }
+
+      // Vérifier que c'est le bon jour
       if (!isValidPurchaseDate(session.scheduledPurchaseDate)) {
         const formattedDate = formatDate(session.scheduledPurchaseDate);
-        throw new BadRequestException(
-          `You must purchase the product on the scheduled date: ${formattedDate}`,
-        );
+        const timeRemaining = getTimeUntilDeadline(session.scheduledPurchaseDate);
+
+        if (timeRemaining) {
+          throw new BadRequestException(
+            `You must purchase the product on the scheduled date: ${formattedDate}. Time remaining: ${timeRemaining.hours}h ${timeRemaining.minutes}m`,
+          );
+        } else {
+          throw new BadRequestException(
+            `You must purchase the product on the scheduled date: ${formattedDate}`,
+          );
+        }
       }
     }
 
     const updatedSession = await this.prisma.session.update({
       where: { id: sessionId },
       data: {
-        status: SessionStatus.IN_PROGRESS,
+        status: SessionStatus.PURCHASE_SUBMITTED,
         purchaseProofUrl: dto.purchaseProofUrl,
         purchasedAt: new Date(),
         orderNumber: dto.orderNumber,
@@ -581,10 +635,13 @@ export class SessionsService {
       throw new ForbiddenException('Access denied');
     }
 
-    // Vérifier que la session est IN_PROGRESS
-    if (session.status !== SessionStatus.IN_PROGRESS) {
+    // Vérifier que la session est PURCHASE_VALIDATED ou IN_PROGRESS
+    if (
+      session.status !== SessionStatus.PURCHASE_VALIDATED &&
+      session.status !== SessionStatus.IN_PROGRESS
+    ) {
       throw new BadRequestException(
-        'Session must be IN_PROGRESS to submit test',
+        'Session must be PURCHASE_VALIDATED or IN_PROGRESS to submit test',
       );
     }
 
@@ -714,12 +771,26 @@ export class SessionsService {
             },
           );
         } else {
-          // Créer un Stripe Transfer vers le compte Connect du testeur
+          // ✅ Récupérer le compte Stripe Connect du vendeur (PRO)
+          const sellerProfile = await this.prisma.profile.findUnique({
+            where: { id: session.campaign.sellerId },
+            select: { stripeAccountId: true },
+          });
+
+          if (!sellerProfile?.stripeAccountId) {
+            throw new BadRequestException(
+              `Le vendeur n'a pas de compte Stripe Connect configuré. ` +
+              `Impossible de transférer les fonds au testeur.`
+            );
+          }
+
+          // ✅ Créer un Stripe Transfer DEPUIS le compte PRO vers le testeur
           const transfer = await this.stripeService.createTesterTransfer(
             testerProfile.stripeAccountId,
             rewardAmount,
             sessionId,
             session.campaign.title,
+            sellerProfile.stripeAccountId, // ✅ NOUVEAU
           );
 
           // Créer une transaction en BDD pour traçabilité
@@ -1225,6 +1296,20 @@ export class SessionsService {
 
     if (!isTester && !isSeller && !isAdmin) {
       throw new ForbiddenException('Access denied');
+    }
+
+    // Map stepProgress to each step for frontend convenience
+    if (session.campaign?.procedures) {
+      for (const procedure of session.campaign.procedures) {
+        if (procedure.steps) {
+          for (const step of procedure.steps) {
+            // Find the progress for this step
+            const progress = session.stepProgress.find(p => p.stepId === step.id);
+            // Add progress to step
+            (step as any).progress = progress || null;
+          }
+        }
+      }
     }
 
     // Ajouter seller au niveau racine pour compatibilité frontend
@@ -2028,18 +2113,117 @@ export class SessionsService {
       );
     }
 
-    // Si des UGC ont été validés, créditer le bonus
+    // Si des UGC ont été validés, payer le bonus via Stripe Transfer
     let finalBonus = 0;
     if (session.ugcValidated && session.potentialUGCBonus) {
       finalBonus = Number(session.potentialUGCBonus);
 
-      // Créditer le wallet du testeur
-      await this.walletsService.creditWallet(
-        session.testerId,
-        finalBonus,
-        `Bonus UGC pour session ${sessionId}`,
-        sessionId,
-      );
+      try {
+        // Vérifier que le testeur a un compte Stripe Connect
+        const testerProfile = await this.prisma.profile.findUnique({
+          where: { id: session.testerId },
+          select: { stripeAccountId: true },
+        });
+
+        if (!testerProfile?.stripeAccountId) {
+          // Si pas de compte Stripe, crédit wallet (fallback)
+          this.logger.warn(
+            `Testeur ${session.testerId} n'a pas de compte Stripe Connect pour bonus UGC, fallback vers wallet`,
+          );
+          await this.walletsService.creditWallet(
+            session.testerId,
+            finalBonus,
+            `Bonus UGC pour session ${sessionId}`,
+            sessionId,
+            undefined,
+            {
+              campaignId: session.campaignId,
+              campaignTitle: session.campaign.title,
+              ugcBonus: finalBonus,
+              note: 'Fallback wallet - Stripe Connect non configuré',
+            },
+          );
+
+          await this.logsService.logWarning(
+            LogCategory.WALLET,
+            `⚠️ Wallet crédité (fallback) de ${finalBonus}€ pour bonus UGC session ${sessionId}`,
+            {
+              sessionId,
+              testerId: session.testerId,
+              amount: finalBonus,
+              reason: 'No Stripe Connect account',
+            },
+          );
+        } else {
+          // ✅ Récupérer le compte Stripe Connect du vendeur (PRO)
+          const sellerProfile = await this.prisma.profile.findUnique({
+            where: { id: session.campaign.sellerId },
+            select: { stripeAccountId: true },
+          });
+
+          if (!sellerProfile?.stripeAccountId) {
+            throw new BadRequestException(
+              `Le vendeur n'a pas de compte Stripe Connect configuré. ` +
+              `Impossible de transférer le bonus UGC au testeur.`,
+            );
+          }
+
+          // ✅ Créer un Stripe Transfer DEPUIS le compte du PRO vers le testeur
+          const transfer = await this.stripeService.createTesterTransfer(
+            testerProfile.stripeAccountId,
+            finalBonus,
+            sessionId,
+            `${session.campaign.title} - Bonus UGC`,
+            sellerProfile.stripeAccountId, // ✅ Transfer FROM PRO account
+          );
+
+          // Créer une transaction en BDD pour traçabilité
+          await this.prisma.transaction.create({
+            data: {
+              sessionId,
+              type: TransactionType.UGC_BONUS,
+              amount: finalBonus,
+              reason: `Bonus UGC validé - Campagne: ${session.campaign.title}`,
+              status: TransactionStatus.COMPLETED,
+              metadata: {
+                stripeTransferId: transfer.id,
+                campaignId: session.campaignId,
+                campaignTitle: session.campaign.title,
+                ugcCount: session.ugcSubmissions ? (session.ugcSubmissions as any).length : 0,
+                testerStripeAccountId: testerProfile.stripeAccountId,
+              },
+            },
+          });
+
+          await this.logsService.logSuccess(
+            LogCategory.WALLET,
+            `💰 Stripe Transfer créé pour bonus UGC de ${finalBonus}€ (session ${sessionId})`,
+            {
+              sessionId,
+              testerId: session.testerId,
+              amount: finalBonus,
+              stripeTransferId: transfer.id,
+              stripeAccountId: testerProfile.stripeAccountId,
+            },
+          );
+        }
+      } catch (error) {
+        // Log l'erreur mais ne bloque pas la clôture de session
+        this.logger.error(
+          `Failed to pay UGC bonus for session ${sessionId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.logsService.logError(
+          LogCategory.WALLET,
+          `❌ Échec du paiement bonus UGC pour session ${sessionId}`,
+          {
+            sessionId,
+            testerId: session.testerId,
+            amount: finalBonus,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        );
+      }
     }
 
     // Mettre à jour la session
@@ -2368,14 +2552,6 @@ export class SessionsService {
         ) {
           throw new BadRequestException(
             'RATING step requires an integer between 1 and 5',
-          );
-        }
-        break;
-
-      case 'PRICE_VALIDATION':
-        if (typeof response !== 'number' || response <= 0) {
-          throw new BadRequestException(
-            'PRICE_VALIDATION step requires a positive number',
           );
         }
         break;

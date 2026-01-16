@@ -40,7 +40,17 @@ export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private stripe: Stripe;
   private readonly currency: string;
-  private readonly platformFee: number;
+  private readonly testerTransferFee: number;
+
+  // Configuration commissions campagne
+  private readonly campaignFeeType: string;
+  private readonly campaignFeePercentage: number;
+  private readonly campaignFeeFixedAmount: number;
+
+  // Configuration commissions UGC
+  private readonly ugcFeeType: string;
+  private readonly ugcFeePercentage: number;
+  private readonly ugcFeeFixedAmount: number;
 
   constructor(
     private configService: ConfigService,
@@ -58,9 +68,24 @@ export class StripeService {
     });
 
     this.currency = this.configService.get<string>('stripe.currency', 'eur');
-    this.platformFee = this.configService.get<number>('stripe.platformFee', 10);
+    this.testerTransferFee = this.configService.get<number>('stripe.testerTransferFee', 10);
 
-    this.logger.log('Stripe service initialized');
+    // Commissions campagne
+    this.campaignFeeType = this.configService.get<string>('stripe.campaignFeeType', 'PERCENTAGE');
+    this.campaignFeePercentage = this.configService.get<number>('stripe.campaignFeePercentage', 10);
+    this.campaignFeeFixedAmount = this.configService.get<number>('stripe.campaignFeeFixedAmount', 10);
+
+    // Commissions UGC
+    this.ugcFeeType = this.configService.get<string>('stripe.ugcFeeType', 'PERCENTAGE');
+    this.ugcFeePercentage = this.configService.get<number>('stripe.ugcFeePercentage', 10);
+    this.ugcFeeFixedAmount = this.configService.get<number>('stripe.ugcFeeFixedAmount', 5);
+
+    this.logger.log(
+      `Stripe service initialized | ` +
+      `Campaign fee: ${this.campaignFeeType} (${this.campaignFeeType === 'PERCENTAGE' ? this.campaignFeePercentage + '%' : this.campaignFeeFixedAmount + '€/product'}) | ` +
+      `UGC fee: ${this.ugcFeeType} (${this.ugcFeeType === 'PERCENTAGE' ? this.ugcFeePercentage + '%' : this.ugcFeeFixedAmount + '€'}) | ` +
+      `Tester transfer fee: ${this.testerTransferFee}%`
+    );
   }
 
   /**
@@ -153,34 +178,75 @@ export class StripeService {
   }
 
   /**
-   * Créer un Transfer vers un testeur depuis funds de la plateforme
+   * Créer un Transfer vers un testeur DEPUIS le compte Connect du PRO
    * Utilisé pour payer automatiquement un testeur après validation du test
+   *
+   * ✅ FLOW DIRECT CHARGE:
+   * - Le PRO a déjà reçu l'argent via Direct Charge (application_fee_amount)
+   * - Ce transfer déplace l'argent du compte PRO vers le compte testeur
+   * - La commission est prélevée par Super_Try lors du transfer
+   *
+   * Exemple: Si amount = 10€ et commission = 10%
+   * - 10€ sortent du compte PRO
+   * - Commission plateforme: 1€ (va à Super_Try)
+   * - Montant transféré au testeur: 9€
+   *
+   * ⚠️ IMPORTANT: Nécessite que le PRO ait un compte Stripe Connect avec suffisamment de fonds
    */
   async createTesterTransfer(
     testerAccountId: string,
     amount: number,
     sessionId: string,
     campaignTitle: string,
+    sellerStripeAccountId: string, // ✅ NOUVEAU: Compte Connect du PRO
   ): Promise<Stripe.Transfer> {
     try {
-      const transfer = await this.stripe.transfers.create({
-        amount: Math.round(amount * 100), // Convertir en centimes
-        currency: this.currency,
-        destination: testerAccountId,
-        metadata: {
-          type: 'tester_payment',
-          sessionId,
-          campaignTitle,
-        },
-        description: `Paiement test validé - ${campaignTitle}`,
-      });
+      // Calculer la commission de la plateforme
+      const amountInCents = Math.round(amount * 100);
+      const commissionInCents = Math.round((amountInCents * this.testerTransferFee) / 100);
+      const amountAfterCommission = amountInCents - commissionInCents;
 
-      this.logger.log(`✅ Transfer created to tester ${testerAccountId}: ${transfer.id}, amount: ${amount}€`);
+      // ✅ Transfer DEPUIS le compte Connect du PRO vers le testeur
+      // Utilisation de stripeAccount pour faire le transfer depuis le compte du PRO
+      const transfer = await this.stripe.transfers.create(
+        {
+          amount: amountAfterCommission,
+          currency: this.currency,
+          destination: testerAccountId,
+          metadata: {
+            type: 'tester_payment',
+            sessionId,
+            campaignTitle,
+            originalAmount: String(amountInCents),
+            commission: String(commissionInCents),
+            commissionRate: `${this.testerTransferFee}%`,
+            amountAfterCommission: String(amountAfterCommission),
+            sellerStripeAccountId: sellerStripeAccountId,
+            transferFromSeller: 'true',
+          },
+          description: `Paiement test validé - ${campaignTitle}`,
+        },
+        {
+          // ✅ CRITIQUE: Transfer DEPUIS le compte du PRO
+          stripeAccount: sellerStripeAccountId,
+        }
+      );
+
+      this.logger.log(
+        `✅ Transfer FROM PRO to tester ${testerAccountId}: ${transfer.id} | ` +
+        `PRO account: ${sellerStripeAccountId} | ` +
+        `Original: ${amount}€, Commission: ${(commissionInCents / 100).toFixed(2)}€ (${this.testerTransferFee}%), ` +
+        `Transferred: ${(amountAfterCommission / 100).toFixed(2)}€`
+      );
 
       return transfer;
     } catch (error) {
       this.logger.error(`Failed to create tester transfer: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw new BadRequestException('Failed to create transfer to tester');
+      throw new BadRequestException(
+        `Failed to create transfer to tester. ` +
+        `Possible causes: PRO account doesn't have sufficient funds, or account not properly configured. ` +
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -375,6 +441,123 @@ export class StripeService {
     }
   }
 
+  // ===========================
+  // SELLER / PRO CONNECT METHODS
+  // ===========================
+
+  /**
+   * Créer un compte Stripe Connect Express pour un vendeur (PRO)
+   */
+  async createSellerConnectAccount(
+    userId: string,
+    email: string,
+    country: string = 'FR',
+    businessType: 'individual' | 'company' = 'company',
+  ): Promise<Stripe.Account> {
+    return this.createConnectedAccount(userId, {
+      email,
+      type: 'express',
+      country,
+      businessType,
+      metadata: {
+        role: 'seller',
+        userId,
+      },
+    });
+  }
+
+  /**
+   * Créer un lien d'onboarding complet pour vendeur (PRO)
+   */
+  async createSellerOnboardingLink(
+    userId: string,
+    email: string,
+    returnUrl: string,
+    refreshUrl: string,
+    country?: string,
+    businessType?: 'individual' | 'company',
+  ): Promise<{
+    onboardingUrl: string;
+    accountId: string;
+    expiresAt: number;
+  }> {
+    try {
+      // Créer ou récupérer le compte Connect
+      const account = await this.createSellerConnectAccount(
+        userId,
+        email,
+        country,
+        businessType,
+      );
+
+      // Créer le lien d'onboarding
+      const accountLink = await this.createAccountLink(
+        account.id,
+        refreshUrl,
+        returnUrl,
+      );
+
+      return {
+        onboardingUrl: accountLink.url,
+        accountId: account.id,
+        expiresAt: accountLink.expires_at,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create seller onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to create seller onboarding link');
+    }
+  }
+
+  /**
+   * Récupérer le statut du compte Connect d'un vendeur (PRO)
+   */
+  async getSellerConnectStatus(
+    userId: string,
+  ): Promise<{
+    accountId: string | null;
+    isOnboarded: boolean;
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    currentlyDue: string[] | null;
+    email: string | null;
+  }> {
+    try {
+      const profile = await this.prismaService.profile.findUnique({
+        where: { id: userId },
+      });
+
+      if (!profile?.stripeAccountId) {
+        return {
+          accountId: null,
+          isOnboarded: false,
+          chargesEnabled: false,
+          payoutsEnabled: false,
+          detailsSubmitted: false,
+          currentlyDue: null,
+          email: null,
+        };
+      }
+
+      const account = await this.stripe.accounts.retrieve(
+        profile.stripeAccountId,
+      );
+
+      return {
+        accountId: account.id,
+        isOnboarded: account.charges_enabled && account.payouts_enabled,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        detailsSubmitted: account.details_submitted,
+        currentlyDue: account.requirements?.currently_due || null,
+        email: account.email || null,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get seller connect status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to get seller account status');
+    }
+  }
+
   /**
    * Récupérer un compte connecté
    */
@@ -493,21 +676,209 @@ export class StripeService {
   }
 
   /**
-   * Calculer le montant avec commission de la plateforme
+   * Calculer la commission pour une campagne
+   * Supporte PERCENTAGE (%) ou FIXED_PER_PRODUCT (€ par produit)
    */
-  calculatePlatformFee(amount: number): {
+  calculateCampaignCommission(campaign: {
+    offers: Array<{
+      quantity: number;
+      expectedPrice: number;
+      reimbursedPrice: boolean;
+      shippingCost: number;
+      reimbursedShipping: boolean;
+      bonus: number;
+      product?: { price: number; shippingCost: number };
+    }>;
+  }): {
     totalAmount: number;
-    platformFee: number;
-    sellerAmount: number;
+    commission: number;
+    amountAfterCommission: number;
+    feeType: string;
   } {
-    const platformFee = Math.round((amount * this.platformFee) / 100);
-    const sellerAmount = amount - platformFee;
+    // Calculer montant total produits
+    let totalAmount = 0;
+    let productCount = 0;
+
+    campaign.offers.forEach(offer => {
+      const productPrice = offer.reimbursedPrice
+        ? Number(offer.product?.price || offer.expectedPrice)
+        : Number(offer.expectedPrice);
+
+      const shippingCost = offer.reimbursedShipping
+        ? Number(offer.product?.shippingCost || offer.shippingCost)
+        : Number(offer.shippingCost);
+
+      const offerTotal = (productPrice + shippingCost + Number(offer.bonus)) * offer.quantity;
+      totalAmount += offerTotal;
+      productCount += offer.quantity;
+    });
+
+    let commission = 0;
+
+    if (this.campaignFeeType === 'FIXED_PER_PRODUCT') {
+      // Montant fixe par produit
+      commission = productCount * this.campaignFeeFixedAmount;
+    } else {
+      // Pourcentage
+      commission = (totalAmount * this.campaignFeePercentage) / 100;
+    }
 
     return {
-      totalAmount: amount,
-      platformFee,
-      sellerAmount,
+      totalAmount: Math.round(totalAmount * 100), // centimes
+      commission: Math.round(commission * 100),   // centimes
+      amountAfterCommission: Math.round((totalAmount - commission) * 100),
+      feeType: this.campaignFeeType,
     };
+  }
+
+  /**
+   * Calculer la commission UGC
+   * Supporte PERCENTAGE (%) ou FIXED (€ fixe)
+   */
+  calculateUGCCommission(ugcBonus: number): {
+    originalAmount: number;
+    commission: number;
+    amountAfterCommission: number;
+    feeType: string;
+  } {
+    let commission = 0;
+
+    if (this.ugcFeeType === 'FIXED') {
+      // Montant fixe
+      commission = this.ugcFeeFixedAmount;
+    } else {
+      // Pourcentage
+      commission = (ugcBonus * this.ugcFeePercentage) / 100;
+    }
+
+    return {
+      originalAmount: Math.round(ugcBonus * 100),
+      commission: Math.round(commission * 100),
+      amountAfterCommission: Math.round((ugcBonus - commission) * 100),
+      feeType: this.ugcFeeType,
+    };
+  }
+
+  /**
+   * Obtenir le taux de commission pour les transfers testeurs
+   */
+  getTesterTransferFeeRate(): number {
+    return this.testerTransferFee;
+  }
+
+  /**
+   * Créer un Payment Intent pour Chat Order avec capture différée
+   * L'argent est bloqué sur la carte bleue du PRO mais pas encore prélevé
+   */
+  async createChatOrderPaymentIntent(
+    amount: number,
+    customerId: string,
+    metadata: { orderId: string; sessionId: string; description: string },
+  ): Promise<Stripe.PaymentIntent> {
+    try {
+      const amountInCents = Math.round(amount * 100);
+
+      const paymentIntent = await this.stripe.paymentIntents.create({
+        amount: amountInCents,
+        currency: this.currency,
+        customer: customerId,
+        capture_method: 'manual', // ✅ Capture différée
+        metadata: {
+          type: 'chat_order',
+          orderId: metadata.orderId,
+          sessionId: metadata.sessionId,
+          description: metadata.description,
+        },
+        description: `Chat Order: ${metadata.description}`,
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: 'never',
+        },
+      });
+
+      this.logger.log(
+        `Payment Intent created for chat order ${metadata.orderId}: ${paymentIntent.id} (${amount}€)`,
+      );
+
+      return paymentIntent;
+    } catch (error) {
+      this.logger.error(`Failed to create chat order payment intent: ${error.message}`);
+      throw new BadRequestException('Failed to create payment intent');
+    }
+  }
+
+  /**
+   * Capturer un Payment Intent (prélever l'argent)
+   * Appelé quand le PRO valide la livraison du testeur
+   */
+  async captureChatOrderPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<Stripe.PaymentIntent> {
+    try {
+      const paymentIntent = await this.stripe.paymentIntents.capture(paymentIntentId);
+
+      this.logger.log(`Payment Intent captured: ${paymentIntentId}`);
+
+      return paymentIntent;
+    } catch (error) {
+      this.logger.error(`Failed to capture payment intent ${paymentIntentId}: ${error.message}`);
+      throw new BadRequestException('Failed to capture payment intent');
+    }
+  }
+
+  /**
+   * Annuler un Payment Intent (débloquer l'argent)
+   * Appelé si le testeur refuse ou si la deadline expire
+   */
+  async cancelChatOrderPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<Stripe.PaymentIntent> {
+    try {
+      const paymentIntent = await this.stripe.paymentIntents.cancel(paymentIntentId);
+
+      this.logger.log(`Payment Intent cancelled: ${paymentIntentId}`);
+
+      return paymentIntent;
+    } catch (error) {
+      this.logger.error(`Failed to cancel payment intent ${paymentIntentId}: ${error.message}`);
+      throw new BadRequestException('Failed to cancel payment intent');
+    }
+  }
+
+  /**
+   * Créer un Transfer direct depuis le compte plateforme vers le compte Stripe Connect du testeur
+   * Utilisé après capture du Payment Intent pour payer le testeur
+   * Les fees Super Try sont automatiquement déduits via application_fee
+   */
+  async createChatOrderTransferToTester(
+    testerStripeAccountId: string,
+    amountInCents: number,
+    orderId: string,
+    description: string,
+  ): Promise<Stripe.Transfer> {
+    try {
+      const transfer = await this.stripe.transfers.create({
+        amount: amountInCents,
+        currency: this.currency,
+        destination: testerStripeAccountId,
+        description: `Chat Order Payment: ${description}`,
+        metadata: {
+          type: 'chat_order_payment',
+          orderId: orderId,
+        },
+      });
+
+      this.logger.log(
+        `Transfer created to tester ${testerStripeAccountId}: ${transfer.id} (${amountInCents / 100}€)`,
+      );
+
+      return transfer;
+    } catch (error) {
+      this.logger.error(
+        `Failed to create transfer to tester ${testerStripeAccountId}: ${error.message}`,
+      );
+      throw new BadRequestException('Failed to transfer funds to tester');
+    }
   }
 
   /**
@@ -627,18 +998,42 @@ export class StripeService {
       }
     }
 
-    // Créer les line items pour la Checkout Session
-    // Si remboursé, utiliser le prix du produit (temps réel), sinon celui de l'offre
+    // ✅ ÉTAPE 1 : Récupérer le compte Stripe Connect du PRO
+    const sellerProfile = await this.prismaService.profile.findUnique({
+      where: { id: userId },
+      select: { stripeAccountId: true },
+    });
+
+    if (!sellerProfile?.stripeAccountId) {
+      throw new BadRequestException(
+        'Vous devez configurer votre compte Stripe Connect avant de pouvoir activer une campagne. ' +
+        'Rendez-vous dans les paramètres pour compléter votre onboarding Stripe.'
+      );
+    }
+
+    const sellerStripeAccountId = sellerProfile.stripeAccountId;
+
+    // ✅ ÉTAPE 2 : Calculer la commission avec la nouvelle méthode (support FIXED/PERCENTAGE)
+    const commissionCalc = this.calculateCampaignCommission({
+      offers: campaign.offers,
+    });
+
+    const totalProductsAmount = commissionCalc.totalAmount;
+    const platformCommission = commissionCalc.commission;
+    const totalAmountWithCommission = totalProductsAmount + platformCommission;
+
+    // ✅ ÉTAPE 3 : Créer les line items (SANS la commission en line item)
+    // La commission sera prélevée via application_fee_amount
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = campaign.offers.map(
       (offer: any) => {
-        const productPrice = offer.reimbursedPrice 
+        const productPrice = offer.reimbursedPrice
           ? Number(offer.product.price)
           : Number(offer.expectedPrice);
-          
+
         const shippingCost = offer.reimbursedShipping
           ? Number(offer.product.shippingCost)
           : Number(offer.shippingCost);
-        
+
         return {
           price_data: {
             currency: this.currency,
@@ -655,7 +1050,16 @@ export class StripeService {
       },
     );
 
-    // Créer la Checkout Session
+    this.logger.log(
+      `💰 Campaign payment (${commissionCalc.feeType}) | ` +
+      `Products: ${(totalProductsAmount / 100).toFixed(2)}€ | ` +
+      `Commission: ${(platformCommission / 100).toFixed(2)}€ | ` +
+      `Total: ${(totalAmountWithCommission / 100).toFixed(2)}€ | ` +
+      `→ ${(commissionCalc.amountAfterCommission / 100).toFixed(2)}€ vers PRO`
+    );
+
+    // ✅ ÉTAPE 4 : Créer la Checkout Session avec application_fee_amount
+    // L'argent va DIRECTEMENT au compte Connect du PRO !
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -666,12 +1070,27 @@ export class StripeService {
         type: 'campaign_payment',
         campaignId: campaign.id,
         sellerId: userId,
+        sellerStripeAccountId: sellerStripeAccountId,
+        productsAmount: totalProductsAmount,
+        platformCommission: platformCommission,
+        commissionType: commissionCalc.feeType,
+        totalAmount: totalAmountWithCommission,
       },
+      // ✅ CRITIQUE : application_fee_amount + transfer_data
+      // → Commission va à Super_Try
+      // → Argent produits va au PRO
       payment_intent_data: {
+        application_fee_amount: platformCommission,
+        transfer_data: {
+          destination: sellerStripeAccountId,
+        },
         metadata: {
           type: 'campaign_payment',
           campaignId: campaign.id,
           sellerId: userId,
+          productsAmount: totalProductsAmount,
+          platformCommission: platformCommission,
+          commissionType: commissionCalc.feeType,
         },
       },
     });
@@ -684,13 +1103,22 @@ export class StripeService {
         where: { id: existingTransaction.id },
         data: {
           stripeSessionId: session.id,
-          amount: totalAmountCents / 100, // Convertir en euros
+          amount: totalAmountWithCommission / 100, // Montant TOTAL payé par le client
           metadata: {
             campaignTitle: campaign.title,
             offersCount: campaign.offers.length,
             totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
             updatedAt: new Date().toISOString(),
             previousSessionId: existingTransaction.stripeSessionId,
+            // ✅ Détails de la commission
+            productsAmount: totalProductsAmount / 100,
+            platformCommission: platformCommission / 100,
+            commissionType: commissionCalc.feeType,
+            totalAmountWithCommission: totalAmountWithCommission / 100,
+            // ✅ IMPORTANT: Argent va directement au PRO via Direct Charge
+            sellerStripeAccountId: sellerStripeAccountId,
+            directCharge: true,
+            amountToPRO: commissionCalc.amountAfterCommission / 100,
           },
         },
       });
@@ -701,14 +1129,23 @@ export class StripeService {
         data: {
           campaignId: campaign.id,
           type: TransactionType.CAMPAIGN_PAYMENT,
-          amount: totalAmountCents / 100, // Convertir en euros
-          reason: `Paiement campagne "${campaign.title}"`,
+          amount: totalAmountWithCommission / 100, // Montant TOTAL payé par le client
+          reason: `Paiement campagne "${campaign.title}" (Direct Charge)`,
           status: TransactionStatus.PENDING,
           stripeSessionId: session.id,
           metadata: {
             campaignTitle: campaign.title,
             offersCount: campaign.offers.length,
             totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+            // ✅ Détails de la commission
+            productsAmount: totalProductsAmount / 100,
+            platformCommission: platformCommission / 100,
+            commissionType: commissionCalc.feeType,
+            totalAmountWithCommission: totalAmountWithCommission / 100,
+            // ✅ IMPORTANT: Argent va directement au PRO via Direct Charge
+            sellerStripeAccountId: sellerStripeAccountId,
+            directCharge: true,
+            amountToPRO: commissionCalc.amountAfterCommission / 100,
           },
         },
       });

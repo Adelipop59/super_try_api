@@ -536,7 +536,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Valider l\'achat soumis par le testeur (PRO)',
     description:
-      'Permet au vendeur de valider l\'achat après soumission du numéro de commande. Passe la session de PURCHASE_SUBMITTED à PURCHASE_VALIDATED.',
+      'Permet au vendeur de valider l\'achat après soumission du numéro de commande. Passe la session de PURCHASE_SUBMITTED à PURCHASE_VALIDATED pour que le testeur puisse soumettre son test.',
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({

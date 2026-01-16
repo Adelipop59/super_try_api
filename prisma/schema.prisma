@@ -59,7 +59,6 @@ enum StepType {
   VIDEO // Demander une vidéo
   CHECKLIST // Liste de vérification
   RATING // Notation (1-5 étoiles)
-  PRICE_VALIDATION // Validation du prix (step automatique final)
 }
 
 // Enum for notification types
@@ -649,9 +648,6 @@ model SessionStepProgress {
   // Submission data (photos, videos, text, checklist answers, rating)
   submissionData Json? @map("submission_data")
 
-  // For PRICE_VALIDATION step - prix saisi par le testeur
-  validatedPrice Decimal? @map("validated_price") @db.Decimal(10, 2)
-
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1088,12 +1084,9 @@ model Transaction {
   withdrawal   Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
   campaignId   String?     @map("campaign_id") // Lien vers une campagne si applicable (paiement vendeur)
   campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  chatOrderId  String?     @map("chat_order_id") // Lien vers une commande chat si applicable
-  chatOrder    ChatOrder?  @relation(fields: [chatOrderId], references: [id], onDelete: SetNull)
-
-  // Relations inverses pour escrow (une transaction peut être escrow OU release pour une commande)
-  escrowForOrder  ChatOrder? @relation("EscrowTransaction")
-  releaseForOrder ChatOrder? @relation("ReleaseTransaction")
+  chatOrderId         String?     @map("chat_order_id") // Lien vers une commande chat si applicable
+  chatOrder           ChatOrder?  @relation("ChatOrderTransactions", fields: [chatOrderId], references: [id], onDelete: SetNull)
+  chatOrderValidation ChatOrder?  @relation("ChatOrderValidation") // Relation inverse pour chat_orders.transaction_id
 
   // Stripe payment reference
   stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // ID du PaymentIntent Stripe
@@ -1207,14 +1200,18 @@ model ChatOrder {
   disputeResolution String?   @map("dispute_resolution") @db.Text
   disputeResolvedBy String?   @map("dispute_resolved_by") // Admin ID
 
-  // Payment tracking (escrow transactions)
-  escrowTransactionId  String?      @unique @map("escrow_transaction_id") // Transaction escrow (ESCROW)
-  escrowTransaction    Transaction? @relation("EscrowTransaction", fields: [escrowTransactionId], references: [id])
-  releaseTransactionId String?      @unique @map("release_transaction_id") // Transaction libération (COMPLETED)
-  releaseTransaction   Transaction? @relation("ReleaseTransaction", fields: [releaseTransactionId], references: [id])
+  // Payment tracking (Stripe Payment Intent avec capture différée)
+  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // Stripe Payment Intent ID
+  stripeTransferId      String? @unique @map("stripe_transfer_id") // Stripe Transfer ID (vers testeur)
+  paidAt                DateTime? @map("paid_at") // Quand le paiement a été capturé
+  paidAmount            Decimal?  @db.Decimal(10, 2) @map("paid_amount") // Montant réellement payé au testeur (après fees)
 
-  // Relation inverse pour transactions normales (non-escrow, non-release)
-  transactions Transaction[] // Transactions liées à cette commande (via chatOrderId)
+  // Relation avec transaction
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("ChatOrderValidation", fields: [transactionId], references: [id])
+
+  // Relation inverse pour transactions normales
+  transactions Transaction[] @relation("ChatOrderTransactions") // Transactions liées à cette commande (via chatOrderId)
 
   // Metadata
   metadata Json? // Données additionnelles
@@ -1230,3 +1227,6 @@ model ChatOrder {
   @@index([createdAt])
   @@map("chat_orders")
 }
+
+// Enum for UGC Task status
+// Note: UgcTask model was removed - functionality merged into ChatOrder with Stripe Payment Intent

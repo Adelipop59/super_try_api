@@ -1,0 +1,5 @@
+name: mgrep
+description: Recherche sémantique dans le code via mgrep
+command: mgrep
+args:
+  - "{{input}}"
