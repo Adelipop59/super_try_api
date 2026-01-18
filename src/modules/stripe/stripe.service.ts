@@ -1004,14 +1004,14 @@ export class StripeService {
       select: { stripeAccountId: true },
     });
 
-    if (!sellerProfile?.stripeAccountId) {
+    if (process.env.DISABLE_STRIPE_CONNECT_CHECK !== 'true' && !sellerProfile?.stripeAccountId) {
       throw new BadRequestException(
         'Vous devez configurer votre compte Stripe Connect avant de pouvoir activer une campagne. ' +
         'Rendez-vous dans les paramètres pour compléter votre onboarding Stripe.'
       );
     }
 
-    const sellerStripeAccountId = sellerProfile.stripeAccountId;
+    const sellerStripeAccountId = sellerProfile?.stripeAccountId || null;
 
     // ✅ ÉTAPE 2 : Calculer la commission avec la nouvelle méthode (support FIXED/PERCENTAGE)
     const commissionCalc = this.calculateCampaignCommission({
@@ -1060,7 +1060,7 @@ export class StripeService {
 
     // ✅ ÉTAPE 4 : Créer la Checkout Session avec application_fee_amount
     // L'argent va DIRECTEMENT au compte Connect du PRO !
-    const session = await this.stripe.checkout.sessions.create({
+    const sessionParams: any = {
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
@@ -1070,16 +1070,17 @@ export class StripeService {
         type: 'campaign_payment',
         campaignId: campaign.id,
         sellerId: userId,
-        sellerStripeAccountId: sellerStripeAccountId,
+        sellerStripeAccountId: sellerStripeAccountId || 'test_mode',
         productsAmount: totalProductsAmount,
         platformCommission: platformCommission,
         commissionType: commissionCalc.feeType,
         totalAmount: totalAmountWithCommission,
       },
-      // ✅ CRITIQUE : application_fee_amount + transfer_data
-      // → Commission va à Super_Try
-      // → Argent produits va au PRO
-      payment_intent_data: {
+    };
+
+    // Ajouter payment_intent_data uniquement si Stripe Connect est activé
+    if (sellerStripeAccountId) {
+      sessionParams.payment_intent_data = {
         application_fee_amount: platformCommission,
         transfer_data: {
           destination: sellerStripeAccountId,
@@ -1092,11 +1093,13 @@ export class StripeService {
           platformCommission: platformCommission,
           commissionType: commissionCalc.feeType,
         },
-      },
-    });
+      };
+    }
+
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
 
     // Créer ou mettre à jour la transaction en base de données
-    let transaction;
+    let transaction: any;
     if (existingTransaction) {
       // UPDATE la transaction existante avec le nouveau stripeSessionId
       transaction = await this.prismaService.transaction.update({
