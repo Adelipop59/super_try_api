@@ -49,6 +49,16 @@ export class UsersService {
     const currency = walletBalance?.currency || 'EUR';
 
     if (profile.role === UserRole.PRO || profile.role === UserRole.ADMIN) {
+      // Récupérer les IDs des campagnes du vendeur
+      const campaigns = await this.prismaService.campaign.findMany({
+        where: { sellerId: userId },
+        select: { id: true },
+      });
+      const campaignIds = campaigns.map((c) => c.id);
+
+      console.log(`[getDashboardStats] User ${userId} has ${campaignIds.length} campaigns`);
+      console.log('[getDashboardStats] Campaign IDs:', campaignIds);
+
       // PRO/ADMIN: Get comprehensive stats including campaigns and products
       const [
         totalProducts,
@@ -77,9 +87,9 @@ export class UsersService {
         }),
         this.prismaService.transaction.aggregate({
           where: {
+            campaignId: { in: campaignIds },
             status: 'COMPLETED',
             type: 'CAMPAIGN_PAYMENT',
-            campaign: { sellerId: userId },
           },
           _sum: { amount: true },
         }),
@@ -89,6 +99,9 @@ export class UsersService {
         ? Number(totalSpentResult._sum.amount)
         : 0;
 
+      console.log('[getDashboardStats] Total spent result:', totalSpentResult);
+      console.log('[getDashboardStats] Total spent:', totalSpent);
+
       // Get spending chart data (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -96,9 +109,9 @@ export class UsersService {
       const dailyTransactions = await this.prismaService.transaction.groupBy({
         by: ['createdAt'],
         where: {
+          campaignId: { in: campaignIds },
           status: 'COMPLETED',
           type: 'CAMPAIGN_PAYMENT',
-          campaign: { sellerId: userId },
           createdAt: { gte: thirtyDaysAgo },
         },
         _sum: { amount: true },
@@ -414,12 +427,19 @@ export class UsersService {
       }),
     ]);
 
+    // Récupérer les IDs des campagnes du vendeur
+    const campaigns = await this.prismaService.campaign.findMany({
+      where: { sellerId },
+      select: { id: true },
+    });
+    const campaignIds = campaigns.map((c) => c.id);
+
     // Calculer le montant total dépensé (transactions COMPLETED pour les campagnes du vendeur)
     const totalSpentResult = await this.prismaService.transaction.aggregate({
       where: {
+        campaignId: { in: campaignIds },
         status: 'COMPLETED',
         type: 'CAMPAIGN_PAYMENT',
-        campaign: { sellerId },
       },
       _sum: {
         amount: true,
@@ -437,9 +457,9 @@ export class UsersService {
     const dailyTransactions = await this.prismaService.transaction.groupBy({
       by: ['createdAt'],
       where: {
+        campaignId: { in: campaignIds },
         status: 'COMPLETED',
         type: 'CAMPAIGN_PAYMENT',
-        campaign: { sellerId },
         createdAt: {
           gte: thirtyDaysAgo,
         },
@@ -678,5 +698,111 @@ export class UsersService {
 
     // Create new verification session
     return this.initiateStripeVerification(userId);
+  }
+
+  /**
+   * Get list of available countries with their availability status
+   * @param locale - Language for country names (en or fr)
+   * @returns List of countries sorted by active status first
+   *
+   * Availability logic:
+   * 1. Priority countries (from PRIORITY_COUNTRIES env) are always available
+   * 2. Other countries are available if they have >= MIN_TESTERS_PER_COUNTRY testers
+   */
+  async getAvailableCountries(locale: string = 'fr'): Promise<any[]> {
+    // Get priority countries from env
+    const priorityCountriesEnv = this.configService.get<string>('PRIORITY_COUNTRIES', 'FR');
+    const priorityCountries = priorityCountriesEnv.split(',').map(c => c.trim());
+
+    // Get minimum testers threshold from env
+    const minTestersPerCountry = this.configService.get<number>('MIN_TESTERS_PER_COUNTRY', 10);
+
+    // Get all countries
+    const countries = await this.prismaService.country.findMany({
+      orderBy: [
+        { name: 'asc' },
+      ],
+    });
+
+    // Count testers per country
+    const testerCounts = await this.prismaService.profile.groupBy({
+      by: ['country'],
+      where: {
+        role: UserRole.USER,
+        country: { not: null },
+      },
+      _count: {
+        country: true,
+      },
+    });
+
+    // Create a map of country code -> tester count
+    const testerCountMap = new Map<string, number>();
+    testerCounts.forEach(item => {
+      if (item.country) {
+        testerCountMap.set(item.country, item._count.country);
+      }
+    });
+
+    // Calculate dynamic availability for each country
+    const countriesWithAvailability = countries.map(c => {
+      const isPriority = priorityCountries.includes(c.code);
+      const testerCount = testerCountMap.get(c.code) || 0;
+      const isActive = isPriority || testerCount >= minTestersPerCountry;
+
+      return {
+        code: c.code,
+        name: locale === 'fr' ? c.nameFr : c.nameEn,
+        nameEn: c.nameEn,
+        nameFr: c.nameFr,
+        isActive,
+        region: c.region,
+      };
+    });
+
+    // Sort: active first, then alphabetical
+    return countriesWithAvailability.sort((a, b) => {
+      if (a.isActive !== b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  /**
+   * Get countries selected by a PRO user
+   * @param profileId - PRO profile ID
+   * @param locale - Language for country names (en or fr)
+   * @returns List of countries selected by the PRO
+   */
+  async getProfileCountries(profileId: string, locale: string = 'fr'): Promise<any[]> {
+    const profile = await this.getProfileById(profileId);
+
+    // Check if profile is PRO
+    if (profile.role !== 'PRO') {
+      throw new BadRequestException('This endpoint is only available for PRO users');
+    }
+
+    // Get profile countries with country details
+    const profileCountries = await this.prismaService.profileCountry.findMany({
+      where: { profileId },
+      include: {
+        country: true,
+      },
+      orderBy: {
+        country: {
+          isActive: 'desc',
+        },
+      },
+    });
+
+    return profileCountries.map(pc => ({
+      code: pc.country.code,
+      name: locale === 'fr' ? pc.country.nameFr : pc.country.nameEn,
+      nameEn: pc.country.nameEn,
+      nameFr: pc.country.nameFr,
+      isActive: pc.country.isActive,
+      region: pc.country.region,
+    }));
   }
 }

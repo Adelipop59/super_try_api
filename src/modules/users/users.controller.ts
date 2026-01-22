@@ -24,6 +24,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import type { Profile } from '@prisma/client';
@@ -31,14 +32,15 @@ import { ProfileResponseDto } from './dto/profile.dto';
 import type { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { ProOverviewDto } from './dto/pro-overview.dto';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
+import { AvailableCountriesResponseDto } from './dto/country.dto';
 
 @ApiTags('users')
 @Controller('users')
-@UseGuards(SupabaseAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Roles('ADMIN')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('profiles')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -103,6 +105,7 @@ export class UsersController {
     });
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('me')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -121,6 +124,7 @@ export class UsersController {
     return profile;
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('me/dashboard')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -138,6 +142,7 @@ export class UsersController {
   }
 
   @Roles('USER')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Post('me/verify/initiate')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -170,6 +175,7 @@ export class UsersController {
     return this.usersService.initiateStripeVerification(user.id);
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('me/verify/status')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -208,6 +214,7 @@ export class UsersController {
   }
 
   @Roles('USER')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Post('me/verify/retry')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -241,6 +248,7 @@ export class UsersController {
   }
 
   @Roles('PRO')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('me/overview')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -258,6 +266,7 @@ export class UsersController {
     return this.usersService.getProOverview(user.id);
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Get('profiles/:id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -291,6 +300,7 @@ export class UsersController {
     return profile;
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Patch('me')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -318,6 +328,7 @@ export class UsersController {
     return this.usersService.updateProfile(user.id, safeUpdate);
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Patch('me/device-token')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -360,6 +371,7 @@ export class UsersController {
     };
   }
 
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Delete('me/device-token')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -387,6 +399,7 @@ export class UsersController {
   }
 
   @Roles('ADMIN')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Patch('profiles/:id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -407,6 +420,7 @@ export class UsersController {
   }
 
   @Roles('ADMIN')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Post('profiles/:id/verify')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -427,6 +441,7 @@ export class UsersController {
   }
 
   @Roles('ADMIN')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Patch('profiles/:id/role')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -456,6 +471,7 @@ export class UsersController {
   }
 
   @Roles('ADMIN')
+  @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Delete('profiles/:id')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
@@ -469,5 +485,58 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'Profil non trouvé' })
   remove(@Param('id') id: string) {
     return this.usersService.deleteProfile(id);
+  }
+
+  @Public()
+  @Get('available-countries')
+  @ApiOperation({
+    summary: 'Liste des pays disponibles',
+    description: 'Récupère la liste des pays avec leur statut de disponibilité (actif ou "Coming Soon")',
+  })
+  @ApiQuery({
+    name: 'locale',
+    required: false,
+    enum: ['en', 'fr'],
+    description: 'Langue pour les noms de pays (défaut: fr)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste des pays',
+    type: AvailableCountriesResponseDto,
+  })
+  async getAvailableCountries(
+    @Query('locale') locale?: string,
+  ): Promise<AvailableCountriesResponseDto> {
+    const countries = await this.usersService.getAvailableCountries(locale || 'fr');
+    return { countries };
+  }
+
+  @UseGuards(SupabaseAuthGuard)
+  @Get(':id/countries')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Pays sélectionnés par un PRO',
+    description: 'Récupère la liste des pays sélectionnés par un vendeur PRO',
+  })
+  @ApiParam({ name: 'id', description: 'ID du profil PRO' })
+  @ApiQuery({
+    name: 'locale',
+    required: false,
+    enum: ['en', 'fr'],
+    description: 'Langue pour les noms de pays (défaut: fr)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Liste des pays sélectionnés',
+    type: AvailableCountriesResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Profil non trouvé' })
+  async getProfileCountries(
+    @Param('id') id: string,
+    @Query('locale') locale?: string,
+  ): Promise<AvailableCountriesResponseDto> {
+    const countries = await this.usersService.getProfileCountries(id, locale || 'fr');
+    return { countries };
   }
 }

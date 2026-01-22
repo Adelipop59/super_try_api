@@ -310,36 +310,23 @@ export class AuthController {
     @Query('code') code: string,
     @Query('error') error: string,
     @Query('error_description') errorDescription: string,
-    @Res({ passthrough: false }) res: Response,
+    @Res() res: Response,
   ) {
-    console.log('[OAuth Callback] ========== START ==========');
-    console.log('[OAuth Callback] Received code:', code ? 'PRESENT' : 'MISSING');
-    console.log('[OAuth Callback] Received error:', error || 'NONE');
-    console.log('[OAuth Callback] Error description:', errorDescription || 'NONE');
-
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    console.log('[OAuth Callback] Frontend URL:', frontendUrl);
 
     // Handle OAuth errors from provider
     if (error) {
       const encodedError = encodeURIComponent(errorDescription || error);
-      const redirectUrl = `${frontendUrl}/auth/error?error=${encodedError}`;
-      console.log('[OAuth Callback] Provider error, redirecting to:', redirectUrl);
-      return res.redirect(redirectUrl);
+      return res.redirect(`${frontendUrl}/auth/error?error=${encodedError}`);
     }
 
     // Handle missing code
     if (!code) {
-      const redirectUrl = `${frontendUrl}/auth/error?error=Code OAuth manquant`;
-      console.log('[OAuth Callback] Code missing, redirecting to:', redirectUrl);
-      return res.redirect(redirectUrl);
+      return res.redirect(`${frontendUrl}/auth/error?error=Code OAuth manquant`);
     }
 
     try {
-      console.log('[OAuth Callback] Exchanging code for session with Supabase...');
       const authData = await this.authService.handleOAuthCallback(code, '');
-      console.log('[OAuth Callback] Session exchange successful');
-      console.log('[OAuth Callback] User ID:', authData.profile?.id);
 
       // Redirect to frontend with tokens in URL (will be extracted by frontend and stored)
       const params = new URLSearchParams({
@@ -348,20 +335,10 @@ export class AuthController {
         expires_in: authData.expires_in.toString(),
       });
 
-      const redirectUrl = `${frontendUrl}/auth/callback?${params.toString()}`;
-      console.log('[OAuth Callback] Redirecting to frontend callback');
-      console.log('[OAuth Callback] Redirect URL (without tokens):', `${frontendUrl}/auth/callback?access_token=***&refresh_token=***`);
-      console.log('[OAuth Callback] ========== END SUCCESS ==========');
-
-      return res.redirect(redirectUrl);
+      return res.redirect(`${frontendUrl}/auth/callback?${params.toString()}`);
     } catch (err) {
-      console.error('[OAuth Callback] ========== ERROR ==========');
-      console.error('[OAuth Callback] Error during callback:', err);
       const errorMsg = err instanceof Error ? err.message : 'Erreur OAuth inconnue';
-      const redirectUrl = `${frontendUrl}/auth/error?error=${encodeURIComponent(errorMsg)}`;
-      console.log('[OAuth Callback] Redirecting to error page:', redirectUrl);
-      console.log('[OAuth Callback] ========== END ERROR ==========');
-      return res.redirect(redirectUrl);
+      return res.redirect(`${frontendUrl}/auth/error?error=${encodeURIComponent(errorMsg)}`);
     }
   }
 

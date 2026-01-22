@@ -5,8 +5,13 @@ import {
   MinLength,
   IsEnum,
   IsOptional,
+  ValidateIf,
+  Length,
+  IsArray,
+  ArrayMinSize,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserRole as PrismaUserRole } from '@prisma/client';
 
 export enum UserRole {
   USER = 'USER',
@@ -40,13 +45,19 @@ export class SignupDto {
   @IsOptional()
   role?: UserRole;
 
-  @ApiProperty({ description: 'Prénom', required: false, example: 'Jean' })
+  @ApiProperty({ description: 'Prénom (obligatoire pour PRO)', required: false, example: 'Jean' })
+  @ValidateIf(o => o.role === UserRole.PRO)
   @IsString()
+  @MinLength(2, { message: 'Le prénom doit contenir au moins 2 caractères' })
+  @ValidateIf(o => o.role !== UserRole.PRO)
   @IsOptional()
   firstName?: string;
 
-  @ApiProperty({ description: 'Nom', required: false, example: 'Dupont' })
+  @ApiProperty({ description: 'Nom (obligatoire pour PRO)', required: false, example: 'Dupont' })
+  @ValidateIf(o => o.role === UserRole.PRO)
   @IsString()
+  @MinLength(2, { message: 'Le nom doit contenir au moins 2 caractères' })
+  @ValidateIf(o => o.role !== UserRole.PRO)
   @IsOptional()
   lastName?: string;
 
@@ -60,7 +71,7 @@ export class SignupDto {
   phone?: string;
 
   @ApiProperty({
-    description: "Nom de l'entreprise (pour les PRO)",
+    description: "Nom de l'entreprise (optionnel)",
     required: false,
     example: 'ACME Corp',
   })
@@ -76,6 +87,29 @@ export class SignupDto {
   @IsString()
   @IsOptional()
   siret?: string;
+
+  @ApiProperty({
+    description: 'Code pays ISO 3166-1 alpha-2 (obligatoire pour USER)',
+    required: false,
+    example: 'FR',
+  })
+  @ValidateIf(o => !o.role || o.role === UserRole.USER)
+  @IsString({ message: 'Le code pays doit être une chaîne de caractères' })
+  @Length(2, 2, { message: 'Le code pays doit être au format ISO (2 lettres)' })
+  @IsOptional()
+  country?: string;
+
+  @ApiProperty({
+    description: 'Codes pays ISO 3166-1 alpha-2 (obligatoire pour PRO, minimum 1 pays)',
+    required: false,
+    example: ['FR', 'DE', 'BE'],
+    type: [String],
+  })
+  @ValidateIf(o => o.role === UserRole.PRO)
+  @IsArray({ message: 'Les pays doivent être fournis sous forme de tableau' })
+  @ArrayMinSize(1, { message: 'Au moins un pays doit être sélectionné pour un compte PRO' })
+  @IsString({ each: true, message: 'Chaque code pays doit être une chaîne de caractères' })
+  countries?: string[];
 }
 
 export class LoginDto {
@@ -261,4 +295,36 @@ export class OAuthUrlResponseDto {
     enum: ['google', 'github'],
   })
   provider!: string;
+}
+
+export class CheckEmailDto {
+  @ApiProperty({
+    description: 'Adresse email à vérifier',
+    example: 'user@example.com',
+  })
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+}
+
+export class CheckEmailResponseDto {
+  @ApiProperty({
+    description: 'Indique si l\'email existe',
+    example: true,
+  })
+  exists!: boolean;
+
+  @ApiProperty({
+    description: 'Email vérifié',
+    example: 'user@example.com',
+  })
+  email!: string;
+
+  @ApiProperty({
+    description: 'Rôle de l\'utilisateur si le compte existe',
+    enum: ['USER', 'PRO', 'ADMIN'],
+    required: false,
+    example: 'USER',
+  })
+  role?: PrismaUserRole;
 }

@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
@@ -68,7 +68,7 @@ export class CreateProfileDto {
   avatar?: string;
 
   @ApiProperty({
-    description: "Nom de l'entreprise (pour PRO)",
+    description: "Nom de l'entreprise (facultatif pour PRO)",
     example: 'Acme Corp',
     required: false,
   })
@@ -77,11 +77,21 @@ export class CreateProfileDto {
   companyName?: string;
 
   @ApiProperty({
-    description: 'Numéro SIRET (pour PRO)',
+    description: 'Numéro SIRET (facultatif pour PRO)',
     example: '12345678901234',
     required: false,
   })
   @IsString()
   @IsOptional()
   siret?: string;
+
+  @ApiProperty({
+    description: 'Code pays ISO 3166-1 alpha-2',
+    example: 'FR',
+    required: false,
+  })
+  @IsString()
+  @Length(2, 2)
+  @IsOptional()
+  country?: string;
 }

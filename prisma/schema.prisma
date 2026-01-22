@@ -221,6 +221,7 @@ model Profile {
   withdrawals         Withdrawal[] // Demandes de retrait (pour les testeurs)
   procedureTemplates  ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
   criteriaTemplates   CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
+  countries           ProfileCountry[] // Pays sélectionnés (pour les PRO)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -1230,3 +1231,40 @@ model ChatOrder {
 
 // Enum for UGC Task status
 // Note: UgcTask model was removed - functionality merged into ChatOrder with Stripe Payment Intent
+
+// Country model for seller registration
+model Country {
+  id        String   @id @default(uuid())
+  code      String   @unique // ISO 3166-1 alpha-2 (FR, DE, etc.)
+  name      String   // "France", "Germany"
+  nameEn    String   @map("name_en") // English name
+  nameFr    String   @map("name_fr") // French name
+  isActive  Boolean  @default(false) @map("is_active") // false = "Coming Soon"
+  region    String   // "Western Europe", "Northern Europe"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  profileCountries ProfileCountry[] // Pays sélectionnés par les PRO
+
+  @@index([isActive])
+  @@index([code])
+  @@map("countries")
+}
+
+// Table de liaison: Pays sélectionnés par les PRO
+model ProfileCountry {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  countryCode String   @map("country_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  country Country @relation(fields: [countryCode], references: [code], onDelete: Cascade)
+
+  @@unique([profileId, countryCode])
+  @@index([profileId])
+  @@index([countryCode])
+  @@map("profile_countries")
+}
