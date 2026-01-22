@@ -130,6 +130,17 @@ export class AuthService {
       // No availability check for USER - they can register from any country
     }
 
+    // Security check: verify if email already exists in our database
+    const existingProfile = await this.prismaService.profile.findUnique({
+      where: { email },
+    });
+
+    if (existingProfile) {
+      throw new BadRequestException(
+        `Un compte existe déjà avec cet email. Veuillez vous connecter ou utiliser un autre email.`,
+      );
+    }
+
     // Create user in Supabase with email already confirmed
     const { data, error } = await this.supabaseService
       .getAdminClient()
@@ -143,6 +154,12 @@ export class AuthService {
       });
 
     if (error || !data.user) {
+      // Handle specific Supabase errors
+      if (error?.message?.includes('already registered')) {
+        throw new BadRequestException(
+          'Un compte existe déjà avec cet email dans le système d\'authentification.',
+        );
+      }
       throw new BadRequestException(
         error?.message || 'Erreur lors de la création du compte',
       );
@@ -352,14 +369,15 @@ export class AuthService {
    * Logout - Sign out user
    */
   async logout(supabaseUserId: string): Promise<MessageResponseDto> {
-    const { error } = await this.supabaseService
-      .getAdminClient()
-      .auth.admin.signOut(supabaseUserId);
+    // Note: Supabase doesn't require server-side session invalidation
+    // Cookies are cleared by the controller, which effectively logs out the user
+    // The JWT tokens will expire naturally based on their TTL
 
-    if (error) {
-      throw new BadRequestException('Erreur lors de la déconnexion');
-    }
+    // Optional: You could invalidate all sessions for this user with:
+    // await this.supabaseService.getAdminClient().auth.admin.signOut(supabaseUserId, 'global');
+    // But this is not necessary for basic logout functionality
 
+    this.logger.log(`User ${supabaseUserId} logged out successfully`);
     return { message: 'Déconnexion réussie' };
   }
 
@@ -595,20 +613,44 @@ export class AuthService {
       throw new BadRequestException('Code OAuth invalide');
     }
 
-    // Check if profile exists
+    // Check if profile exists with this Supabase user ID
     let profile = await this.usersService.getProfileBySupabaseId(data.user.id);
 
-    // Create profile if doesn't exist using UsersService
+    // If no profile found with this Supabase ID, check if email already exists
     if (!profile) {
-      profile = await this.usersService.createProfile({
-        supabaseUserId: data.user.id,
-        email: data.user.email!,
-        role: 'USER',
-        firstName:
-          data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
-        lastName:
-          data.user.user_metadata?.full_name?.split(' ')[1] || undefined,
+      // Security check: verify if email is already registered with a different auth method
+      const existingProfile = await this.prismaService.profile.findUnique({
+        where: { email: data.user.email },
       });
+
+      if (existingProfile) {
+        // Email already exists with a different authentication method
+        // Option 1: Reject and ask user to login with original method
+        throw new BadRequestException(
+          `Un compte existe déjà avec l'email ${data.user.email}. Veuillez vous connecter avec votre méthode d'inscription originale (email/mot de passe).`,
+        );
+
+        // Option 2 (alternative): Link accounts by updating the existing profile
+        // Uncomment below to link accounts instead of rejecting
+        /*
+        await this.prismaService.profile.update({
+          where: { id: existingProfile.id },
+          data: { supabaseUserId: data.user.id },
+        });
+        profile = existingProfile;
+        */
+      } else {
+        // Create new profile if email doesn't exist
+        profile = await this.usersService.createProfile({
+          supabaseUserId: data.user.id,
+          email: data.user.email!,
+          role: 'USER',
+          firstName:
+            data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
+          lastName:
+            data.user.user_metadata?.full_name?.split(' ')[1] || undefined,
+        });
+      }
     }
 
     return {

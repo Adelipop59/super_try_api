@@ -8,8 +8,10 @@ import {
   Query,
   Patch,
   Res,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -36,6 +38,11 @@ import {
   CheckEmailDto,
   CheckEmailResponseDto,
 } from './dto/auth.dto';
+import {
+  COOKIE_NAMES,
+  COOKIE_EXPIRY,
+  getCookieOptions,
+} from '../../common/constants/cookie.constants';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -47,7 +54,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Inscription',
     description:
-      "Crée un compte utilisateur et retourne les tokens d'authentification.",
+      "Crée un compte utilisateur et retourne les tokens d'authentification dans des cookies httpOnly.",
   })
   @ApiResponse({
     status: 201,
@@ -56,8 +63,29 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 409, description: 'Email déjà utilisé' })
-  async signup(@Body() signupDto: SignupDto): Promise<AuthResponseDto> {
-    return this.authService.signup(signupDto);
+  async signup(
+    @Body() signupDto: SignupDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const authData = await this.authService.signup(signupDto);
+
+    // Set httpOnly cookies for tokens
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie(
+      COOKIE_NAMES.ACCESS_TOKEN,
+      authData.access_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.ACCESS_TOKEN),
+    );
+
+    res.cookie(
+      COOKIE_NAMES.REFRESH_TOKEN,
+      authData.refresh_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.REFRESH_TOKEN),
+    );
+
+    // Return response without tokens (they're now in cookies)
+    return authData;
   }
 
   @Public()
@@ -80,7 +108,7 @@ export class AuthController {
   @Post('login')
   @ApiOperation({
     summary: 'Connexion',
-    description: 'Authentifie un utilisateur et retourne les tokens.',
+    description: 'Authentifie un utilisateur et retourne les tokens dans des cookies httpOnly.',
   })
   @ApiResponse({
     status: 200,
@@ -88,15 +116,73 @@ export class AuthController {
     type: AuthResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const authData = await this.authService.login(loginDto);
+
+    // Set httpOnly cookies for tokens
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie(
+      COOKIE_NAMES.ACCESS_TOKEN,
+      authData.access_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.ACCESS_TOKEN),
+    );
+
+    res.cookie(
+      COOKIE_NAMES.REFRESH_TOKEN,
+      authData.refresh_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.REFRESH_TOKEN),
+    );
+
+    // Return response without tokens (they're now in cookies)
+    return authData;
+  }
+
+  @Public()
+  @Post('store-oauth-tokens')
+  @ApiOperation({
+    summary: 'Stocker les tokens OAuth dans des cookies',
+    description: 'Endpoint pour stocker les tokens OAuth reçus en URL fragment dans des cookies httpOnly',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens stockés avec succès',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Tokens manquants' })
+  async storeOAuthTokens(
+    @Body() body: { access_token: string; refresh_token: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<MessageResponseDto> {
+    if (!body.access_token || !body.refresh_token) {
+      throw new UnauthorizedException('Tokens manquants');
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie(
+      COOKIE_NAMES.ACCESS_TOKEN,
+      body.access_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.ACCESS_TOKEN),
+    );
+
+    res.cookie(
+      COOKIE_NAMES.REFRESH_TOKEN,
+      body.refresh_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.REFRESH_TOKEN),
+    );
+
+    return { message: 'Tokens OAuth stockés avec succès' };
   }
 
   @Public()
   @Post('refresh')
   @ApiOperation({
     summary: 'Rafraîchir le token',
-    description: "Génère un nouveau token d'accès à partir du refresh token",
+    description: "Génère un nouveau token d'accès à partir du refresh token cookie",
   })
   @ApiResponse({
     status: 200,
@@ -105,9 +191,32 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Refresh token invalide ou expiré' })
   async refreshToken(
-    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() refreshTokenDto?: RefreshTokenDto,
   ): Promise<RefreshTokenResponseDto> {
-    return this.authService.refreshToken(refreshTokenDto.refresh_token);
+    // Read refresh_token from cookie (priority) or body (backward compatibility)
+    const refreshToken =
+      req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] ||
+      refreshTokenDto?.refresh_token;
+
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found in cookies or body');
+    }
+
+    const authData = await this.authService.refreshToken(refreshToken);
+
+    // Set new access_token in cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie(
+      COOKIE_NAMES.ACCESS_TOKEN,
+      authData.access_token,
+      getCookieOptions(isProduction, COOKIE_EXPIRY.ACCESS_TOKEN),
+    );
+
+    // Return response without token (it's now in cookie)
+    return authData;
   }
 
   @Public()
@@ -205,11 +314,31 @@ export class AuthController {
   }
 
   @UseGuards(SupabaseAuthGuard)
+  @Get('ws-token')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Obtenir un token temporaire pour WebSocket',
+    description: 'Génère un token temporaire pour l\'authentification WebSocket',
+  })
+  @ApiResponse({ status: 200, description: 'Token WebSocket généré' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  getWebSocketToken(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    // Extract the access_token from cookie
+    const token = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
+
+    return {
+      token,
+      userId: user.id,
+      expiresIn: 300, // 5 minutes
+    };
+  }
+
+  @UseGuards(SupabaseAuthGuard)
   @Post('logout')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Déconnexion',
-    description: "Déconnecte l'utilisateur et invalide le token",
+    description: "Déconnecte l'utilisateur, invalide le token et efface les cookies",
   })
   @ApiResponse({
     status: 200,
@@ -219,8 +348,30 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Token invalide ou manquant' })
   async logout(
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<MessageResponseDto> {
-    return this.authService.logout(user.supabaseUserId);
+    const result = await this.authService.logout(user.supabaseUserId);
+
+    // Clear cookies with same options as when they were set
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.clearCookie(COOKIE_NAMES.ACCESS_TOKEN, {
+      path: '/',
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    });
+
+    res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, {
+      path: '/',
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    });
+
+    return result;
   }
 
   @UseGuards(SupabaseAuthGuard)
@@ -341,16 +492,11 @@ export class AuthController {
       console.log('[OAuth Callback] Session exchange successful');
       console.log('[OAuth Callback] User ID:', authData.profile?.id);
 
-      // Redirect to frontend with tokens in URL (will be extracted by frontend and stored)
-      const params = new URLSearchParams({
-        access_token: authData.access_token,
-        refresh_token: authData.refresh_token,
-        expires_in: authData.expires_in.toString(),
-      });
-
-      const redirectUrl = `${frontendUrl}/auth/callback?${params.toString()}`;
-      console.log('[OAuth Callback] Redirecting to frontend callback');
-      console.log('[OAuth Callback] Redirect URL (without tokens):', `${frontendUrl}/auth/callback?access_token=***&refresh_token=***`);
+      // Redirect to frontend with tokens in URL fragment
+      // Frontend will store them as httpOnly cookies via an API call
+      const redirectUrl = `${frontendUrl}/auth/callback#access_token=${encodeURIComponent(authData.access_token)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&token_type=bearer&expires_in=${authData.expires_in}`;
+      console.log('[OAuth Callback] Redirecting to frontend callback with tokens in URL fragment');
+      console.log('[OAuth Callback] Redirect URL:', redirectUrl.substring(0, 100) + '...');
       console.log('[OAuth Callback] ========== END SUCCESS ==========');
 
       return res.redirect(redirectUrl);

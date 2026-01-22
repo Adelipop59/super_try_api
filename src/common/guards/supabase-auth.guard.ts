@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { SupabaseService } from '../supabase/supabase.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PrismaService } from '../../database/prisma.service';
+import { COOKIE_NAMES } from '../constants/cookie.constants';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -37,15 +38,20 @@ export class SupabaseAuthGuard implements CanActivate {
       return true;
     }
 
-    const authHeader = request.headers.authorization;
+    // Try to get token from cookies first (httpOnly secure), then fallback to Authorization header
+    let token: string | null = null;
 
-    if (!authHeader) {
-      throw new UnauthorizedException('No authorization header found');
+    // Priority 1: httpOnly cookie (most secure)
+    if (request.cookies && request.cookies[COOKIE_NAMES.ACCESS_TOKEN]) {
+      token = request.cookies[COOKIE_NAMES.ACCESS_TOKEN];
+    }
+    // Priority 2: Authorization header (backward compatibility)
+    else if (request.headers.authorization) {
+      token = this.extractTokenFromHeader(request.headers.authorization);
     }
 
-    const token = this.extractTokenFromHeader(authHeader);
     if (!token) {
-      throw new UnauthorizedException('Invalid authorization header format');
+      throw new UnauthorizedException('No access token found in cookies or authorization header');
     }
 
     // Verify token with Supabase

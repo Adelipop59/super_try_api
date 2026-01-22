@@ -187,12 +187,13 @@ export class AuthResponseDto {
 
 export class RefreshTokenDto {
   @ApiProperty({
-    description: 'Token de rafraîchissement',
+    description: 'Token de rafraîchissement (optionnel, lu depuis le cookie en priorité)',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  refresh_token!: string;
+  @IsOptional()
+  refresh_token?: string;
 }
 
 export class ForgotPasswordDto {

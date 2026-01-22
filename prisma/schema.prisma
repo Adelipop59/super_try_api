@@ -202,6 +202,9 @@ model Profile {
   isActive   Boolean @default(true) @map("is_active")
   isVerified Boolean @default(false) @map("is_verified")
 
+  // OAuth provider tracking
+  authProvider String? @map("auth_provider") // 'google', 'azure', 'github', null for email/password
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
