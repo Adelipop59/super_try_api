@@ -37,7 +37,9 @@ import {
   OAuthUrlResponseDto,
   CheckEmailDto,
   CheckEmailResponseDto,
+  CompleteOnboardingDto,
 } from './dto/auth.dto';
+import { ProfileResponseDto } from '../users/dto/profile.dto';
 import {
   COOKIE_NAMES,
   COOKIE_EXPIRY,
@@ -139,6 +141,51 @@ export class AuthController {
 
     // Return response without tokens (they're now in cookies)
     return authData;
+  }
+
+  @Public()
+  @Get('check-session')
+  @ApiOperation({
+    summary: 'Vérifier la session utilisateur',
+    description: 'Retourne le profil si connecté, null sinon. Ne retourne jamais 401, toujours 200.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session vérifiée',
+    schema: {
+      oneOf: [
+        { $ref: '#/components/schemas/ProfileResponseDto' },
+        { type: 'object', properties: { user: { type: 'null' } } },
+      ],
+    },
+  })
+  async checkSession(@Req() req: Request): Promise<{ user: ProfileResponseDto | null }> {
+    try {
+      // Récupérer le token depuis les cookies
+      const accessToken = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
+
+      if (!accessToken) {
+        return { user: null };
+      }
+
+      // Vérifier le token avec Supabase
+      const { data, error } = await this.authService.getSupabaseClient().auth.getUser(accessToken);
+
+      if (error || !data.user) {
+        return { user: null };
+      }
+
+      // Récupérer le profil
+      const profile = await this.authService.getUserProfile(data.user.id);
+
+      if (!profile) {
+        return { user: null };
+      }
+
+      return { user: profile as ProfileResponseDto };
+    } catch {
+      return { user: null };
+    }
   }
 
   @Public()
@@ -527,5 +574,30 @@ export class AuthController {
     // On redirige simplement vers le frontend avec un message de succès
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     return res.redirect(`${frontendUrl}/auth/email-verified?success=true`);
+  }
+
+  @UseGuards(SupabaseAuthGuard)
+  @Post('complete-onboarding')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: "Compléter l'onboarding après OAuth",
+    description: "Finalise le profil d'un utilisateur OAuth en ajoutant le rôle, pays et autres informations obligatoires",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Onboarding complété avec succès',
+    type: ProfileResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides ou onboarding déjà complété' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 404, description: 'Profil non trouvé' })
+  async completeOnboarding(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() completeOnboardingDto: CompleteOnboardingDto,
+  ): Promise<ProfileResponseDto> {
+    return this.authService.completeOnboarding(
+      user.supabaseUserId,
+      completeOnboardingDto,
+    );
   }
 }

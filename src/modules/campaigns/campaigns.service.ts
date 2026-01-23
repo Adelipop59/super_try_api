@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
@@ -23,6 +24,7 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
   select: {
     id: true;
     sellerId: true;
+    categoryId: true;
     title: true;
     description: true;
     startDate: true;
@@ -32,6 +34,14 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
     status: true;
     createdAt: true;
     updatedAt: true;
+    category: {
+      select: {
+        id: true;
+        name: true;
+        slug: true;
+        icon: true;
+      };
+    };
     seller: {
       select: {
         id: true;
@@ -75,6 +85,8 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
 
 @Injectable()
 export class CampaignsService {
+  private readonly logger = new Logger(CampaignsService.name);
+
   constructor(
     private prismaService: PrismaService,
     private campaignCriteriaService: CampaignCriteriaService,
@@ -89,6 +101,21 @@ export class CampaignsService {
     createCampaignDto: CreateCampaignDto,
   ): Promise<CampaignResponseDto> {
     const { products, criteria, ...campaignData } = createCampaignDto;
+
+    // Validate category if provided
+    if (campaignData.categoryId) {
+      const category = await this.prismaService.category.findUnique({
+        where: { id: campaignData.categoryId },
+      });
+
+      if (!category) {
+        throw new NotFoundException(`Category ${campaignData.categoryId} not found`);
+      }
+
+      if (!category.isActive) {
+        throw new BadRequestException(`Category "${category.name}" is not active`);
+      }
+    }
 
     // Validate dates if provided
     const startDate = campaignData.startDate
@@ -187,6 +214,10 @@ export class CampaignsService {
         totalSlots: campaignData.totalSlots ?? 0,
         availableSlots: campaignData.totalSlots ?? 0,
         sellerId,
+        categoryId: campaignData.categoryId,
+        marketplaceMode: campaignData.marketplaceMode,
+        marketplace: campaignData.marketplace,
+        amazonLink: campaignData.amazonLink,
         offers:
           offersData.length > 0
             ? {
@@ -205,6 +236,14 @@ export class CampaignsService {
             id: true,
             email: true,
             companyName: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
           },
         },
         offers: {
@@ -270,6 +309,7 @@ export class CampaignsService {
         select: {
           id: true,
           sellerId: true,
+          categoryId: true,
           title: true,
           description: true,
           startDate: true,
@@ -279,6 +319,14 @@ export class CampaignsService {
           status: true,
           createdAt: true,
           updatedAt: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
           seller: {
             select: {
               id: true,
@@ -437,6 +485,14 @@ export class CampaignsService {
     const campaign = await this.prismaService.campaign.findUnique({
       where: { id },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
         seller: {
           select: {
             id: true,
@@ -487,6 +543,7 @@ export class CampaignsService {
         select: {
           id: true,
           sellerId: true,
+          categoryId: true,
           title: true,
           description: true,
           startDate: true,
@@ -496,6 +553,14 @@ export class CampaignsService {
           status: true,
           createdAt: true,
           updatedAt: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
           seller: {
             select: {
               id: true,
@@ -721,6 +786,14 @@ export class CampaignsService {
       where: { id },
       data,
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
         seller: {
           select: {
             id: true,
@@ -798,6 +871,14 @@ export class CampaignsService {
       where: { id },
       data: { status: newStatus },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+          },
+        },
         seller: {
           select: {
             id: true,
@@ -1011,28 +1092,51 @@ export class CampaignsService {
       // So we don't enforce quantity === totalSlots
     }
 
-    // Validate procedures
-    if (!campaign.procedures || campaign.procedures.length === 0) {
-      errors.push('At least one procedure is required');
+    // Validate procedures - conditionally based on marketplace mode
+    if (campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      // Mode Amazon Direct Link
+      if (!campaign.amazonLink || campaign.amazonLink.trim().length === 0) {
+        errors.push('Amazon link is required for AMAZON_DIRECT_LINK mode');
+      }
+
+      // Marketplace recommandé mais pas obligatoire
+      if (!campaign.marketplace) {
+        this.logger.warn(
+          `Campaign ${campaignId}: AMAZON_DIRECT_LINK mode without marketplace defined`
+        );
+      }
+
+      // Procédures et distributions sont OPTIONNELLES en mode AMAZON_DIRECT_LINK
+      // (le testeur n'a qu'à acheter via le lien)
     } else {
-      for (let i = 0; i < campaign.procedures.length; i++) {
-        const procedure = campaign.procedures[i];
-        const procIndex = i + 1;
+      // Mode PROCEDURES classique
+      if (!campaign.procedures || campaign.procedures.length === 0) {
+        errors.push('At least one procedure is required in PROCEDURES mode');
+      } else {
+        for (let i = 0; i < campaign.procedures.length; i++) {
+          const procedure = campaign.procedures[i];
+          const procIndex = i + 1;
 
-        if (!procedure.title || procedure.title.trim().length < 3) {
-          errors.push(`Procedure #${procIndex}: Title is required (minimum 3 characters)`);
-        }
+          if (!procedure.title || procedure.title.trim().length < 3) {
+            errors.push(`Procedure #${procIndex}: Title is required (minimum 3 characters)`);
+          }
 
-        if (!procedure.steps || procedure.steps.length === 0) {
-          errors.push(`Procedure #${procIndex}: At least one step is required`);
+          if (!procedure.steps || procedure.steps.length === 0) {
+            errors.push(`Procedure #${procIndex}: At least one step is required`);
+          }
         }
       }
     }
 
-    // Validate distributions
-    if (!campaign.distributions || campaign.distributions.length === 0) {
-      errors.push('At least one distribution schedule is required');
-    } else {
+    // Validate distributions - only required for PROCEDURES mode
+    if (campaign.marketplaceMode === 'PROCEDURES' || !campaign.marketplaceMode) {
+      if (!campaign.distributions || campaign.distributions.length === 0) {
+        errors.push('At least one distribution schedule is required in PROCEDURES mode');
+      }
+    }
+
+    // Check distribution details if they exist
+    if (campaign.distributions && campaign.distributions.length > 0) {
       let totalMaxUnits = 0;
 
       for (let i = 0; i < campaign.distributions.length; i++) {
@@ -1302,6 +1406,8 @@ export class CampaignsService {
       totalSlots: campaign.totalSlots,
       availableSlots: campaign.availableSlots,
       status: campaign.status,
+      categoryId: campaign.categoryId,
+      category: campaign.category,
       products: campaign.offers.map((offer) => ({
         id: offer.id,
         productId: offer.productId,

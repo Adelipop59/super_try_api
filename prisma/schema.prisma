@@ -27,6 +27,12 @@ enum CampaignStatus {
   CANCELLED // Annulée par le vendeur
 }
 
+// Enum for campaign marketplace mode
+enum CampaignMarketplaceMode {
+  PROCEDURES // Mode procédures classiques avec steps
+  AMAZON_DIRECT_LINK // Mode lien Amazon direct sans procédures
+}
+
 // Enum for log levels
 enum LogLevel {
   INFO // 🔵 Informations générales
@@ -154,10 +160,10 @@ enum ChatOrderStatus {
 
 // Profile table - extends Supabase auth.users
 model Profile {
-  id             String   @id @default(uuid())
-  supabaseUserId String   @unique @map("supabase_user_id")
-  email          String   @unique
-  role           UserRole @default(USER)
+  id             String    @id @default(uuid())
+  supabaseUserId String    @unique @map("supabase_user_id")
+  email          String    @unique
+  role           UserRole? // Nullable - will be set during onboarding for OAuth users
 
   firstName String? @map("first_name")
   lastName  String? @map("last_name")
@@ -205,6 +211,9 @@ model Profile {
   // OAuth provider tracking
   authProvider String? @map("auth_provider") // 'google', 'azure', 'github', null for email/password
 
+  // Onboarding status (for OAuth users who need to complete their profile)
+  isOnboarded Boolean @default(true) @map("is_onboarded") // false for OAuth users until they complete onboarding
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -230,6 +239,7 @@ model Profile {
   @@index([supabaseUserId])
   @@index([role])
   @@index([verificationStatus])
+  @@index([isOnboarded])
   @@map("profiles")
 }
 
@@ -251,7 +261,8 @@ model Category {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  products Product[] // Produits dans cette catégorie
+  products  Product[]  // Produits dans cette catégorie
+  campaigns Campaign[] // Campagnes dans cette catégorie
 
   @@index([slug])
   @@index([isActive])
@@ -272,7 +283,7 @@ model Product {
   // Product information (catalogue de base)
   name        String
   description String  @db.Text
-  imageUrl    String? @map("image_url") // Legacy field - kept for backward compatibility
+  asin        String? // Amazon Standard Identification Number (10 chars)
   productUrl  String? @map("product_url")
   images      Json?   // Array of image objects: [{ url: string, order: number, isPrimary: boolean }]
 
@@ -304,6 +315,10 @@ model Campaign {
   sellerId String  @map("seller_id")
   seller   Profile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
+  // Relation with category
+  categoryId String?   @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
   // Campaign information
   title       String
   description String @db.Text
@@ -322,6 +337,11 @@ model Campaign {
   // Application acceptance mode
   autoAcceptApplications Boolean @default(false) @map("auto_accept_applications") // Si true, candidatures éligibles acceptées automatiquement
 
+  // Marketplace configuration
+  marketplaceMode CampaignMarketplaceMode @default(PROCEDURES) @map("marketplace_mode")
+  marketplace     String? // Code pays Amazon: "FR", "DE", "UK", "US", "ES", "IT"
+  amazonLink      String? @db.Text @map("amazon_link") // URL du produit Amazon
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -335,10 +355,13 @@ model Campaign {
   transactions  Transaction[] // Transactions liées à cette campagne (paiements vendeur)
 
   @@index([sellerId])
+  @@index([categoryId])
   @@index([status])
   @@index([startDate])
   @@index([endDate])
   @@index([autoAcceptApplications])
+  @@index([marketplaceMode])
+  @@index([marketplace])
   @@map("campaigns")
 }
 

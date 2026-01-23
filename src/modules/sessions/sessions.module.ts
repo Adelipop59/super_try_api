@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { SessionsCleanupService } from './sessions-cleanup.service';
+import { SessionStepProgressService } from './session-step-progress.service';
 import { SessionsController } from './sessions.controller';
 import { PrismaModule } from '../../database/prisma.module';
 import { WalletsModule } from '../wallets/wallets.module';
@@ -15,7 +16,7 @@ import { CampaignsModule } from '../campaigns/campaigns.module';
     CampaignsModule, // Pour injecter CampaignCriteriaService
   ], // LogsModule est @Global, pas besoin de l'importer
   controllers: [SessionsController],
-  providers: [SessionsService, SessionsCleanupService],
-  exports: [SessionsService], // Export pour utilisation dans d'autres modules
+  providers: [SessionsService, SessionsCleanupService, SessionStepProgressService],
+  exports: [SessionsService, SessionStepProgressService], // Export pour utilisation dans d'autres modules
 })
 export class SessionsModule {}

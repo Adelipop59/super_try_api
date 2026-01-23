@@ -225,6 +225,9 @@ export class UsersService {
         avatar: createProfileDto.avatar,
         companyName: createProfileDto.companyName,
         siret: createProfileDto.siret,
+        country: createProfileDto.country,
+        authProvider: createProfileDto.authProvider,
+        isOnboarded: createProfileDto.isOnboarded ?? true, // Default to true for non-OAuth signups
       },
     });
   }

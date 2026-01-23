@@ -12,9 +12,14 @@ import {
   ValidateNested,
   IsBoolean,
   IsNumber,
+  IsEnum,
+  IsUrl,
+  Length,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateCampaignCriteriaDto } from './create-campaign-criteria.dto';
+import { CampaignMarketplaceMode } from '@prisma/client';
 
 /**
  * DTO pour ajouter un produit à une campagne (Offer)
@@ -124,6 +129,15 @@ export class CreateCampaignDto {
   title!: string;
 
   @ApiProperty({
+    description: 'ID de la catégorie de la campagne',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiProperty({
     description: 'Description détaillée de la campagne',
     example:
       'Nous recherchons des testeurs pour notre nouveau iPhone 15 Pro. Testez les fonctionnalités photo et vidéo.',
@@ -187,4 +201,34 @@ export class CreateCampaignDto {
   @Type(() => CreateCampaignCriteriaDto)
   @ValidateNested()
   criteria?: CreateCampaignCriteriaDto;
+
+  @ApiProperty({
+    description: 'Mode de la campagne',
+    enum: CampaignMarketplaceMode,
+    default: CampaignMarketplaceMode.PROCEDURES,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(CampaignMarketplaceMode)
+  marketplaceMode?: CampaignMarketplaceMode;
+
+  @ApiProperty({
+    description: 'Code pays de la marketplace Amazon ciblée',
+    example: 'FR',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 10)
+  marketplace?: string;
+
+  @ApiProperty({
+    description: 'URL du produit Amazon (requis si marketplaceMode = AMAZON_DIRECT_LINK)',
+    example: 'https://www.amazon.fr/dp/B08N5WRWNW',
+    required: false,
+  })
+  @IsOptional()
+  @IsUrl()
+  @MaxLength(2000)
+  amazonLink?: string;
 }

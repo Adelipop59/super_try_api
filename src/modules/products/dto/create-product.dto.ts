@@ -49,6 +49,17 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @ApiProperty({
+    description: 'Code ASIN Amazon (10 caractères alphanumériques)',
+    example: 'B08N5WRWNW',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @MinLength(10, { message: 'ASIN doit contenir exactement 10 caractères' })
+  @MaxLength(10, { message: 'ASIN doit contenir exactement 10 caractères' })
+  asin?: string;
+
+  @ApiProperty({
     description: 'URL du produit (Amazon, site vendeur, etc.)',
     example: 'https://www.amazon.fr/dp/B0XXXXXX',
     required: false,

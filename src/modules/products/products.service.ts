@@ -53,9 +53,31 @@ export class ProductsService {
   async create(
     sellerId: string,
     createProductDto: CreateProductDto,
+    files?: Express.Multer.File[],
   ): Promise<ProductResponseDto> {
     const { images, ...productData } = createProductDto;
 
+    // Auto-génération URL Amazon si ASIN fourni et pas de productUrl
+    if (productData.asin && !productData.productUrl) {
+      productData.productUrl = `https://www.amazon.fr/dp/${productData.asin}`;
+    }
+
+    // Valider que la catégorie existe et est active
+    if (productData.categoryId) {
+      const category = await this.prismaService.category.findUnique({
+        where: { id: productData.categoryId },
+      });
+
+      if (!category) {
+        throw new BadRequestException('Catégorie introuvable');
+      }
+
+      if (!category.isActive) {
+        throw new BadRequestException('Cette catégorie est désactivée');
+      }
+    }
+
+    // Créer le produit d'abord
     const product = await this.prismaService.product.create({
       data: {
         ...productData,
@@ -81,7 +103,49 @@ export class ProductsService {
       },
     });
 
-    return this.formatProductResponse(product);
+    // Upload des images si des fichiers sont fournis
+    if (files && files.length > 0) {
+      // Upload vers S3
+      const urls = await this.uploadService.uploadMultipleImages(
+        files,
+        'products',
+        product.id,
+      );
+
+      // Créer les objets images
+      const uploadedImages = urls.map((url, index) => ({
+        url,
+        order: index,
+        isPrimary: index === 0, // Première image = primaire
+      }));
+
+      // Mettre à jour avec les images
+      const updatedProduct = await this.prismaService.product.update({
+        where: { id: product.id },
+        data: { images: uploadedImages as any },
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              companyName: true,
+            },
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              icon: true,
+            },
+          },
+        },
+      });
+
+      return await this.formatProductResponse(updatedProduct);
+    }
+
+    return await this.formatProductResponse(product);
   }
 
   /**
@@ -129,7 +193,9 @@ export class ProductsService {
       this.prismaService.product.count({ where }),
     ]);
 
-    const data = products.map((product) => this.formatProductResponse(product));
+    const data = await Promise.all(
+      products.map((product) => this.formatProductResponse(product))
+    );
 
     return createPaginatedResponse(data, total, page, limit);
   }
@@ -163,7 +229,7 @@ export class ProductsService {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
 
-    return this.formatProductResponse(product);
+    return await this.formatProductResponse(product);
   }
 
   /**
@@ -206,7 +272,9 @@ export class ProductsService {
       this.prismaService.product.count({ where }),
     ]);
 
-    const data = products.map((product) => this.formatProductResponse(product));
+    const data = await Promise.all(
+      products.map((product) => this.formatProductResponse(product))
+    );
 
     return createPaginatedResponse(data, total, page, limit);
   }
@@ -234,6 +302,26 @@ export class ProductsService {
     }
 
     const { images, ...updateData } = updateProductDto;
+
+    // Auto-génération URL Amazon si ASIN fourni et pas de productUrl
+    if (updateData.asin && !updateData.productUrl) {
+      updateData.productUrl = `https://www.amazon.fr/dp/${updateData.asin}`;
+    }
+
+    // Valider que la catégorie existe et est active si elle est modifiée
+    if (updateData.categoryId) {
+      const category = await this.prismaService.category.findUnique({
+        where: { id: updateData.categoryId },
+      });
+
+      if (!category) {
+        throw new BadRequestException('Catégorie introuvable');
+      }
+
+      if (!category.isActive) {
+        throw new BadRequestException('Cette catégorie est désactivée');
+      }
+    }
 
     const updatedProduct = await this.prismaService.product.update({
       where: { id },
@@ -400,11 +488,19 @@ export class ProductsService {
   }
 
   /**
-   * Format product response
+   * Format product response with signed URLs for images
    */
-  private formatProductResponse(
+  private async formatProductResponse(
     product: ProductWithIncludes,
-  ): ProductResponseDto {
+  ): Promise<ProductResponseDto> {
+    // Generate signed URLs for images array (valid for 24 hours)
+    const signedImages = product.images
+      ? await this.uploadService.signImagesArray(
+          product.images as unknown as ProductImageDto[],
+          86400, // 24 hours
+        )
+      : null;
+
     return {
       id: product.id,
       sellerId: product.sellerId,
@@ -413,9 +509,9 @@ export class ProductsService {
       category: product.category,
       name: product.name,
       description: product.description,
-      imageUrl: product.imageUrl,
+      imageUrl: null, // Legacy field - removed from schema
       productUrl: product.productUrl,
-      images: product.images ? (product.images as unknown as ProductImageDto[]) : null,
+      images: signedImages,
       price: product.price.toNumber(),
       shippingCost: product.shippingCost.toNumber(),
       isActive: product.isActive,
@@ -485,7 +581,7 @@ export class ProductsService {
       },
     });
 
-    return this.formatProductResponse(updated);
+    return await this.formatProductResponse(updated);
   }
 
   /**
@@ -532,7 +628,7 @@ export class ProductsService {
       },
     });
 
-    return this.formatProductResponse(updated);
+    return await this.formatProductResponse(updated);
   }
 
   /**
@@ -572,6 +668,6 @@ export class ProductsService {
       },
     });
 
-    return this.formatProductResponse(updated);
+    return await this.formatProductResponse(updated);
   }
 }

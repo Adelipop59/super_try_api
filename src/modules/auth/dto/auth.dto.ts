@@ -329,3 +329,79 @@ export class CheckEmailResponseDto {
   })
   role?: PrismaUserRole;
 }
+
+export class CompleteOnboardingDto {
+  @ApiProperty({
+    description: "Rôle de l'utilisateur",
+    enum: UserRole,
+    example: UserRole.USER,
+  })
+  @IsEnum(UserRole)
+  @IsNotEmpty()
+  role!: UserRole;
+
+  @ApiProperty({ description: 'Prénom (obligatoire pour PRO)', required: false, example: 'Jean' })
+  @ValidateIf(o => o.role === UserRole.PRO)
+  @IsString()
+  @MinLength(2, { message: 'Le prénom doit contenir au moins 2 caractères' })
+  @ValidateIf(o => o.role !== UserRole.PRO)
+  @IsOptional()
+  firstName?: string;
+
+  @ApiProperty({ description: 'Nom (obligatoire pour PRO)', required: false, example: 'Dupont' })
+  @ValidateIf(o => o.role === UserRole.PRO)
+  @IsString()
+  @MinLength(2, { message: 'Le nom doit contenir au moins 2 caractères' })
+  @ValidateIf(o => o.role !== UserRole.PRO)
+  @IsOptional()
+  lastName?: string;
+
+  @ApiProperty({
+    description: 'Numéro de téléphone',
+    required: false,
+    example: '+33612345678',
+  })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiProperty({
+    description: "Nom de l'entreprise (optionnel pour PRO)",
+    required: false,
+    example: 'ACME Corp',
+  })
+  @IsString()
+  @IsOptional()
+  companyName?: string;
+
+  @ApiProperty({
+    description: 'Numéro SIRET (pour les PRO)',
+    required: false,
+    example: '12345678901234',
+  })
+  @IsString()
+  @IsOptional()
+  siret?: string;
+
+  @ApiProperty({
+    description: 'Code pays ISO 3166-1 alpha-2 (obligatoire pour USER)',
+    required: false,
+    example: 'FR',
+  })
+  @ValidateIf(o => o.role === UserRole.USER)
+  @IsString({ message: 'Le code pays doit être une chaîne de caractères' })
+  @Length(2, 2, { message: 'Le code pays doit être au format ISO (2 lettres)' })
+  country?: string;
+
+  @ApiProperty({
+    description: 'Codes pays ISO 3166-1 alpha-2 (obligatoire pour PRO, minimum 1 pays)',
+    required: false,
+    example: ['FR', 'DE', 'BE'],
+    type: [String],
+  })
+  @ValidateIf(o => o.role === UserRole.PRO)
+  @IsArray({ message: 'Les pays doivent être fournis sous forme de tableau' })
+  @ArrayMinSize(1, { message: 'Au moins un pays doit être sélectionné pour un compte PRO' })
+  @IsString({ each: true, message: 'Chaque code pays doit être une chaîne de caractères' })
+  countries?: string[];
+}

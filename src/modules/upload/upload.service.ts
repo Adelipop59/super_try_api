@@ -8,7 +8,9 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -267,5 +269,68 @@ export class UploadService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Generate a signed URL for private S3 objects
+   * @param s3Key - The S3 object key (e.g., "products/abc-123.jpg")
+   * @param expiresIn - Expiration time in seconds (default: 1 hour)
+   * @returns Signed URL
+   */
+  async getSignedUrl(s3Key: string, expiresIn: number = 3600): Promise<string> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+      });
+
+      const signedUrl = await getSignedUrl(this.s3Client, command, {
+        expiresIn,
+      });
+
+      return signedUrl;
+    } catch (error) {
+      console.error('S3 getSignedUrl error:', error);
+      throw new InternalServerErrorException(
+        'Failed to generate signed URL',
+      );
+    }
+  }
+
+  /**
+   * Generate signed URLs for an array of image objects
+   * @param images - Array of image objects from Product.images
+   * @param expiresIn - Expiration time in seconds
+   * @returns Array of image objects with signed URLs
+   */
+  async signImagesArray(
+    images: Array<{ url: string; order: number; isPrimary: boolean }>,
+    expiresIn: number = 3600,
+  ): Promise<Array<{ url: string; order: number; isPrimary: boolean }>> {
+    if (!images || images.length === 0) {
+      return [];
+    }
+
+    const signedImages = await Promise.all(
+      images.map(async (image) => {
+        // Extract S3 key from URL
+        const s3Key = this.extractS3KeyFromUrl(image.url);
+
+        if (!s3Key) {
+          // If it's not an S3 URL, return as-is
+          return image;
+        }
+
+        // Generate signed URL
+        const signedUrl = await this.getSignedUrl(s3Key, expiresIn);
+
+        return {
+          ...image,
+          url: signedUrl,
+        };
+      }),
+    );
+
+    return signedImages;
   }
 }

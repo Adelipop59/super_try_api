@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
 import { SessionsService } from '../sessions/sessions.service';
+import { SessionStepProgressService } from '../sessions/session-step-progress.service';
 import { ProductsService } from '../products/products.service';
 import { MessagesService } from '../messages/messages.service';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -38,6 +39,7 @@ import { StripeModule } from '../stripe/stripe.module';
     CampaignsService,
     CampaignCriteriaService,
     SessionsService,
+    SessionStepProgressService,
     ProductsService,
     MessagesService,
     WalletsService,

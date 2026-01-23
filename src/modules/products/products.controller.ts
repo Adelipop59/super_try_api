@@ -50,7 +50,30 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Créer un produit (PRO et ADMIN uniquement)',
     description:
-      'Permet aux vendeurs (PRO) et admins de créer un nouveau produit',
+      'Permet aux vendeurs (PRO) et admins de créer un nouveau produit avec images optionnelles',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        categoryId: { type: 'string' },
+        asin: { type: 'string' },
+        productUrl: { type: 'string' },
+        price: { type: 'number' },
+        shippingCost: { type: 'number' },
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+      required: ['name', 'price'],
+    },
   })
   @ApiResponse({
     status: 201,
@@ -60,11 +83,13 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle PRO ou ADMIN requis' })
-  create(
+  @UseInterceptors(FilesInterceptor('images', 10))
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() createProductDto: CreateProductDto,
+    @UploadedFiles() files?: Express.Multer.File[],
   ): Promise<ProductResponseDto> {
-    return this.productsService.create(user.id, createProductDto);
+    return this.productsService.create(user.id, createProductDto, files);
   }
 
   @Roles('ADMIN')

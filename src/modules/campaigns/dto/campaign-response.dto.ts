@@ -147,6 +147,20 @@ export class CampaignResponseDto {
   @ApiProperty({ enum: CampaignStatus, example: CampaignStatus.ACTIVE })
   status!: CampaignStatus;
 
+  @ApiProperty({
+    description: 'ID de la catégorie de la campagne',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: false,
+  })
+  categoryId?: string | null;
+
+  @ApiProperty({
+    description: 'Informations de la catégorie',
+    type: CategoryInfo,
+    required: false,
+  })
+  category?: CategoryInfo | null;
+
   @ApiProperty({ type: [CampaignProductResponseDto] })
   products!: CampaignProductResponseDto[];
 

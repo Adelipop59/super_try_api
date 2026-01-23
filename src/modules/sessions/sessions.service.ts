@@ -11,6 +11,7 @@ import { WalletsService } from '../wallets/wallets.service';
 import { StripeService } from '../stripe/stripe.service';
 import { LogCategory, SessionStatus, Prisma, TransactionType, TransactionStatus, StepType } from '@prisma/client';
 import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
+import { SessionStepProgressService } from './session-step-progress.service';
 import { ApplySessionDto } from './dto/apply-session.dto';
 import { RejectSessionDto } from './dto/reject-session.dto';
 import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
@@ -41,6 +42,7 @@ export class SessionsService {
     private readonly walletsService: WalletsService,
     private readonly stripeService: StripeService,
     private readonly campaignCriteriaService: CampaignCriteriaService,
+    private readonly sessionStepProgressService: SessionStepProgressService,
   ) {}
 
   /**
@@ -322,6 +324,18 @@ export class SessionsService {
       }),
     ]);
 
+    // ✅ NOUVEAU: Initialiser les steps selon le mode
+    if (updatedSession.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      this.logger.log(
+        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, skipping step initialization`
+      );
+      // Le testeur peut directement valider le prix et acheter
+      // Pas besoin d'initialiser les steps
+    } else {
+      // Mode PROCEDURES classique - initialiser les steps
+      await this.sessionStepProgressService.initializeStepProgress(sessionId);
+    }
+
     await this.logsService.logSuccess(
       LogCategory.SESSION,
       `✅ Session acceptée pour la campagne "${session.campaign.title}"`,
@@ -329,6 +343,7 @@ export class SessionsService {
         sessionId,
         testerId: session.testerId,
         campaignId: session.campaignId,
+        marketplaceMode: updatedSession.campaign.marketplaceMode,
       },
     );
 
@@ -623,7 +638,14 @@ export class SessionsService {
   ): Promise<PrismaSessionResponse> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
-      include: { campaign: true },
+      include: {
+        campaign: true,
+        stepProgress: {
+          include: {
+            step: true,
+          },
+        },
+      },
     });
 
     if (!session) {
@@ -643,6 +665,25 @@ export class SessionsService {
       throw new BadRequestException(
         'Session must be PURCHASE_VALIDATED or IN_PROGRESS to submit test',
       );
+    }
+
+    // ✅ NOUVEAU: Validation conditionnelle des steps
+    if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      // Mode Amazon Direct Link - pas besoin de steps complétés
+      this.logger.log(
+        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, submission allowed without steps`
+      );
+    } else {
+      // Mode PROCEDURES - vérifier que tous les steps requis sont complétés
+      const incompleteRequiredSteps = session.stepProgress.filter(
+        (progress) => !progress.isCompleted && progress.step.isRequired
+      );
+
+      if (incompleteRequiredSteps.length > 0) {
+        throw new BadRequestException(
+          `All required steps must be completed before submitting. ${incompleteRequiredSteps.length} step(s) remaining.`
+        );
+      }
     }
 
     const updatedSession = await this.prisma.session.update({

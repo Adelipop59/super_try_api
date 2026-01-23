@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CompleteStepDto } from './dto/complete-step.dto';
@@ -14,6 +15,8 @@ import { SessionStatus } from '@prisma/client';
 
 @Injectable()
 export class SessionStepProgressService {
+  private readonly logger = new Logger(SessionStepProgressService.name);
+
   constructor(private readonly prismaService: PrismaService) {}
 
   /**
@@ -43,8 +46,24 @@ export class SessionStepProgressService {
       throw new NotFoundException(`Session ${sessionId} not found`);
     }
 
+    // ✅ NOUVEAU: Skip si mode AMAZON_DIRECT_LINK
+    if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      this.logger.log(
+        `Session ${sessionId}: Campaign in AMAZON_DIRECT_LINK mode, skipping step initialization`
+      );
+      return; // Pas de SessionStepProgress à créer
+    }
+
+    // Mode PROCEDURES classique
+    const procedures = session.campaign.procedures;
+
+    if (!procedures || procedures.length === 0) {
+      this.logger.warn(`No procedures found for campaign ${session.campaignId}`);
+      return;
+    }
+
     // Récupérer tous les steps de toutes les procédures
-    const allSteps = session.campaign.procedures.flatMap((proc) => proc.steps);
+    const allSteps = procedures.flatMap((proc) => proc.steps);
 
     // Créer les progress tracking pour chaque step
     const progressData = allSteps.map((step) => ({

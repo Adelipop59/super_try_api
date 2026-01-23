@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
@@ -94,4 +94,23 @@ export class CreateProfileDto {
   @Length(2, 2)
   @IsOptional()
   country?: string;
+
+  @ApiProperty({
+    description: 'Provider OAuth utilisé (google, azure, github, etc.)',
+    example: 'azure',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  authProvider?: string;
+
+  @ApiProperty({
+    description: 'Indique si l\'utilisateur a complété son onboarding (OAuth)',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isOnboarded?: boolean;
 }

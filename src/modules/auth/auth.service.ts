@@ -16,6 +16,7 @@ import {
   RefreshTokenResponseDto,
   MessageResponseDto,
   OAuthUrlResponseDto,
+  CompleteOnboardingDto,
 } from './dto/auth.dto';
 
 @Injectable()
@@ -625,30 +626,34 @@ export class AuthService {
 
       if (existingProfile) {
         // Email already exists with a different authentication method
-        // Option 1: Reject and ask user to login with original method
-        throw new BadRequestException(
-          `Un compte existe déjà avec l'email ${data.user.email}. Veuillez vous connecter avec votre méthode d'inscription originale (email/mot de passe).`,
+        // Link accounts by updating the existing profile with the new Supabase ID
+        this.logger.log(
+          `Linking OAuth account for existing user: ${data.user.email}`,
         );
 
-        // Option 2 (alternative): Link accounts by updating the existing profile
-        // Uncomment below to link accounts instead of rejecting
-        /*
         await this.prismaService.profile.update({
           where: { id: existingProfile.id },
-          data: { supabaseUserId: data.user.id },
+          data: {
+            supabaseUserId: data.user.id,
+            authProvider: this.getProviderFromUserMetadata(data.user),
+          },
         });
         profile = existingProfile;
-        */
       } else {
-        // Create new profile if email doesn't exist
+        // Create new profile if email doesn't exist - minimal profile for OAuth users
+        // User will need to complete onboarding to fill in role, country, etc.
+        const authProvider = this.getProviderFromUserMetadata(data.user);
+
         profile = await this.usersService.createProfile({
           supabaseUserId: data.user.id,
           email: data.user.email!,
-          role: 'USER',
+          role: null, // No default role - user must choose during onboarding
           firstName:
             data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
           lastName:
             data.user.user_metadata?.full_name?.split(' ')[1] || undefined,
+          authProvider,
+          isOnboarded: false, // OAuth users need to complete onboarding
         });
       }
     }
@@ -673,5 +678,179 @@ export class AuthService {
         updatedAt: profile.updatedAt,
       },
     };
+  }
+
+  /**
+   * Complete onboarding - Finalize OAuth user profile
+   */
+  async completeOnboarding(
+    supabaseUserId: string,
+    onboardingDto: CompleteOnboardingDto,
+  ): Promise<ProfileResponseDto> {
+    const { role, country, countries, ...profileData } = onboardingDto;
+
+    // Get existing profile
+    const profile = await this.prismaService.profile.findUnique({
+      where: { supabaseUserId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profil non trouvé');
+    }
+
+    if (profile.isOnboarded) {
+      throw new BadRequestException('Le profil est déjà complété');
+    }
+
+    // Validate role is provided
+    if (!role || !['USER', 'PRO'].includes(role)) {
+      throw new BadRequestException(
+        'Le rôle est obligatoire et doit être USER ou PRO',
+      );
+    }
+
+    // Security: Prevent ADMIN creation
+    if (role === 'ADMIN') {
+      throw new BadRequestException(
+        'Cannot set ADMIN role. Contact support.',
+      );
+    }
+
+    // Validate required fields for PRO
+    if (role === 'PRO') {
+      if (!profileData.firstName || !profileData.lastName) {
+        throw new BadRequestException(
+          'Le prénom et le nom sont obligatoires pour un compte PRO',
+        );
+      }
+
+      // Validate countries are provided and valid
+      if (!countries || countries.length === 0) {
+        throw new BadRequestException(
+          'Au moins un pays doit être sélectionné pour un compte PRO',
+        );
+      }
+
+      // Validate all countries exist
+      const validCountries = await this.prismaService.country.findMany({
+        where: { code: { in: countries } },
+        select: { code: true, nameFr: true },
+      });
+
+      if (validCountries.length !== countries.length) {
+        const validCodes = validCountries.map(c => c.code);
+        const invalidCodes = countries.filter(c => !validCodes.includes(c));
+        throw new BadRequestException(
+          `Code(s) pays invalide(s): ${invalidCodes.join(', ')}. Utilisez GET /users/available-countries pour voir la liste.`,
+        );
+      }
+
+      // Check dynamic availability
+      const priorityCountriesEnv = process.env.PRIORITY_COUNTRIES || 'FR';
+      const priorityCountries = priorityCountriesEnv.split(',').map(c => c.trim());
+      const minTestersPerCountry = parseInt(process.env.MIN_TESTERS_PER_COUNTRY || '10', 10);
+
+      const testerCounts = await this.prismaService.profile.groupBy({
+        by: ['country'],
+        where: {
+          role: 'USER',
+          country: { in: countries },
+        },
+        _count: {
+          country: true,
+        },
+      });
+
+      const testerCountMap = new Map<string, number>();
+      testerCounts.forEach(item => {
+        if (item.country) {
+          testerCountMap.set(item.country, item._count.country);
+        }
+      });
+
+      const availableCountries = countries.filter(code => {
+        const isPriority = priorityCountries.includes(code);
+        const testerCount = testerCountMap.get(code) || 0;
+        return isPriority || testerCount >= minTestersPerCountry;
+      });
+
+      if (availableCountries.length === 0) {
+        throw new BadRequestException(
+          'Aucun des pays sélectionnés n\'est disponible. Au moins un pays doit avoir le statut "Disponible"',
+        );
+      }
+    }
+
+    // Validate country for USER
+    if (role === 'USER') {
+      if (!country) {
+        throw new BadRequestException(
+          'Le code pays est obligatoire pour un compte testeur',
+        );
+      }
+
+      // Validate country exists
+      const countryData = await this.prismaService.country.findUnique({
+        where: { code: country },
+      });
+
+      if (!countryData) {
+        throw new BadRequestException(
+          `Le code pays "${country}" n'est pas valide. Utilisez GET /users/available-countries pour voir la liste.`,
+        );
+      }
+    }
+
+    // Update profile with onboarding data
+    const updatedProfile = await this.prismaService.profile.update({
+      where: { supabaseUserId },
+      data: {
+        role,
+        country,
+        firstName: profileData.firstName || profile.firstName,
+        lastName: profileData.lastName || profile.lastName,
+        phone: profileData.phone,
+        companyName: profileData.companyName,
+        siret: profileData.siret,
+        isOnboarded: true,
+      },
+    });
+
+    // Create ProfileCountry entries for PRO
+    if (role === 'PRO' && countries) {
+      await this.prismaService.profileCountry.createMany({
+        data: countries.map(countryCode => ({
+          profileId: updatedProfile.id,
+          countryCode,
+        })),
+      });
+    }
+
+    // Create wallet for USER
+    if (role === 'USER') {
+      await this.prismaService.wallet.create({
+        data: {
+          userId: updatedProfile.id,
+        },
+      });
+    }
+
+    this.logger.log(`User ${updatedProfile.email} completed onboarding as ${role}`);
+
+    return updatedProfile as ProfileResponseDto;
+  }
+
+  /**
+   * Get provider name from user metadata
+   */
+  private getProviderFromUserMetadata(user: any): string | undefined {
+    // Supabase stores the provider in app_metadata or identities
+    if (user.app_metadata?.provider) {
+      return user.app_metadata.provider;
+    }
+    if (user.identities && user.identities.length > 0) {
+      return user.identities[0].provider;
+    }
+    return undefined;
   }
 }
