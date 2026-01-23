@@ -66,7 +66,7 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
             name: true;
             description: true;
             categoryId: true;
-            imageUrl: true;
+            images: true;
             isActive: true;
             category: {
               select: {
@@ -351,7 +351,7 @@ export class CampaignsService {
                   name: true,
                   description: true,
                   categoryId: true,
-                  imageUrl: true,
+                  images: true,
                   isActive: true,
                   category: {
                     select: {
@@ -585,7 +585,7 @@ export class CampaignsService {
                   name: true,
                   description: true,
                   categoryId: true,
-                  imageUrl: true,
+                  images: true,
                   isActive: true,
                   category: {
                     select: {
@@ -1099,11 +1099,9 @@ export class CampaignsService {
         errors.push('Amazon link is required for AMAZON_DIRECT_LINK mode');
       }
 
-      // Marketplace recommandé mais pas obligatoire
-      if (!campaign.marketplace) {
-        this.logger.warn(
-          `Campaign ${campaignId}: AMAZON_DIRECT_LINK mode without marketplace defined`
-        );
+      // Marketplace obligatoire (une seule pour l'instant)
+      if (!campaign.marketplace || campaign.marketplace.trim().length === 0) {
+        errors.push('Marketplace is required for AMAZON_DIRECT_LINK mode');
       }
 
       // Procédures et distributions sont OPTIONNELLES en mode AMAZON_DIRECT_LINK
@@ -1412,11 +1410,15 @@ export class CampaignsService {
         id: offer.id,
         productId: offer.productId,
         quantity: offer.quantity,
+        expectedPrice: offer.expectedPrice?.toString() || '0',
+        shippingCost: offer.shippingCost?.toString() || '0',
+        priceRangeMin: offer.priceRangeMin?.toString() || '0',
+        priceRangeMax: offer.priceRangeMax?.toString() || '0',
         reimbursedPrice: offer.reimbursedPrice,
         reimbursedShipping: offer.reimbursedShipping,
         maxReimbursedPrice: offer.maxReimbursedPrice?.toString(),
         maxReimbursedShipping: offer.maxReimbursedShipping?.toString(),
-        bonus: offer.bonus.toString(),
+        bonus: offer.bonus?.toString() || '0',
         createdAt: offer.createdAt,
         product: {
           id: offer.product.id,
@@ -1424,7 +1426,7 @@ export class CampaignsService {
           description: offer.product.description,
           categoryId: offer.product.categoryId,
           category: offer.product.category,
-          imageUrl: offer.product.imageUrl,
+          images: offer.product.images,
           isActive: offer.product.isActive,
         },
       })),
@@ -1480,14 +1482,19 @@ export class CampaignsService {
     ]);
 
     // URL de placeholder générique (non-informative)
-    const PLACEHOLDER_IMAGE =
-      'https://via.placeholder.com/400x400/CCCCCC/666666?text=Product';
+    const PLACEHOLDER_IMAGE = [
+      {
+        url: 'https://via.placeholder.com/400x400/CCCCCC/666666?text=Product',
+        order: 0,
+        isPrimary: true,
+      },
+    ];
 
     // Formatter les données floutées
     const blurredData = campaigns.map((campaign) => ({
       id: campaign.id,
       // Image placeholder générique
-      imageUrl: PLACEHOLDER_IMAGE,
+      images: PLACEHOLDER_IMAGE,
       // Bonus (visible)
       bonus: campaign.offers[0]?.bonus
         ? Number(campaign.offers[0].bonus).toFixed(2)
