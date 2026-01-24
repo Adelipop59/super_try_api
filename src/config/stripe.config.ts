@@ -13,9 +13,13 @@ export default registerAs('stripe', () => ({
   // Type: PERCENTAGE (%) ou FIXED_PER_PRODUCT (€ par produit)
   campaignFeeType: process.env.CAMPAIGN_FEE_TYPE || 'PERCENTAGE',
   // Si PERCENTAGE: taux en %
-  campaignFeePercentage: parseFloat(process.env.CAMPAIGN_FEE_PERCENTAGE || '10'),
+  campaignFeePercentage: parseFloat(
+    process.env.CAMPAIGN_FEE_PERCENTAGE || '10',
+  ),
   // Si FIXED_PER_PRODUCT: montant fixe en € par produit
-  campaignFeeFixedAmount: parseFloat(process.env.CAMPAIGN_FEE_FIXED_AMOUNT || '10'),
+  campaignFeeFixedAmount: parseFloat(
+    process.env.CAMPAIGN_FEE_FIXED_AMOUNT || '10',
+  ),
 
   // ===== COMMISSIONS UGC =====
   // Type: PERCENTAGE (%) ou FIXED (€ fixe)

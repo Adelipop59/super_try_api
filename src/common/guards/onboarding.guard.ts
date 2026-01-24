@@ -49,7 +49,7 @@ export class OnboardingGuard implements CanActivate {
     // If user hasn't completed onboarding, block access
     if (!profile.isOnboarded) {
       throw new ForbiddenException(
-        'Veuillez compléter votre profil avant d\'accéder à cette ressource. Endpoint: POST /auth/complete-onboarding',
+        "Veuillez compléter votre profil avant d'accéder à cette ressource. Endpoint: POST /auth/complete-onboarding",
       );
     }
 

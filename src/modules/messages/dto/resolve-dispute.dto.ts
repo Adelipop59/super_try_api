@@ -8,7 +8,8 @@ import { SessionStatus } from '@prisma/client';
 export class ResolveSessionDisputeDto {
   @ApiProperty({
     description: 'Explication de la résolution du litige',
-    example: 'Remboursement approuvé, session annulée suite à la vérification des preuves',
+    example:
+      'Remboursement approuvé, session annulée suite à la vérification des preuves',
     maxLength: 1000,
   })
   @IsString()

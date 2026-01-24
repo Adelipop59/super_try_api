@@ -3,11 +3,13 @@
 ## ✅ COMPLÉTÉ
 
 ### 1. Infrastructure de Base
+
 - ✅ Installation des dépendances (BullMQ, Redis, SendGrid, Twilio, Firebase, Handlebars)
 - ✅ Configuration des variables d'environnement
 - ✅ Ajout du champ `deviceToken` à la table Profile (migration appliquée)
 
 ### 2. Queue System (BullMQ + Redis)
+
 - ✅ Module de queue créé (`notifications.queue.module.ts`)
 - ✅ Service de queue avec retry exponentiel (`notifications.queue.service.ts`)
 - ✅ Processor de queue avec hooks (`notifications.queue.processor.ts`)
@@ -16,12 +18,14 @@
 - ✅ Priorités par canal (PUSH > SMS > EMAIL > IN_APP)
 
 ### 3. Email Provider (SendGrid)
+
 - ✅ Provider réel implémenté avec SendGrid
 - ✅ Support des templates Handlebars
 - ✅ Fallback en mode MOCK si pas configuré
 - ✅ Wrapper HTML basique pour emails sans template
 
 ### 4. Templates Email (Handlebars)
+
 - ✅ Service de templating (`template.service.ts`)
 - ✅ Templates créés:
   - `session/session-accepted.hbs` - Candidature acceptée
@@ -37,9 +41,11 @@
 ## 🚧 EN COURS / À FINALISER
 
 ### 5. SMS Provider (Twilio)
+
 **Statut**: Fichier existe en MOCK, à remplacer par l'implémentation réelle
 
 **À faire**:
+
 ```typescript
 // src/modules/notifications/providers/sms.provider.ts
 import * as twilio from 'twilio';
@@ -60,9 +66,11 @@ async send(to: string, title: string, message: string) {
 ```
 
 ### 6. Push Provider (Firebase Cloud Messaging)
+
 **Statut**: Fichier existe en MOCK, à remplacer par l'implémentation réelle
 
 **À faire**:
+
 ```typescript
 // src/modules/notifications/providers/push.provider.ts
 import * as admin from 'firebase-admin';
@@ -82,9 +90,11 @@ async send(deviceToken: string, title: string, message: string, data?: any) {
 ```
 
 ### 7. Device Token Management API
+
 **Statut**: Champ BDD existe, endpoints API manquants
 
 **À créer**:
+
 ```typescript
 // Dans UsersController
 @Patch('me/device-token')
@@ -94,9 +104,11 @@ async updateDeviceToken(@CurrentUser() user, @Body('deviceToken') token: string)
 ```
 
 ### 8. Update Notification Service (Integration Queue)
+
 **Statut**: Service existant utilise direct send, à migrer vers queue
 
 **À modifier**:
+
 ```typescript
 // src/modules/notifications/notifications.service.ts
 
@@ -120,6 +132,7 @@ await this.queueService.addNotificationJob({
 ### 9. Notification Triggers dans Sessions
 
 **À ajouter dans `sessions.service.ts`**:
+
 ```typescript
 // Candidature acceptée
 async acceptSession(sessionId: string, sellerId: string) {
@@ -172,6 +185,7 @@ async applyToSession(testerId: string, campaignId: string) {
 ### 10. Notification Triggers dans Campaigns
 
 **À ajouter dans `campaigns.service.ts`**:
+
 ```typescript
 // Campagne se termine bientôt (via cron job ou scheduler)
 async notifyCampaignEndingSoon(campaignId: string) {
@@ -205,9 +219,11 @@ async notifyCampaignEndingSoon(campaignId: string) {
 ```
 
 ### 11. Support WhatsApp
+
 **Statut**: Architecture extensible créée, provider WhatsApp à ajouter
 
 **Comment ajouter**:
+
 1. Ajouter enum: `WHATSAPP` dans `NotificationChannel`
 2. Créer `whatsapp.provider.ts` (similaire à SMS)
 3. Utiliser Twilio WhatsApp API ou WhatsApp Business API
@@ -287,21 +303,25 @@ FIREBASE_CONFIG='{...}'
 ## 🎯 PROCHAINES ÉTAPES
 
 ### Priorité 1 - Compléter les Providers
+
 1. [ ] Implémenter SMS provider (Twilio) - 10 min
 2. [ ] Implémenter Push provider (FCM) - 15 min
 3. [ ] Créer endpoints device token management - 10 min
 
 ### Priorité 2 - Intégration Queue
+
 4. [ ] Mettre à jour NotificationsService pour utiliser la queue - 15 min
 5. [ ] Importer NotificationsQueueModule dans NotificationsModule - 5 min
 6. [ ] Ajouter BullModule.forRoot() dans AppModule - 5 min
 
 ### Priorité 3 - Triggers Automatiques
+
 7. [ ] Ajouter triggers dans SessionsService - 20 min
 8. [ ] Ajouter triggers dans CampaignsService - 15 min
 9. [ ] Créer templates email manquants (rejected, cancelled, etc.) - 30 min
 
 ### Priorité 4 - Tests
+
 10. [ ] Tester envoi email avec SendGrid - 10 min
 11. [ ] Tester queue processing - 10 min
 12. [ ] Tester triggers end-to-end - 15 min

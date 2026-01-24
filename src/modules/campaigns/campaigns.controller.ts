@@ -120,7 +120,7 @@ export class CampaignsController {
     summary: 'Liste des campagnes éligibles pour le testeur (USER)',
     description:
       'Récupère les campagnes actives auxquelles le testeur connecté peut postuler selon les critères définis. ' +
-      'Si l\'utilisateur n\'est pas vérifié KYC, retourne un teaser avec des informations génériques sans détails des produits.',
+      "Si l'utilisateur n'est pas vérifié KYC, retourne un teaser avec des informations génériques sans détails des produits.",
   })
   @ApiQuery({
     name: 'page',
@@ -243,15 +243,24 @@ export class CampaignsController {
     schema: {
       type: 'object',
       properties: {
-        checkoutUrl: { type: 'string', description: 'URL de redirection vers Stripe Checkout' },
+        checkoutUrl: {
+          type: 'string',
+          description: 'URL de redirection vers Stripe Checkout',
+        },
         sessionId: { type: 'string', description: 'ID de la Checkout Session' },
         amount: { type: 'number', description: 'Montant en centimes' },
         currency: { type: 'string', description: 'Devise (eur)' },
-        transactionId: { type: 'string', description: 'ID de la transaction créée' },
+        transactionId: {
+          type: 'string',
+          description: 'ID de la transaction créée',
+        },
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Campagne non en DRAFT ou sans offres' })
+  @ApiResponse({
+    status: 400,
+    description: 'Campagne non en DRAFT ou sans offres',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Non propriétaire de la campagne' })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
@@ -267,7 +276,8 @@ export class CampaignsController {
     transactionId: string;
   }> {
     // Validate campaign data before creating checkout
-    const validatedData = await this.campaignsService.validateCampaignForPayment(id, user.id);
+    const validatedData =
+      await this.campaignsService.validateCampaignForPayment(id, user.id);
 
     // Create checkout session with validated data
     return this.stripeService.createCampaignCheckoutSession(
@@ -284,7 +294,7 @@ export class CampaignsController {
   @ApiOperation({
     summary: 'Mes transactions (paiements de campagnes)',
     description:
-      'Récupère l\'historique de toutes mes transactions liées aux paiements de campagnes (vendeur PRO)',
+      "Récupère l'historique de toutes mes transactions liées aux paiements de campagnes (vendeur PRO)",
   })
   @ApiQuery({
     name: 'page',
@@ -310,10 +320,16 @@ export class CampaignsController {
             type: 'object',
             properties: {
               id: { type: 'string' },
-              type: { type: 'string', enum: ['CAMPAIGN_PAYMENT', 'CAMPAIGN_REFUND'] },
+              type: {
+                type: 'string',
+                enum: ['CAMPAIGN_PAYMENT', 'CAMPAIGN_REFUND'],
+              },
               amount: { type: 'number' },
               reason: { type: 'string' },
-              status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED'] },
+              status: {
+                type: 'string',
+                enum: ['PENDING', 'COMPLETED', 'FAILED'],
+              },
               campaignId: { type: 'string' },
               campaign: {
                 type: 'object',
@@ -465,8 +481,16 @@ export class CampaignsController {
               expectedPrice: { type: 'number', example: 1199.99 },
               shippingCost: { type: 'number', example: 5.99 },
               bonus: { type: 'number', example: 20.0 },
-              costPerUnit: { type: 'number', example: 1225.98, description: 'Prix + Livraison + Bonus' },
-              totalCost: { type: 'number', example: 12259.8, description: 'Coût par unité × Quantité' },
+              costPerUnit: {
+                type: 'number',
+                example: 1225.98,
+                description: 'Prix + Livraison + Bonus',
+              },
+              totalCost: {
+                type: 'number',
+                example: 12259.8,
+                description: 'Coût par unité × Quantité',
+              },
             },
           },
         },
@@ -556,7 +580,7 @@ export class CampaignsController {
   @Get(':campaignId/applications')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Récupérer les candidatures d\'une campagne',
+    summary: "Récupérer les candidatures d'une campagne",
     description:
       'Récupère la liste des candidatures (sessions) pour une campagne (propriétaire uniquement ou ADMIN). Filtre par statut optionnel.',
   })
@@ -564,7 +588,16 @@ export class CampaignsController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'IN_PROGRESS', 'SUBMITTED', 'COMPLETED', 'DISPUTED'],
+    enum: [
+      'PENDING',
+      'ACCEPTED',
+      'REJECTED',
+      'CANCELLED',
+      'IN_PROGRESS',
+      'SUBMITTED',
+      'COMPLETED',
+      'DISPUTED',
+    ],
     description: 'Filtrer par statut',
   })
   @ApiQuery({

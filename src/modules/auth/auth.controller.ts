@@ -94,7 +94,8 @@ export class AuthController {
   @Post('check-email')
   @ApiOperation({
     summary: 'Vérifier si un email existe',
-    description: 'Vérifie si un compte existe avec cette adresse email. Utile pour le flow d\'inscription/connexion.',
+    description:
+      "Vérifie si un compte existe avec cette adresse email. Utile pour le flow d'inscription/connexion.",
   })
   @ApiResponse({
     status: 200,
@@ -102,7 +103,9 @@ export class AuthController {
     type: CheckEmailResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Email invalide' })
-  async checkEmail(@Body() checkEmailDto: CheckEmailDto): Promise<CheckEmailResponseDto> {
+  async checkEmail(
+    @Body() checkEmailDto: CheckEmailDto,
+  ): Promise<CheckEmailResponseDto> {
     return this.authService.checkEmailExists(checkEmailDto.email);
   }
 
@@ -110,7 +113,8 @@ export class AuthController {
   @Post('login')
   @ApiOperation({
     summary: 'Connexion',
-    description: 'Authentifie un utilisateur et retourne les tokens dans des cookies httpOnly.',
+    description:
+      'Authentifie un utilisateur et retourne les tokens dans des cookies httpOnly.',
   })
   @ApiResponse({
     status: 200,
@@ -147,7 +151,8 @@ export class AuthController {
   @Get('check-session')
   @ApiOperation({
     summary: 'Vérifier la session utilisateur',
-    description: 'Retourne le profil si connecté, null sinon. Ne retourne jamais 401, toujours 200.',
+    description:
+      'Retourne le profil si connecté, null sinon. Ne retourne jamais 401, toujours 200.',
   })
   @ApiResponse({
     status: 200,
@@ -159,7 +164,9 @@ export class AuthController {
       ],
     },
   })
-  async checkSession(@Req() req: Request): Promise<{ user: ProfileResponseDto | null }> {
+  async checkSession(
+    @Req() req: Request,
+  ): Promise<{ user: ProfileResponseDto | null }> {
     try {
       // Récupérer le token depuis les cookies
       const accessToken = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
@@ -169,7 +176,9 @@ export class AuthController {
       }
 
       // Vérifier le token avec Supabase
-      const { data, error } = await this.authService.getSupabaseClient().auth.getUser(accessToken);
+      const { data, error } = await this.authService
+        .getSupabaseClient()
+        .auth.getUser(accessToken);
 
       if (error || !data.user) {
         return { user: null };
@@ -192,7 +201,8 @@ export class AuthController {
   @Post('store-oauth-tokens')
   @ApiOperation({
     summary: 'Stocker les tokens OAuth dans des cookies',
-    description: 'Endpoint pour stocker les tokens OAuth reçus en URL fragment dans des cookies httpOnly',
+    description:
+      'Endpoint pour stocker les tokens OAuth reçus en URL fragment dans des cookies httpOnly',
   })
   @ApiResponse({
     status: 200,
@@ -229,7 +239,8 @@ export class AuthController {
   @Post('refresh')
   @ApiOperation({
     summary: 'Rafraîchir le token',
-    description: "Génère un nouveau token d'accès à partir du refresh token cookie",
+    description:
+      "Génère un nouveau token d'accès à partir du refresh token cookie",
   })
   @ApiResponse({
     status: 200,
@@ -248,7 +259,9 @@ export class AuthController {
       refreshTokenDto?.refresh_token;
 
     if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token not found in cookies or body');
+      throw new UnauthorizedException(
+        'Refresh token not found in cookies or body',
+      );
     }
 
     const authData = await this.authService.refreshToken(refreshToken);
@@ -365,11 +378,14 @@ export class AuthController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Obtenir un token temporaire pour WebSocket',
-    description: 'Génère un token temporaire pour l\'authentification WebSocket',
+    description: "Génère un token temporaire pour l'authentification WebSocket",
   })
   @ApiResponse({ status: 200, description: 'Token WebSocket généré' })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  getWebSocketToken(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+  getWebSocketToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
     // Extract the access_token from cookie
     const token = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
 
@@ -385,7 +401,8 @@ export class AuthController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Déconnexion',
-    description: "Déconnecte l'utilisateur, invalide le token et efface les cookies",
+    description:
+      "Déconnecte l'utilisateur, invalide le token et efface les cookies",
   })
   @ApiResponse({
     status: 200,
@@ -492,7 +509,9 @@ export class AuthController {
   async initiateOAuth(
     @Param('provider') provider: string,
   ): Promise<OAuthUrlResponseDto> {
-    return this.authService.initiateOAuth(provider as 'google' | 'github' | 'microsoft');
+    return this.authService.initiateOAuth(
+      provider as 'google' | 'github' | 'microsoft',
+    );
   }
 
   @Public()
@@ -511,9 +530,15 @@ export class AuthController {
     @Res({ passthrough: false }) res: Response,
   ) {
     console.log('[OAuth Callback] ========== START ==========');
-    console.log('[OAuth Callback] Received code:', code ? 'PRESENT' : 'MISSING');
+    console.log(
+      '[OAuth Callback] Received code:',
+      code ? 'PRESENT' : 'MISSING',
+    );
     console.log('[OAuth Callback] Received error:', error || 'NONE');
-    console.log('[OAuth Callback] Error description:', errorDescription || 'NONE');
+    console.log(
+      '[OAuth Callback] Error description:',
+      errorDescription || 'NONE',
+    );
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     console.log('[OAuth Callback] Frontend URL:', frontendUrl);
@@ -522,19 +547,27 @@ export class AuthController {
     if (error) {
       const encodedError = encodeURIComponent(errorDescription || error);
       const redirectUrl = `${frontendUrl}/auth/error?error=${encodedError}`;
-      console.log('[OAuth Callback] Provider error, redirecting to:', redirectUrl);
+      console.log(
+        '[OAuth Callback] Provider error, redirecting to:',
+        redirectUrl,
+      );
       return res.redirect(redirectUrl);
     }
 
     // Handle missing code
     if (!code) {
       const redirectUrl = `${frontendUrl}/auth/error?error=Code OAuth manquant`;
-      console.log('[OAuth Callback] Code missing, redirecting to:', redirectUrl);
+      console.log(
+        '[OAuth Callback] Code missing, redirecting to:',
+        redirectUrl,
+      );
       return res.redirect(redirectUrl);
     }
 
     try {
-      console.log('[OAuth Callback] Exchanging code for session with Supabase...');
+      console.log(
+        '[OAuth Callback] Exchanging code for session with Supabase...',
+      );
       const authData = await this.authService.handleOAuthCallback(code, '');
       console.log('[OAuth Callback] Session exchange successful');
       console.log('[OAuth Callback] User ID:', authData.profile?.id);
@@ -542,15 +575,21 @@ export class AuthController {
       // Redirect to frontend with tokens in URL fragment
       // Frontend will store them as httpOnly cookies via an API call
       const redirectUrl = `${frontendUrl}/auth/callback#access_token=${encodeURIComponent(authData.access_token)}&refresh_token=${encodeURIComponent(authData.refresh_token)}&token_type=bearer&expires_in=${authData.expires_in}`;
-      console.log('[OAuth Callback] Redirecting to frontend callback with tokens in URL fragment');
-      console.log('[OAuth Callback] Redirect URL:', redirectUrl.substring(0, 100) + '...');
+      console.log(
+        '[OAuth Callback] Redirecting to frontend callback with tokens in URL fragment',
+      );
+      console.log(
+        '[OAuth Callback] Redirect URL:',
+        redirectUrl.substring(0, 100) + '...',
+      );
       console.log('[OAuth Callback] ========== END SUCCESS ==========');
 
       return res.redirect(redirectUrl);
     } catch (err) {
       console.error('[OAuth Callback] ========== ERROR ==========');
       console.error('[OAuth Callback] Error during callback:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Erreur OAuth inconnue';
+      const errorMsg =
+        err instanceof Error ? err.message : 'Erreur OAuth inconnue';
       const redirectUrl = `${frontendUrl}/auth/error?error=${encodeURIComponent(errorMsg)}`;
       console.log('[OAuth Callback] Redirecting to error page:', redirectUrl);
       console.log('[OAuth Callback] ========== END ERROR ==========');
@@ -581,14 +620,18 @@ export class AuthController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: "Compléter l'onboarding après OAuth",
-    description: "Finalise le profil d'un utilisateur OAuth en ajoutant le rôle, pays et autres informations obligatoires",
+    description:
+      "Finalise le profil d'un utilisateur OAuth en ajoutant le rôle, pays et autres informations obligatoires",
   })
   @ApiResponse({
     status: 200,
     description: 'Onboarding complété avec succès',
     type: ProfileResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Données invalides ou onboarding déjà complété' })
+  @ApiResponse({
+    status: 400,
+    description: 'Données invalides ou onboarding déjà complété',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 404, description: 'Profil non trouvé' })
   async completeOnboarding(

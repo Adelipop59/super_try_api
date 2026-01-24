@@ -43,7 +43,9 @@ interface ReadReceiptPayload {
     credentials: true,
   },
 })
-export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MessagesGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Server;
 
@@ -88,11 +90,12 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
       this.userSockets.get(user.id)!.add(client.id);
 
-      this.logger.log(`Client connected: ${client.id} (User: ${user.id}, Role: ${user.role})`);
+      this.logger.log(
+        `Client connected: ${client.id} (User: ${user.id}, Role: ${user.role})`,
+      );
 
       // Notifier les autres que cet utilisateur est en ligne
       this.broadcastUserStatus(user.id, 'online');
-
     } catch (error) {
       this.logger.error(`Connection error: ${error.message}`);
       client.disconnect();
@@ -164,7 +167,6 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
         sessionId,
         timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
       this.logger.error(`Error joining session: ${error.message}`);
       client.emit('error', { message: 'Failed to join session' });
@@ -270,7 +272,6 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
         readBy: user.id,
         readAt: new Date().toISOString(),
       });
-
     } catch (error) {
       this.logger.error(`Error marking message as read: ${error.message}`);
       client.emit('error', { message: 'Failed to mark message as read' });
@@ -295,7 +296,10 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   /**
    * Diffuser le statut online/offline d'un utilisateur
    */
-  private broadcastUserStatus(userId: string, status: 'online' | 'offline'): void {
+  private broadcastUserStatus(
+    userId: string,
+    status: 'online' | 'offline',
+  ): void {
     this.server.emit('user:status', {
       userId,
       status,
@@ -367,7 +371,9 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       if (!profile || !profile.isActive) {
-        this.logger.warn(`Profile not found or inactive for Supabase user ${supabaseUser.id}`);
+        this.logger.warn(
+          `Profile not found or inactive for Supabase user ${supabaseUser.id}`,
+        );
         return null;
       }
 

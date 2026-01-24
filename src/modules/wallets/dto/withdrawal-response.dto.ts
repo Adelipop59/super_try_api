@@ -13,7 +13,7 @@ export class WithdrawalResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'ID de l\'utilisateur',
+    description: "ID de l'utilisateur",
     example: '550e8400-e29b-41d4-a716-446655440001',
   })
   userId: string;
@@ -67,29 +67,29 @@ export class WithdrawalResponseDto {
   completedAt?: Date;
 
   @ApiProperty({
-    description: 'Date d\'échec',
+    description: "Date d'échec",
     example: '2025-01-17T14:20:00Z',
     required: false,
   })
   failedAt?: Date;
 
   @ApiProperty({
-    description: 'Raison de l\'échec',
+    description: "Raison de l'échec",
     example: 'IBAN invalide',
     required: false,
   })
   failureReason?: string;
 
   @ApiProperty({
-    description: 'Date d\'annulation',
+    description: "Date d'annulation",
     example: '2025-01-16T12:00:00Z',
     required: false,
   })
   cancelledAt?: Date;
 
   @ApiProperty({
-    description: 'Raison de l\'annulation',
-    example: 'Demande annulée par l\'utilisateur',
+    description: "Raison de l'annulation",
+    example: "Demande annulée par l'utilisateur",
     required: false,
   })
   cancellationReason?: string;

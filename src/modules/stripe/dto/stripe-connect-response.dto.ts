@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class StripeConnectResponseDto {
   @ApiProperty({
-    description: 'URL d\'onboarding Stripe Connect',
+    description: "URL d'onboarding Stripe Connect",
     example: 'https://connect.stripe.com/setup/s/...',
   })
   onboardingUrl: string;
@@ -14,7 +14,7 @@ export class StripeConnectResponseDto {
   accountId: string;
 
   @ApiProperty({
-    description: 'Expiration du lien d\'onboarding (timestamp)',
+    description: "Expiration du lien d'onboarding (timestamp)",
     example: 1735123456,
   })
   expiresAt: number;

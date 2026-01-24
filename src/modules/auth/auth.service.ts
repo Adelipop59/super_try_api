@@ -33,7 +33,8 @@ export class AuthService {
    * Signup - Create Supabase user and profile
    */
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
-    const { email, password, role, country, countries, ...profileData } = signupDto;
+    const { email, password, role, country, countries, ...profileData } =
+      signupDto;
 
     // Security: Prevent ADMIN creation via public signup
     if (role === 'ADMIN') {
@@ -64,8 +65,8 @@ export class AuthService {
       });
 
       if (validCountries.length !== countries.length) {
-        const validCodes = validCountries.map(c => c.code);
-        const invalidCodes = countries.filter(c => !validCodes.includes(c));
+        const validCodes = validCountries.map((c) => c.code);
+        const invalidCodes = countries.filter((c) => !validCodes.includes(c));
         throw new BadRequestException(
           `Code(s) pays invalide(s): ${invalidCodes.join(', ')}. Utilisez GET /users/available-countries pour voir la liste.`,
         );
@@ -73,8 +74,13 @@ export class AuthService {
 
       // Check dynamic availability using the same logic as getAvailableCountries
       const priorityCountriesEnv = process.env.PRIORITY_COUNTRIES || 'FR';
-      const priorityCountries = priorityCountriesEnv.split(',').map(c => c.trim());
-      const minTestersPerCountry = parseInt(process.env.MIN_TESTERS_PER_COUNTRY || '10', 10);
+      const priorityCountries = priorityCountriesEnv
+        .split(',')
+        .map((c) => c.trim());
+      const minTestersPerCountry = parseInt(
+        process.env.MIN_TESTERS_PER_COUNTRY || '10',
+        10,
+      );
 
       // Count testers for each selected country
       const testerCounts = await this.prismaService.profile.groupBy({
@@ -89,14 +95,14 @@ export class AuthService {
       });
 
       const testerCountMap = new Map<string, number>();
-      testerCounts.forEach(item => {
+      testerCounts.forEach((item) => {
         if (item.country) {
           testerCountMap.set(item.country, item._count.country);
         }
       });
 
       // Check if at least one country is available
-      const availableCountries = countries.filter(code => {
+      const availableCountries = countries.filter((code) => {
         const isPriority = priorityCountries.includes(code);
         const testerCount = testerCountMap.get(code) || 0;
         return isPriority || testerCount >= minTestersPerCountry;
@@ -158,7 +164,7 @@ export class AuthService {
       // Handle specific Supabase errors
       if (error?.message?.includes('already registered')) {
         throw new BadRequestException(
-          'Un compte existe déjà avec cet email dans le système d\'authentification.',
+          "Un compte existe déjà avec cet email dans le système d'authentification.",
         );
       }
       throw new BadRequestException(
@@ -183,7 +189,7 @@ export class AuthService {
     // Create ProfileCountry entries for PRO
     if (role === 'PRO' && countries) {
       await this.prismaService.profileCountry.createMany({
-        data: countries.map(countryCode => ({
+        data: countries.map((countryCode) => ({
           profileId: profile.id,
           countryCode,
         })),
@@ -199,7 +205,10 @@ export class AuthService {
       });
 
     if (emailError) {
-      this.logger.warn(`Failed to send verification email to ${email}:`, emailError.message);
+      this.logger.warn(
+        `Failed to send verification email to ${email}:`,
+        emailError.message,
+      );
     }
 
     // Auto-login user after signup
@@ -211,7 +220,10 @@ export class AuthService {
       });
 
     if (signInError || !sessionData.session) {
-      this.logger.error(`Failed to auto-login user ${email}:`, signInError?.message);
+      this.logger.error(
+        `Failed to auto-login user ${email}:`,
+        signInError?.message,
+      );
       // Return without tokens if auto-login fails
       return {
         access_token: '',
@@ -279,7 +291,9 @@ export class AuthService {
 
       // Check if error is due to unconfirmed email
       if (error?.message === 'Email not confirmed') {
-        throw new UnauthorizedException('Veuillez confirmer votre email avant de vous connecter');
+        throw new UnauthorizedException(
+          'Veuillez confirmer votre email avant de vous connecter',
+        );
       }
 
       throw new UnauthorizedException('Email ou mot de passe incorrect');
@@ -512,7 +526,9 @@ export class AuthService {
       .auth.admin.listUsers();
 
     if (userError) {
-      this.logger.warn(`Failed to check user status for ${email}: ${userError.message}`);
+      this.logger.warn(
+        `Failed to check user status for ${email}: ${userError.message}`,
+      );
     }
 
     // Find user by email
@@ -524,7 +540,9 @@ export class AuthService {
 
     // Check if email is already confirmed
     if (user.email_confirmed_at) {
-      throw new BadRequestException('Cet email est déjà vérifié. Vous pouvez vous connecter.');
+      throw new BadRequestException(
+        'Cet email est déjà vérifié. Vous pouvez vous connecter.',
+      );
     }
 
     // Send verification email
@@ -534,10 +552,17 @@ export class AuthService {
     });
 
     if (error) {
-      this.logger.warn(`Failed to resend verification email to ${email}: ${error.message}`);
+      this.logger.warn(
+        `Failed to resend verification email to ${email}: ${error.message}`,
+      );
 
-      if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
-        throw new BadRequestException('Trop de demandes. Veuillez réessayer dans quelques minutes.');
+      if (
+        error.message.includes('rate limit') ||
+        error.message.includes('too many requests')
+      ) {
+        throw new BadRequestException(
+          'Trop de demandes. Veuillez réessayer dans quelques minutes.',
+        );
       }
 
       throw new BadRequestException(
@@ -545,7 +570,10 @@ export class AuthService {
       );
     }
 
-    return { message: 'Email de vérification envoyé avec succès. Consultez votre boîte mail.' };
+    return {
+      message:
+        'Email de vérification envoyé avec succès. Consultez votre boîte mail.',
+    };
   }
 
   /**
@@ -586,7 +614,9 @@ export class AuthService {
   /**
    * Check if email exists
    */
-  async checkEmailExists(email: string): Promise<{ exists: boolean; email: string; role?: any }> {
+  async checkEmailExists(
+    email: string,
+  ): Promise<{ exists: boolean; email: string; role?: any }> {
     const profile = await this.prismaService.profile.findUnique({
       where: { email },
       select: { id: true, role: true },
@@ -711,9 +741,7 @@ export class AuthService {
 
     // Security: Prevent ADMIN creation
     if (role === 'ADMIN') {
-      throw new BadRequestException(
-        'Cannot set ADMIN role. Contact support.',
-      );
+      throw new BadRequestException('Cannot set ADMIN role. Contact support.');
     }
 
     // Validate required fields for PRO
@@ -738,8 +766,8 @@ export class AuthService {
       });
 
       if (validCountries.length !== countries.length) {
-        const validCodes = validCountries.map(c => c.code);
-        const invalidCodes = countries.filter(c => !validCodes.includes(c));
+        const validCodes = validCountries.map((c) => c.code);
+        const invalidCodes = countries.filter((c) => !validCodes.includes(c));
         throw new BadRequestException(
           `Code(s) pays invalide(s): ${invalidCodes.join(', ')}. Utilisez GET /users/available-countries pour voir la liste.`,
         );
@@ -747,8 +775,13 @@ export class AuthService {
 
       // Check dynamic availability
       const priorityCountriesEnv = process.env.PRIORITY_COUNTRIES || 'FR';
-      const priorityCountries = priorityCountriesEnv.split(',').map(c => c.trim());
-      const minTestersPerCountry = parseInt(process.env.MIN_TESTERS_PER_COUNTRY || '10', 10);
+      const priorityCountries = priorityCountriesEnv
+        .split(',')
+        .map((c) => c.trim());
+      const minTestersPerCountry = parseInt(
+        process.env.MIN_TESTERS_PER_COUNTRY || '10',
+        10,
+      );
 
       const testerCounts = await this.prismaService.profile.groupBy({
         by: ['country'],
@@ -762,13 +795,13 @@ export class AuthService {
       });
 
       const testerCountMap = new Map<string, number>();
-      testerCounts.forEach(item => {
+      testerCounts.forEach((item) => {
         if (item.country) {
           testerCountMap.set(item.country, item._count.country);
         }
       });
 
-      const availableCountries = countries.filter(code => {
+      const availableCountries = countries.filter((code) => {
         const isPriority = priorityCountries.includes(code);
         const testerCount = testerCountMap.get(code) || 0;
         return isPriority || testerCount >= minTestersPerCountry;
@@ -819,7 +852,7 @@ export class AuthService {
     // Create ProfileCountry entries for PRO
     if (role === 'PRO' && countries) {
       await this.prismaService.profileCountry.createMany({
-        data: countries.map(countryCode => ({
+        data: countries.map((countryCode) => ({
           profileId: updatedProfile.id,
           countryCode,
         })),
@@ -835,7 +868,9 @@ export class AuthService {
       });
     }
 
-    this.logger.log(`User ${updatedProfile.email} completed onboarding as ${role}`);
+    this.logger.log(
+      `User ${updatedProfile.email} completed onboarding as ${role}`,
+    );
 
     return updatedProfile as ProfileResponseDto;
   }

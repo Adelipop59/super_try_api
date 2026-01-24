@@ -641,7 +641,9 @@ export class AdminService {
     diagnostic.forEach((entry: any) => {
       // Incohérence 1 : verificationStatus=verified mais isVerified=false
       if (entry.verificationStatus === 'verified' && !entry.isVerified) {
-        entry.issues.push('⚠️ verificationStatus=verified mais isVerified=false');
+        entry.issues.push(
+          '⚠️ verificationStatus=verified mais isVerified=false',
+        );
       }
 
       // Incohérence 2 : verificationStatus=pending mais pas de session Stripe
@@ -665,9 +667,8 @@ export class AdminService {
       verified: diagnostic.filter(
         (u: any) => u.verificationStatus === 'verified',
       ).length,
-      pending: diagnostic.filter(
-        (u: any) => u.verificationStatus === 'pending',
-      ).length,
+      pending: diagnostic.filter((u: any) => u.verificationStatus === 'pending')
+        .length,
       unverified: diagnostic.filter(
         (u: any) => u.verificationStatus === 'unverified',
       ).length,

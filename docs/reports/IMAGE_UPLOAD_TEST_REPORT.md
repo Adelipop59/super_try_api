@@ -10,11 +10,13 @@ The complete image upload system has been successfully implemented and tested wi
 ## Features Tested
 
 ### ✅ 1. Single Image Upload
+
 - **Endpoint:** `POST /api/v1/products/:id/images`
 - **Result:** Image successfully uploaded to Supabase Storage
 - **URL Format:** `https://mdihnqriahzlqtrjexuy.storage.supabase.co/storage/v1/s3/products/{productId}/{timestamp}-{uuid}.png`
 
 ### ✅ 2. Multiple Images Upload
+
 - **Test:** Uploaded 3 images total (1 + 2 more)
 - **Result:** All images stored with correct metadata
 - **Image Structure:**
@@ -27,12 +29,15 @@ The complete image upload system has been successfully implemented and tested wi
   ```
 
 ### ✅ 3. Image Metadata
+
 - **Order:** Automatically assigned (0, 1, 2...)
 - **Primary Flag:** First image automatically set as primary
 - **Database Storage:** Images stored in JSONB column
 
 ### ✅ 4. S3 Bucket Organization
+
 Images are organized by entity type and ID:
+
 ```
 super_try_bucket/
 └── products/
@@ -45,6 +50,7 @@ super_try_bucket/
 ## Test Results
 
 ### Product Created
+
 - **ID:** `1f101f51-0c93-4d51-a25b-2a1ef133725e`
 - **Name:** "Test Product 1764913291"
 
@@ -68,6 +74,7 @@ super_try_bucket/
 ## Database Verification
 
 Run this SQL query to verify:
+
 ```sql
 SELECT id, name, images
 FROM products
@@ -79,11 +86,13 @@ Expected result: JSONB array with 3 image objects containing url, order, and isP
 ## Technical Implementation
 
 ### 1. Upload Module
+
 - **Location:** `src/modules/upload/`
 - **Service:** S3Client configured with Supabase Storage endpoint
 - **Configuration:** `forcePathStyle: true` for S3-compatible API
 
 ### 2. Environment Variables
+
 ```env
 AWS_ACCESS_KEY_ID=586cc3cd63442152d191b1da0ef4779c
 AWS_SECRET_ACCESS_KEY=32678d658a596def3760d3c3019bd0bb9c8611e12c75aec016514c0564136944
@@ -93,6 +102,7 @@ AWS_S3_BUCKET_NAME=super_try_bucket
 ```
 
 ### 3. Product Schema
+
 ```prisma
 model Product {
   // ...
@@ -103,6 +113,7 @@ model Product {
 ```
 
 ### 4. File Validation
+
 - **Allowed Types:** image/jpeg, image/jpg, image/png, image/webp
 - **Max Size:** 5MB per file
 - **Max Count:** 10 images per upload
@@ -110,6 +121,7 @@ model Product {
 ## API Endpoints
 
 ### Upload Image(s) to Product
+
 ```bash
 POST /api/v1/products/:productId/images
 Authorization: Bearer {token}
@@ -120,6 +132,7 @@ Form Data:
 ```
 
 ### Delete Product Image
+
 ```bash
 DELETE /api/v1/products/:productId/images
 Authorization: Bearer {token}
@@ -130,6 +143,7 @@ Body:
 ```
 
 ### Update Product Images Order
+
 ```bash
 PATCH /api/v1/products/:productId/images
 Authorization: Bearer {token}
@@ -154,6 +168,7 @@ Body:
 ## Future Use Cases
 
 This upload module can be reused for:
+
 - User avatars (`/users/:id/avatar`)
 - Campaign images (`/campaigns/:id/images`)
 - Submission attachments (`/bonus-tasks/:id/submissions`)

@@ -51,7 +51,9 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     if (!token) {
-      throw new UnauthorizedException('No access token found in cookies or authorization header');
+      throw new UnauthorizedException(
+        'No access token found in cookies or authorization header',
+      );
     }
 
     // Verify token with Supabase

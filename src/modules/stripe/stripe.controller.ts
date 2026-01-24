@@ -15,9 +15,17 @@ import { PrismaService } from '../../database/prisma.service';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentProfile,
+} from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, CampaignStatus, TransactionType, TransactionStatus } from '@prisma/client';
+import {
+  UserRole,
+  CampaignStatus,
+  TransactionType,
+  TransactionStatus,
+} from '@prisma/client';
 import type { Profile } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -205,7 +213,10 @@ export class StripeController {
     }
 
     // Vérifier que la campagne est en PENDING_PAYMENT ou CANCELLED
-    if (campaign.status !== CampaignStatus.PENDING_PAYMENT && campaign.status !== CampaignStatus.CANCELLED) {
+    if (
+      campaign.status !== CampaignStatus.PENDING_PAYMENT &&
+      campaign.status !== CampaignStatus.CANCELLED
+    ) {
       throw new BadRequestException(
         `Refund is only available for campaigns in PENDING_PAYMENT or CANCELLED status. Current status: ${campaign.status}`,
       );
@@ -228,7 +239,9 @@ export class StripeController {
     });
 
     if (!paymentTransaction || !paymentTransaction.stripePaymentIntentId) {
-      throw new BadRequestException('No completed payment found for this campaign');
+      throw new BadRequestException(
+        'No completed payment found for this campaign',
+      );
     }
 
     // Vérifier qu'il n'y a pas déjà un remboursement
@@ -240,7 +253,9 @@ export class StripeController {
     });
 
     if (existingRefund) {
-      throw new BadRequestException('A refund has already been processed for this campaign');
+      throw new BadRequestException(
+        'A refund has already been processed for this campaign',
+      );
     }
 
     // ✅ Calculer le montant déjà versé aux testeurs
@@ -423,9 +438,10 @@ export class StripeController {
   async createCustomer(@CurrentProfile() profile: Profile) {
     const customer = await this.stripeService.createCustomer(profile.id, {
       email: profile.email,
-      name: profile.firstName && profile.lastName
-        ? `${profile.firstName} ${profile.lastName}`
-        : undefined,
+      name:
+        profile.firstName && profile.lastName
+          ? `${profile.firstName} ${profile.lastName}`
+          : undefined,
       metadata: {
         userId: profile.id,
       },
@@ -582,7 +598,8 @@ export class StripeController {
   async createRefund(
     @Body('paymentIntentId') paymentIntentId: string,
     @Body('amount') amount?: number,
-    @Body('reason') reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer',
+    @Body('reason')
+    reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer',
   ) {
     if (!paymentIntentId) {
       throw new BadRequestException('paymentIntentId is required');
@@ -615,7 +632,7 @@ export class StripeController {
   calculateFees(@Body('amount') amount: number) {
     throw new BadRequestException(
       'This endpoint is deprecated. Commission calculation now requires campaign context. ' +
-      'Use POST /stripe/campaign-checkout-session which handles fees automatically.',
+        'Use POST /stripe/campaign-checkout-session which handles fees automatically.',
     );
   }
 }

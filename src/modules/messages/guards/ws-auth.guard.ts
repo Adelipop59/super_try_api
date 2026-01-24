@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { SupabaseService } from '../../../common/supabase/supabase.service';
@@ -53,7 +58,9 @@ export class WsAuthGuard implements CanActivate {
       client.data.userRole = profile.role;
       client.data.email = profile.email;
 
-      this.logger.log(`WebSocket authenticated: user ${profile.id} (${profile.role})`);
+      this.logger.log(
+        `WebSocket authenticated: user ${profile.id} (${profile.role})`,
+      );
 
       return true;
     } catch (error) {

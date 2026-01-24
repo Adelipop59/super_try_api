@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+coverage/
+*.config.ts
+*.config.js
+prisma/generated/
+.turbo/

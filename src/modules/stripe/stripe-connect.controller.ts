@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -37,13 +31,14 @@ export class StripeConnectController {
   @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Créer un compte Stripe Connect pour recevoir des paiements (USER)',
+    summary:
+      'Créer un compte Stripe Connect pour recevoir des paiements (USER)',
     description:
-      'Crée un compte Stripe Connect Express pour le testeur et retourne le lien d\'onboarding. Le testeur doit compléter l\'onboarding Stripe pour recevoir des paiements automatiques. KYC obligatoire.',
+      "Crée un compte Stripe Connect Express pour le testeur et retourne le lien d'onboarding. Le testeur doit compléter l'onboarding Stripe pour recevoir des paiements automatiques. KYC obligatoire.",
   })
   @ApiResponse({
     status: 201,
-    description: 'Lien d\'onboarding créé avec succès',
+    description: "Lien d'onboarding créé avec succès",
     type: StripeConnectResponseDto,
   })
   @ApiResponse({
@@ -110,13 +105,13 @@ export class StripeConnectController {
   @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Rafraîchir le lien d\'onboarding Stripe Connect (USER)',
+    summary: "Rafraîchir le lien d'onboarding Stripe Connect (USER)",
     description:
-      'Crée un nouveau lien d\'onboarding si le précédent a expiré ou si l\'onboarding n\'est pas complet. Nécessite KYC.',
+      "Crée un nouveau lien d'onboarding si le précédent a expiré ou si l'onboarding n'est pas complet. Nécessite KYC.",
   })
   @ApiResponse({
     status: 201,
-    description: 'Nouveau lien d\'onboarding créé',
+    description: "Nouveau lien d'onboarding créé",
     type: StripeConnectResponseDto,
   })
   @ApiResponse({
@@ -162,11 +157,11 @@ export class StripeConnectController {
   @ApiOperation({
     summary: 'Créer un compte Stripe Connect pour recevoir des paiements (PRO)',
     description:
-      'Crée un compte Stripe Connect Express pour le vendeur et retourne le lien d\'onboarding. Le vendeur doit compléter l\'onboarding Stripe pour pouvoir activer des campagnes. KYC obligatoire.',
+      "Crée un compte Stripe Connect Express pour le vendeur et retourne le lien d'onboarding. Le vendeur doit compléter l'onboarding Stripe pour pouvoir activer des campagnes. KYC obligatoire.",
   })
   @ApiResponse({
     status: 201,
-    description: 'Lien d\'onboarding créé avec succès',
+    description: "Lien d'onboarding créé avec succès",
     type: StripeConnectResponseDto,
   })
   @ApiResponse({
@@ -233,13 +228,13 @@ export class StripeConnectController {
   @RequireKyc()
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Rafraîchir le lien d\'onboarding Stripe Connect (PRO)',
+    summary: "Rafraîchir le lien d'onboarding Stripe Connect (PRO)",
     description:
-      'Crée un nouveau lien d\'onboarding si le précédent a expiré ou si l\'onboarding n\'est pas complet. Nécessaire pour activer des campagnes. Nécessite KYC.',
+      "Crée un nouveau lien d'onboarding si le précédent a expiré ou si l'onboarding n'est pas complet. Nécessaire pour activer des campagnes. Nécessite KYC.",
   })
   @ApiResponse({
     status: 201,
-    description: 'Nouveau lien d\'onboarding créé',
+    description: "Nouveau lien d'onboarding créé",
     type: StripeConnectResponseDto,
   })
   @ApiResponse({

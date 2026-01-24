@@ -37,7 +37,8 @@ export class CategoriesController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Créer une catégorie (ADMIN uniquement)',
-    description: 'Permet aux admins de créer une nouvelle catégorie de produits',
+    description:
+      'Permet aux admins de créer une nouvelle catégorie de produits',
   })
   @ApiResponse({
     status: 201,
@@ -65,9 +66,7 @@ export class CategoriesController {
     description: 'Liste des catégories',
     type: [CategoryResponseDto],
   })
-  findAll(
-    @Query() filters: CategoryFilterDto,
-  ): Promise<CategoryResponseDto[]> {
+  findAll(@Query() filters: CategoryFilterDto): Promise<CategoryResponseDto[]> {
     return this.categoriesService.findAll(filters);
   }
 

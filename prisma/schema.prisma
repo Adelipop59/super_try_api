@@ -228,12 +228,12 @@ model Profile {
   notifications           Notification[] // Notifications reçues
   notificationPreferences NotificationPreference? // Préférences de notification
   reviews                 CampaignReview[]        @relation("TesterReviews") // Avis créés (en tant que testeur)
-  requestedBonusTasks BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
-  wallet              Wallet? // Portefeuille financier (pour les testeurs)
-  withdrawals         Withdrawal[] // Demandes de retrait (pour les testeurs)
-  procedureTemplates  ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
-  criteriaTemplates   CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
-  countries           ProfileCountry[] // Pays sélectionnés (pour les PRO)
+  requestedBonusTasks     BonusTask[]             @relation("RequestedBonusTasks") // Prestations supplémentaires créées (en tant que vendeur)
+  wallet                  Wallet? // Portefeuille financier (pour les testeurs)
+  withdrawals             Withdrawal[] // Demandes de retrait (pour les testeurs)
+  procedureTemplates      ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
+  criteriaTemplates       CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
+  countries               ProfileCountry[] // Pays sélectionnés (pour les PRO)
 
   @@index([email])
   @@index([supabaseUserId])
@@ -261,7 +261,7 @@ model Category {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  products  Product[]  // Produits dans cette catégorie
+  products  Product[] // Produits dans cette catégorie
   campaigns Campaign[] // Campagnes dans cette catégorie
 
   @@index([slug])
@@ -285,7 +285,7 @@ model Product {
   description String  @db.Text
   asin        String? // Amazon Standard Identification Number (10 chars)
   productUrl  String? @map("product_url")
-  images      Json?   // Array of image objects: [{ url: string, order: number, isPrimary: boolean }]
+  images      Json? // Array of image objects: [{ url: string, order: number, isPrimary: boolean }]
 
   // Pricing information
   price        Decimal @default(0) @db.Decimal(10, 2)
@@ -340,7 +340,10 @@ model Campaign {
   // Marketplace configuration
   marketplaceMode CampaignMarketplaceMode @default(PROCEDURES) @map("marketplace_mode")
   marketplace     String? // Code pays Amazon: "FR", "DE", "UK", "US", "ES", "IT"
-  amazonLink      String? @db.Text @map("amazon_link") // URL du produit Amazon
+  amazonLink      String?                 @map("amazon_link") @db.Text // URL du produit Amazon
+
+  // SEO and search
+  keywords String[] @default([]) // Mots-clés pour la recherche et le référencement
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -375,6 +378,8 @@ model Offer {
 
   productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  productName String @map("product_name") // Nom exact du produit à chercher (obligatoire)
 
   // Prix du produit et livraison (définis par le vendeur)
   expectedPrice   Decimal @map("expected_price") @db.Decimal(10, 2) // Prix exact attendu du produit
@@ -756,6 +761,11 @@ model Session {
   validatedProductPrice Decimal?  @map("validated_product_price") @db.Decimal(10, 2) // Prix trouvé et validé par le testeur
   priceValidatedAt      DateTime? @map("price_validated_at") // Date de validation du prix
 
+  // Price validation tracking
+  priceValidationAttempts Int       @default(0) @map("price_validation_attempts") // Nombre de tentatives de validation du prix (max 2)
+  productTitleSubmitted   String?   @map("product_title_submitted") // Titre du produit soumis après 2 échecs
+  productTitleSubmittedAt DateTime? @map("product_title_submitted_at") // Date de soumission du titre
+
   // Test submission
   submittedAt    DateTime? @map("submitted_at")
   submissionData Json?     @map("submission_data") // Données du test (photos, vidéos, réponses)
@@ -771,12 +781,12 @@ model Session {
   cancellationReason String?   @map("cancellation_reason") @db.Text
 
   // Dispute
-  disputedAt        DateTime? @map("disputed_at")
-  disputeReason     String?   @map("dispute_reason") @db.Text
-  disputeResolvedAt DateTime? @map("dispute_resolved_at")
-  disputeResolution String?   @map("dispute_resolution") @db.Text
-  disputeDeclaredBy String?   @map("dispute_declared_by") // ID du déclarant (PRO ou USER)
-  isConversationLocked Boolean @default(false) @map("is_conversation_locked") // Bloque messages (sauf admin)
+  disputedAt           DateTime? @map("disputed_at")
+  disputeReason        String?   @map("dispute_reason") @db.Text
+  disputeResolvedAt    DateTime? @map("dispute_resolved_at")
+  disputeResolution    String?   @map("dispute_resolution") @db.Text
+  disputeDeclaredBy    String?   @map("dispute_declared_by") // ID du déclarant (PRO ou USER)
+  isConversationLocked Boolean   @default(false) @map("is_conversation_locked") // Bloque messages (sauf admin)
 
   // Admin participation
   adminJoinedAt  DateTime? @map("admin_joined_at") // Quand admin rejoint
@@ -789,28 +799,28 @@ model Session {
   ratedAt       DateTime? @map("rated_at")
 
   // Purchase validation (PRO validates order after submission)
-  purchaseValidatedAt        DateTime? @map("purchase_validated_at") // Date validation achat par PRO
-  purchaseValidationComment  String?   @map("purchase_validation_comment") @db.Text // Commentaire validation
-  purchaseRejectionReason    String?   @map("purchase_rejection_reason") @db.Text // Raison rejet achat
-  purchaseRejectedAt         DateTime? @map("purchase_rejected_at") // Date rejet achat
+  purchaseValidatedAt       DateTime? @map("purchase_validated_at") // Date validation achat par PRO
+  purchaseValidationComment String?   @map("purchase_validation_comment") @db.Text // Commentaire validation
+  purchaseRejectionReason   String?   @map("purchase_rejection_reason") @db.Text // Raison rejet achat
+  purchaseRejectedAt        DateTime? @map("purchase_rejected_at") // Date rejet achat
 
   // UGC (User Generated Content) workflow
-  ugcRequests            Json?     @map("ugc_requests") // JSON: demandes UGC du PRO [{type, description, bonus, deadline}]
-  ugcRequestedAt         DateTime? @map("ugc_requested_at") // Date demande UGC par PRO
-  potentialUGCBonus      Decimal?  @default(0) @map("potential_ugc_bonus") @db.Decimal(10, 2) // Bonus total potentiel
-  ugcSubmissions         Json?     @map("ugc_submissions") // JSON: soumissions UGC du testeur [{type, contentUrl, comment}]
-  ugcSubmittedAt         DateTime? @map("ugc_submitted_at") // Date soumission UGC
-  ugcSubmissionMessage   String?   @map("ugc_submission_message") @db.Text // Message testeur
-  ugcValidated           Boolean   @default(false) @map("ugc_validated") // UGC validés par PRO
-  ugcValidationComment   String?   @map("ugc_validation_comment") @db.Text // Commentaire validation UGC
-  ugcValidatedAt         DateTime? @map("ugc_validated_at") // Date validation UGC
-  ugcRejectionReason     String?   @map("ugc_rejection_reason") @db.Text // Raison rejet UGC
-  ugcRejectedAt          DateTime? @map("ugc_rejected_at") // Date rejet UGC
-  ugcDeclined            Boolean   @default(false) @map("ugc_declined") // Testeur refuse de soumettre UGC
-  ugcDeclineReason       String?   @map("ugc_decline_reason") @db.Text // Raison refus UGC
-  ugcDeclinedAt          DateTime? @map("ugc_declined_at") // Date refus UGC
-  finalUGCBonus          Decimal?  @default(0) @map("final_ugc_bonus") @db.Decimal(10, 2) // Bonus UGC final crédité
-  closingMessage         String?   @map("closing_message") @db.Text // Message de clôture PRO
+  ugcRequests          Json?     @map("ugc_requests") // JSON: demandes UGC du PRO [{type, description, bonus, deadline}]
+  ugcRequestedAt       DateTime? @map("ugc_requested_at") // Date demande UGC par PRO
+  potentialUGCBonus    Decimal?  @default(0) @map("potential_ugc_bonus") @db.Decimal(10, 2) // Bonus total potentiel
+  ugcSubmissions       Json?     @map("ugc_submissions") // JSON: soumissions UGC du testeur [{type, contentUrl, comment}]
+  ugcSubmittedAt       DateTime? @map("ugc_submitted_at") // Date soumission UGC
+  ugcSubmissionMessage String?   @map("ugc_submission_message") @db.Text // Message testeur
+  ugcValidated         Boolean   @default(false) @map("ugc_validated") // UGC validés par PRO
+  ugcValidationComment String?   @map("ugc_validation_comment") @db.Text // Commentaire validation UGC
+  ugcValidatedAt       DateTime? @map("ugc_validated_at") // Date validation UGC
+  ugcRejectionReason   String?   @map("ugc_rejection_reason") @db.Text // Raison rejet UGC
+  ugcRejectedAt        DateTime? @map("ugc_rejected_at") // Date rejet UGC
+  ugcDeclined          Boolean   @default(false) @map("ugc_declined") // Testeur refuse de soumettre UGC
+  ugcDeclineReason     String?   @map("ugc_decline_reason") @db.Text // Raison refus UGC
+  ugcDeclinedAt        DateTime? @map("ugc_declined_at") // Date refus UGC
+  finalUGCBonus        Decimal?  @default(0) @map("final_ugc_bonus") @db.Decimal(10, 2) // Bonus UGC final crédité
+  closingMessage       String?   @map("closing_message") @db.Text // Message de clôture PRO
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -858,8 +868,8 @@ model Message {
   readBy String?   @map("read_by") // ID de qui a lu (pour "vu par Jean à 14:32")
 
   // Message type
-  messageType     String?  @default("TEXT") @map("message_type") // TEXT, IMAGE, VIDEO, PDF, SYSTEM
-  isSystemMessage Boolean  @default(false) @map("is_system_message") // Messages auto (admin joined, dispute, etc.)
+  messageType     String? @default("TEXT") @map("message_type") // TEXT, IMAGE, VIDEO, PDF, SYSTEM
+  isSystemMessage Boolean @default(false) @map("is_system_message") // Messages auto (admin joined, dispute, etc.)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1103,14 +1113,14 @@ model Transaction {
   reason String // Description de la transaction
 
   // Related entities
-  sessionId    String?     @map("session_id") // Lien vers une session si applicable
-  session      Session?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  bonusTaskId  String?     @map("bonus_task_id") // Lien vers une bonus task si applicable
-  bonusTask    BonusTask?  @relation(fields: [bonusTaskId], references: [id], onDelete: SetNull)
-  withdrawalId String?     @map("withdrawal_id") // Lien vers un retrait si applicable
-  withdrawal   Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
-  campaignId   String?     @map("campaign_id") // Lien vers une campagne si applicable (paiement vendeur)
-  campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  sessionId           String?     @map("session_id") // Lien vers une session si applicable
+  session             Session?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  bonusTaskId         String?     @map("bonus_task_id") // Lien vers une bonus task si applicable
+  bonusTask           BonusTask?  @relation(fields: [bonusTaskId], references: [id], onDelete: SetNull)
+  withdrawalId        String?     @map("withdrawal_id") // Lien vers un retrait si applicable
+  withdrawal          Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
+  campaignId          String?     @map("campaign_id") // Lien vers une campagne si applicable (paiement vendeur)
+  campaign            Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   chatOrderId         String?     @map("chat_order_id") // Lien vers une commande chat si applicable
   chatOrder           ChatOrder?  @relation("ChatOrderTransactions", fields: [chatOrderId], references: [id], onDelete: SetNull)
   chatOrderValidation ChatOrder?  @relation("ChatOrderValidation") // Relation inverse pour chat_orders.transaction_id
@@ -1228,10 +1238,10 @@ model ChatOrder {
   disputeResolvedBy String?   @map("dispute_resolved_by") // Admin ID
 
   // Payment tracking (Stripe Payment Intent avec capture différée)
-  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // Stripe Payment Intent ID
-  stripeTransferId      String? @unique @map("stripe_transfer_id") // Stripe Transfer ID (vers testeur)
+  stripePaymentIntentId String?   @unique @map("stripe_payment_intent_id") // Stripe Payment Intent ID
+  stripeTransferId      String?   @unique @map("stripe_transfer_id") // Stripe Transfer ID (vers testeur)
   paidAt                DateTime? @map("paid_at") // Quand le paiement a été capturé
-  paidAmount            Decimal?  @db.Decimal(10, 2) @map("paid_amount") // Montant réellement payé au testeur (après fees)
+  paidAmount            Decimal?  @map("paid_amount") @db.Decimal(10, 2) // Montant réellement payé au testeur (après fees)
 
   // Relation avec transaction
   transactionId String?      @unique @map("transaction_id")
@@ -1262,11 +1272,11 @@ model ChatOrder {
 model Country {
   id        String   @id @default(uuid())
   code      String   @unique // ISO 3166-1 alpha-2 (FR, DE, etc.)
-  name      String   // "France", "Germany"
+  name      String // "France", "Germany"
   nameEn    String   @map("name_en") // English name
   nameFr    String   @map("name_fr") // French name
   isActive  Boolean  @default(false) @map("is_active") // false = "Coming Soon"
-  region    String   // "Western Europe", "Northern Europe"
+  region    String // "Western Europe", "Northern Europe"
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

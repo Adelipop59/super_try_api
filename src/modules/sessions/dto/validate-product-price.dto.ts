@@ -1,4 +1,11 @@
-import { IsNumber, IsPositive, IsNotEmpty } from 'class-validator';
+import {
+  IsNumber,
+  IsPositive,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -15,4 +22,15 @@ export class ValidateProductPriceDto {
   @IsNotEmpty()
   @Type(() => Number)
   productPrice!: number;
+
+  @ApiProperty({
+    description:
+      'Titre du produit (requis après 2 échecs de validation du prix)',
+    example: 'iPhone 15 Pro Max 256GB Titane',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  productTitle?: string;
 }

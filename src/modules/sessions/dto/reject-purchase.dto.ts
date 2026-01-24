@@ -3,7 +3,7 @@ import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class RejectPurchaseDto {
   @ApiProperty({
-    description: 'Raison du refus de la preuve d\'achat',
+    description: "Raison du refus de la preuve d'achat",
     example: 'Numéro de commande invalide, veuillez vérifier et resoumettre',
     minLength: 10,
   })

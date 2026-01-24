@@ -264,7 +264,11 @@ export class MessagesController {
     schema: {
       type: 'object',
       properties: {
-        url: { type: 'string', example: 'https://s3.amazonaws.com/bucket/messages/session-id/file.jpg' },
+        url: {
+          type: 'string',
+          example:
+            'https://s3.amazonaws.com/bucket/messages/session-id/file.jpg',
+        },
         filename: { type: 'string', example: '1701234567890-uuid.jpg' },
         size: { type: 'number', example: 1024000 },
         type: { type: 'string', example: 'image/jpeg' },
@@ -272,7 +276,10 @@ export class MessagesController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Fichier invalide ou taille dépassée' })
+  @ApiResponse({
+    status: 400,
+    description: 'Fichier invalide ou taille dépassée',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Accès refusé à cette session' })
   @ApiResponse({ status: 404, description: 'Session non trouvée' })
@@ -299,7 +306,10 @@ export class MessagesController {
     }
 
     // Upload le fichier
-    const url = await this.uploadService.uploadMessageAttachment(file, sessionId);
+    const url = await this.uploadService.uploadMessageAttachment(
+      file,
+      sessionId,
+    );
 
     // Extraire le nom du fichier depuis l'URL
     const urlParts = url.split('/');
@@ -331,7 +341,10 @@ export class MessagesController {
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Admin help requested successfully' },
+        message: {
+          type: 'string',
+          example: 'Admin help requested successfully',
+        },
         sessionId: { type: 'string' },
         adminInvitedAt: { type: 'string', format: 'date-time' },
       },
@@ -362,7 +375,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Admin rejoint une conversation',
     description:
-      "Permet à un admin de rejoindre une conversation. Un message système sera créé pour notifier les participants.",
+      'Permet à un admin de rejoindre une conversation. Un message système sera créé pour notifier les participants.',
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
@@ -371,7 +384,10 @@ export class MessagesController {
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Admin joined conversation successfully' },
+        message: {
+          type: 'string',
+          example: 'Admin joined conversation successfully',
+        },
         sessionId: { type: 'string' },
         adminJoinedAt: { type: 'string', format: 'date-time' },
       },
@@ -412,7 +428,10 @@ export class MessagesController {
     },
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'Accès refusé ou admin ne peut pas déclarer de litige' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès refusé ou admin ne peut pas déclarer de litige',
+  })
   @ApiResponse({ status: 404, description: 'Session non trouvée' })
   async declareDispute(
     @Param('sessionId') sessionId: string,
@@ -436,7 +455,7 @@ export class MessagesController {
   @ApiOperation({
     summary: 'Résoudre un litige (ADMIN)',
     description:
-      "Permet à un admin de résoudre un litige et de débloquer la conversation. Les participants seront notifiés par email et pourront à nouveau échanger des messages.",
+      'Permet à un admin de résoudre un litige et de débloquer la conversation. Les participants seront notifiés par email et pourront à nouveau échanger des messages.',
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
@@ -455,7 +474,10 @@ export class MessagesController {
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Rôle ADMIN requis' })
-  @ApiResponse({ status: 404, description: 'Session non trouvée ou aucun litige actif' })
+  @ApiResponse({
+    status: 404,
+    description: 'Session non trouvée ou aucun litige actif',
+  })
   async resolveDispute(
     @Param('sessionId') sessionId: string,
     @CurrentUser() user: AuthenticatedUser,

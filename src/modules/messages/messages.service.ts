@@ -104,7 +104,7 @@ export class MessagesService {
         sessionId,
         senderId: userId,
         content: dto.content,
-        attachments: processedAttachments as any,
+        attachments: processedAttachments,
         messageType,
       },
       include: {
@@ -507,7 +507,11 @@ export class MessagesService {
     reason: string,
   ): Promise<{ message: string; session: any }> {
     // Vérifier l'accès
-    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    const hasAccess = await this.verifySessionAccess(
+      sessionId,
+      userId,
+      userRole,
+    );
     if (!hasAccess) {
       throw new ForbiddenException('Access denied');
     }
@@ -522,7 +526,9 @@ export class MessagesService {
     }
 
     if (session.adminInvitedAt) {
-      throw new BadRequestException('Admin already invited to this conversation');
+      throw new BadRequestException(
+        'Admin already invited to this conversation',
+      );
     }
 
     // Mettre à jour la session
@@ -616,7 +622,11 @@ export class MessagesService {
     dto: DeclareDisputeDto,
   ): Promise<{ message: string; session: any }> {
     // Vérifier l'accès
-    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    const hasAccess = await this.verifySessionAccess(
+      sessionId,
+      userId,
+      userRole,
+    );
     if (!hasAccess || userRole === 'ADMIN') {
       throw new ForbiddenException('Only tester or seller can declare dispute');
     }
@@ -756,7 +766,11 @@ export class MessagesService {
     userId: string,
     userRole: string,
   ): Promise<any> {
-    const hasAccess = await this.verifySessionAccess(sessionId, userId, userRole);
+    const hasAccess = await this.verifySessionAccess(
+      sessionId,
+      userId,
+      userRole,
+    );
     if (!hasAccess) {
       throw new ForbiddenException('Access denied');
     }

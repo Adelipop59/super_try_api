@@ -28,7 +28,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const exceptionResponse = exception.getResponse();
 
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        const { message: msg, error: err, statusCode, ...rest } = exceptionResponse as any;
+        const {
+          message: msg,
+          error: err,
+          statusCode,
+          ...rest
+        } = exceptionResponse as any;
         message = msg || message;
         error = err || error;
         additionalData = rest; // Capture additional properties like 'errors'

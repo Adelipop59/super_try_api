@@ -12,14 +12,14 @@ export class WalletResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'ID de l\'utilisateur',
+    description: "ID de l'utilisateur",
     example: '550e8400-e29b-41d4-a716-446655440001',
   })
   userId: string;
 
   @ApiProperty({
     description: 'Solde actuel',
-    example: 125.50,
+    example: 125.5,
     type: Number,
   })
   balance: number | Decimal;
@@ -32,14 +32,14 @@ export class WalletResponseDto {
 
   @ApiProperty({
     description: 'Total gagné depuis la création',
-    example: 450.00,
+    example: 450.0,
     type: Number,
   })
   totalEarned: number | Decimal;
 
   @ApiProperty({
     description: 'Total retiré',
-    example: 324.50,
+    example: 324.5,
     type: Number,
   })
   totalWithdrawn: number | Decimal;

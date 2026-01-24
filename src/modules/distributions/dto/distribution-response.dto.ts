@@ -39,7 +39,7 @@ export class DistributionResponseDto {
 
   @ApiProperty({
     example: 10,
-    description: 'Nombre maximum d\'unités à distribuer pour ce jour',
+    description: "Nombre maximum d'unités à distribuer pour ce jour",
   })
   maxUnits!: number;
 

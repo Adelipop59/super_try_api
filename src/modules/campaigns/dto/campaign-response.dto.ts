@@ -45,6 +45,12 @@ export class CampaignProductResponseDto {
   productId!: string;
 
   @ApiProperty({
+    description: 'Nom exact du produit à chercher',
+    example: 'iPhone 15 Pro Max 256GB Titane Naturel',
+  })
+  productName!: string;
+
+  @ApiProperty({
     description: 'Informations du produit',
     type: Object,
     example: {
@@ -160,6 +166,14 @@ export class CampaignResponseDto {
     required: false,
   })
   category?: CategoryInfo | null;
+
+  @ApiProperty({
+    description: 'Mots-clés pour la recherche et le référencement',
+    example: ['smartphone', 'high-tech', 'gaming'],
+    type: [String],
+    required: false,
+  })
+  keywords?: string[];
 
   @ApiProperty({ type: [CampaignProductResponseDto] })
   products!: CampaignProductResponseDto[];

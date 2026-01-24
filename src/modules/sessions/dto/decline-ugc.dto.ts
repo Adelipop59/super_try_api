@@ -5,7 +5,7 @@ export class DeclineUGCDto {
   @ApiProperty({
     description: 'Raison du refus de soumettre les UGC',
     example:
-      'Je ne peux pas créer de vidéo TikTok car je n\'ai pas de compte actif',
+      "Je ne peux pas créer de vidéo TikTok car je n'ai pas de compte actif",
     minLength: 10,
   })
   @IsString()

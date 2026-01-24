@@ -19,7 +19,7 @@ import {
 export class CompleteStepDto {
   @ApiProperty({
     description:
-      'Réponse de l\'étape (format dépend du type: string, number, array, etc.)',
+      "Réponse de l'étape (format dépend du type: string, number, array, etc.)",
     example: 'Texte de réponse ou URL ou note',
     required: false,
   })

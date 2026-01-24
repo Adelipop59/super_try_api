@@ -55,10 +55,16 @@ export class CriteriaTemplateResponseDto {
   @ApiProperty({ description: "Taux d'annulation maximum", required: false })
   maxCancellationRate?: string | null;
 
-  @ApiProperty({ description: 'Âge minimum du compte (jours)', required: false })
+  @ApiProperty({
+    description: 'Âge minimum du compte (jours)',
+    required: false,
+  })
   minAccountAge?: number | null;
 
-  @ApiProperty({ description: 'Actif dans les X derniers jours', required: false })
+  @ApiProperty({
+    description: 'Actif dans les X derniers jours',
+    required: false,
+  })
   lastActiveWithinDays?: number | null;
 
   @ApiProperty({ description: 'Compte vérifié requis' })

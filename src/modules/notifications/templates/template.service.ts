@@ -9,7 +9,10 @@ import * as path from 'path';
  */
 @Injectable()
 export class TemplateService {
-  private readonly templatesCache = new Map<string, Handlebars.TemplateDelegate>();
+  private readonly templatesCache = new Map<
+    string,
+    Handlebars.TemplateDelegate
+  >();
   private readonly templatesPath = path.join(__dirname, 'email');
 
   constructor() {
@@ -39,7 +42,9 @@ export class TemplateService {
   /**
    * Récupère un template compilé (avec cache)
    */
-  private async getTemplate(templateName: string): Promise<Handlebars.TemplateDelegate> {
+  private async getTemplate(
+    templateName: string,
+  ): Promise<Handlebars.TemplateDelegate> {
     if (this.templatesCache.has(templateName)) {
       return this.templatesCache.get(templateName)!;
     }

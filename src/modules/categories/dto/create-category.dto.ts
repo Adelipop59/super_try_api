@@ -22,8 +22,7 @@ export class CreateCategoryDto {
   name!: string;
 
   @ApiProperty({
-    description:
-      'Slug URL-friendly (généré automatiquement si non fourni)',
+    description: 'Slug URL-friendly (généré automatiquement si non fourni)',
     example: 'electronique',
     required: false,
     minLength: 2,

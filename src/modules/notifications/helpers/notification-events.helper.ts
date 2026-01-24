@@ -48,9 +48,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ SESSION_ACCEPTED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ SESSION_ACCEPTED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send SESSION_ACCEPTED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send SESSION_ACCEPTED notification: ${error.message}`,
+      );
     }
   }
 
@@ -78,9 +82,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ SESSION_APPLIED notification sent to seller ${params.userId}`);
+      this.logger.log(
+        `✅ SESSION_APPLIED notification sent to seller ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send SESSION_APPLIED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send SESSION_APPLIED notification: ${error.message}`,
+      );
     }
   }
 
@@ -107,9 +115,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ SESSION_REJECTED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ SESSION_REJECTED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send SESSION_REJECTED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send SESSION_REJECTED notification: ${error.message}`,
+      );
     }
   }
 
@@ -139,9 +151,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ PURCHASE_SUBMITTED notification sent to seller ${params.userId}`);
+      this.logger.log(
+        `✅ PURCHASE_SUBMITTED notification sent to seller ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send PURCHASE_SUBMITTED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send PURCHASE_SUBMITTED notification: ${error.message}`,
+      );
     }
   }
 
@@ -172,9 +188,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ TEST_SUBMITTED notification sent to seller ${params.userId}`);
+      this.logger.log(
+        `✅ TEST_SUBMITTED notification sent to seller ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send TEST_SUBMITTED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send TEST_SUBMITTED notification: ${error.message}`,
+      );
     }
   }
 
@@ -203,9 +223,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ TEST_VALIDATED notification sent to tester ${params.userId}`);
+      this.logger.log(
+        `✅ TEST_VALIDATED notification sent to tester ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send TEST_VALIDATED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send TEST_VALIDATED notification: ${error.message}`,
+      );
     }
   }
 
@@ -234,9 +258,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ SESSION_CANCELLED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ SESSION_CANCELLED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send SESSION_CANCELLED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send SESSION_CANCELLED notification: ${error.message}`,
+      );
     }
   }
 
@@ -267,9 +295,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ DISPUTE_CREATED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ DISPUTE_CREATED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send DISPUTE_CREATED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send DISPUTE_CREATED notification: ${error.message}`,
+      );
     }
   }
 
@@ -297,9 +329,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ MESSAGE_RECEIVED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ MESSAGE_RECEIVED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send MESSAGE_RECEIVED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send MESSAGE_RECEIVED notification: ${error.message}`,
+      );
     }
   }
 
@@ -327,9 +363,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ PAYMENT_RECEIVED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ PAYMENT_RECEIVED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send PAYMENT_RECEIVED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send PAYMENT_RECEIVED notification: ${error.message}`,
+      );
     }
   }
 
@@ -362,9 +402,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CAMPAIGN_CREATED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ CAMPAIGN_CREATED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CAMPAIGN_CREATED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CAMPAIGN_CREATED notification: ${error.message}`,
+      );
     }
   }
 
@@ -394,9 +438,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CAMPAIGN_ENDING_SOON notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ CAMPAIGN_ENDING_SOON notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CAMPAIGN_ENDING_SOON notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CAMPAIGN_ENDING_SOON notification: ${error.message}`,
+      );
     }
   }
 
@@ -431,9 +479,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ SYSTEM_ALERT notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ SYSTEM_ALERT notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send SYSTEM_ALERT notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send SYSTEM_ALERT notification: ${error.message}`,
+      );
     }
   }
 
@@ -533,7 +585,9 @@ export class NotificationEventsHelper {
         `✅ Multi-channel notification sent to user ${params.userId} on ${params.channels.join(', ')}`,
       );
     } catch (error) {
-      this.logger.error(`Failed to send multi-channel notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send multi-channel notification: ${error.message}`,
+      );
     }
   }
 
@@ -565,9 +619,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CHAT_ORDER_CREATED notification sent to tester ${params.testerId}`);
+      this.logger.log(
+        `✅ CHAT_ORDER_CREATED notification sent to tester ${params.testerId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CHAT_ORDER_CREATED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CHAT_ORDER_CREATED notification: ${error.message}`,
+      );
     }
   }
 
@@ -599,9 +657,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CHAT_ORDER_DELIVERED notification sent to seller ${params.sellerId}`);
+      this.logger.log(
+        `✅ CHAT_ORDER_DELIVERED notification sent to seller ${params.sellerId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CHAT_ORDER_DELIVERED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CHAT_ORDER_DELIVERED notification: ${error.message}`,
+      );
     }
   }
 
@@ -633,9 +695,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CHAT_ORDER_COMPLETED notification sent to tester ${params.testerId}`);
+      this.logger.log(
+        `✅ CHAT_ORDER_COMPLETED notification sent to tester ${params.testerId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CHAT_ORDER_COMPLETED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CHAT_ORDER_COMPLETED notification: ${error.message}`,
+      );
     }
   }
 
@@ -667,9 +733,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ CHAT_ORDER_DISPUTED notification sent to user ${params.recipientId}`);
+      this.logger.log(
+        `✅ CHAT_ORDER_DISPUTED notification sent to user ${params.recipientId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send CHAT_ORDER_DISPUTED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send CHAT_ORDER_DISPUTED notification: ${error.message}`,
+      );
     }
   }
 
@@ -719,7 +789,9 @@ export class NotificationEventsHelper {
               orderTypeLabel,
               amount: params.amount,
               description: params.description,
-              resolution: isRefund ? 'Remboursement à l\'acheteur' : 'Paiement au testeur',
+              resolution: isRefund
+                ? "Remboursement à l'acheteur"
+                : 'Paiement au testeur',
               adminNotes: params.adminNotes,
               finalStatus: params.finalStatus,
               isRefund,
@@ -737,7 +809,9 @@ export class NotificationEventsHelper {
         `✅ DISPUTE_RESOLVED notifications sent to buyer ${params.buyerId} and seller ${params.sellerId}`,
       );
     } catch (error) {
-      this.logger.error(`Failed to send DISPUTE_RESOLVED notifications: ${error.message}`);
+      this.logger.error(
+        `Failed to send DISPUTE_RESOLVED notifications: ${error.message}`,
+      );
     }
   }
 
@@ -753,7 +827,7 @@ export class NotificationEventsHelper {
         userId: params.userId,
         type: NotificationType.SYSTEM_ALERT,
         channel: NotificationChannel.EMAIL,
-        title: '✅ Vérification d\'identité réussie',
+        title: "✅ Vérification d'identité réussie",
         message: 'Votre identité a été vérifiée avec succès !',
         data: {
           template: 'user/verification-completed',
@@ -764,9 +838,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ VERIFICATION_COMPLETED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ VERIFICATION_COMPLETED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send VERIFICATION_COMPLETED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send VERIFICATION_COMPLETED notification: ${error.message}`,
+      );
     }
   }
 
@@ -782,8 +860,9 @@ export class NotificationEventsHelper {
         userId: params.userId,
         type: NotificationType.SYSTEM_ALERT,
         channel: NotificationChannel.EMAIL,
-        title: '🔐 Vérification d\'identité requise',
-        message: 'Vous devez vérifier votre identité pour participer aux campagnes.',
+        title: "🔐 Vérification d'identité requise",
+        message:
+          'Vous devez vérifier votre identité pour participer aux campagnes.',
         data: {
           template: 'user/verification-required',
           templateVars: {
@@ -793,9 +872,13 @@ export class NotificationEventsHelper {
         },
       });
 
-      this.logger.log(`✅ VERIFICATION_REQUIRED notification sent to user ${params.userId}`);
+      this.logger.log(
+        `✅ VERIFICATION_REQUIRED notification sent to user ${params.userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send VERIFICATION_REQUIRED notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send VERIFICATION_REQUIRED notification: ${error.message}`,
+      );
     }
   }
 

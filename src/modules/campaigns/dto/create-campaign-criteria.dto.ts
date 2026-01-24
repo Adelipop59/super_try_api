@@ -156,7 +156,7 @@ export class CreateCampaignCriteriaDto {
   minCompletionRate?: number;
 
   @ApiProperty({
-    description: 'Taux d\'annulation maximum autorisé (%)',
+    description: "Taux d'annulation maximum autorisé (%)",
     example: 20.0,
     required: false,
   })

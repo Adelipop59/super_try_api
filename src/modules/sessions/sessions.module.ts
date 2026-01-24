@@ -16,7 +16,11 @@ import { CampaignsModule } from '../campaigns/campaigns.module';
     CampaignsModule, // Pour injecter CampaignCriteriaService
   ], // LogsModule est @Global, pas besoin de l'importer
   controllers: [SessionsController],
-  providers: [SessionsService, SessionsCleanupService, SessionStepProgressService],
+  providers: [
+    SessionsService,
+    SessionsCleanupService,
+    SessionStepProgressService,
+  ],
   exports: [SessionsService, SessionStepProgressService], // Export pour utilisation dans d'autres modules
 })
 export class SessionsModule {}

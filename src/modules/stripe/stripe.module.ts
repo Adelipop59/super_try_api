@@ -11,8 +11,17 @@ import { StripeTransactionHelper } from './helpers/stripe-transaction.helper';
 import stripeConfig from '../../config/stripe.config';
 
 @Module({
-  imports: [ConfigModule.forFeature(stripeConfig), PrismaModule, NotificationsModule, LogsModule],
-  controllers: [StripeController, StripeConnectController, StripeWebhookController],
+  imports: [
+    ConfigModule.forFeature(stripeConfig),
+    PrismaModule,
+    NotificationsModule,
+    LogsModule,
+  ],
+  controllers: [
+    StripeController,
+    StripeConnectController,
+    StripeWebhookController,
+  ],
   providers: [StripeService, StripeTransactionHelper],
   exports: [StripeService, StripeTransactionHelper],
 })

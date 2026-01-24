@@ -17,7 +17,7 @@ export class ChatOrderResponseDto {
 
   @ApiProperty({
     type: String,
-    description: 'ID de l\'acheteur (PRO)',
+    description: "ID de l'acheteur (PRO)",
     example: 'ckl1111111111',
   })
   buyerId!: string;
@@ -137,7 +137,7 @@ export class ChatOrderResponseDto {
   @ApiProperty({
     type: String,
     format: 'date-time',
-    description: 'Date d\'annulation',
+    description: "Date d'annulation",
     example: '2025-12-09T10:00:00Z',
     nullable: true,
   })
@@ -179,7 +179,7 @@ export class ChatOrderResponseDto {
 
   @ApiProperty({
     type: String,
-    description: 'ID de l\'admin qui a résolu le litige',
+    description: "ID de l'admin qui a résolu le litige",
     example: 'ckl3333333333',
     nullable: true,
   })

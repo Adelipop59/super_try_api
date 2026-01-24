@@ -43,7 +43,7 @@ export async function calculateNextPurchaseDateSmart(
   const slots: DistributionSlot[] = [];
 
   for (const distribution of distributions) {
-    let dates: Date[] = [];
+    const dates: Date[] = [];
 
     if (
       distribution.type === DistributionType.RECURRING &&
@@ -90,7 +90,14 @@ export async function calculateNextPurchaseDateSmart(
         campaignId,
         scheduledPurchaseDate: slot.date,
         status: {
-          in: ['ACCEPTED', 'PRICE_VALIDATED', 'PROCEDURES_COMPLETED', 'PURCHASE_SUBMITTED', 'PURCHASE_VALIDATED', 'IN_PROGRESS'],
+          in: [
+            'ACCEPTED',
+            'PRICE_VALIDATED',
+            'PROCEDURES_COMPLETED',
+            'PURCHASE_SUBMITTED',
+            'PURCHASE_VALIDATED',
+            'IN_PROGRESS',
+          ],
         },
       },
     });
@@ -98,7 +105,7 @@ export async function calculateNextPurchaseDateSmart(
   }
 
   // Filtrer les slots qui ont encore de la capacité
-  const availableSlots = slots.filter(s => s.usedUnits < s.maxUnits);
+  const availableSlots = slots.filter((s) => s.usedUnits < s.maxUnits);
 
   if (availableSlots.length === 0) {
     return null;

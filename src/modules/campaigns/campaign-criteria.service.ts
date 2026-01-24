@@ -329,7 +329,9 @@ export class CampaignCriteriaService {
       const completedSessions = tester.completedSessionsCount || 0;
       if (totalSessions > 0) {
         const completionRate = (completedSessions / totalSessions) * 100;
-        if (completionRate < parseFloat(criteria.minCompletionRate.toString())) {
+        if (
+          completionRate < parseFloat(criteria.minCompletionRate.toString())
+        ) {
           reasons.push(
             `Taux de complétion minimum requis: ${criteria.minCompletionRate}%`,
           );
@@ -561,7 +563,10 @@ export class CampaignCriteriaService {
 
     // If tester not found, return all as ineligible
     if (!tester) {
-      const result = new Map<string, { eligible: boolean; reasons: string[] }>();
+      const result = new Map<
+        string,
+        { eligible: boolean; reasons: string[] }
+      >();
       for (const campaignId of campaignIds) {
         result.set(campaignId, {
           eligible: false,
@@ -577,9 +582,7 @@ export class CampaignCriteriaService {
     );
 
     // Create a Map of criteria by campaign ID for O(1) lookup
-    const criteriaMap = new Map(
-      allCriteria.map((c) => [c.campaignId, c]),
-    );
+    const criteriaMap = new Map(allCriteria.map((c) => [c.campaignId, c]));
 
     // Check eligibility for each campaign IN MEMORY
     const result = new Map<string, { eligible: boolean; reasons: string[] }>();
@@ -735,7 +738,9 @@ export class CampaignCriteriaService {
       const completedSessions = tester.completedSessionsCount || 0;
       if (totalSessions > 0) {
         const completionRate = (completedSessions / totalSessions) * 100;
-        if (completionRate < parseFloat(criteria.minCompletionRate.toString())) {
+        if (
+          completionRate < parseFloat(criteria.minCompletionRate.toString())
+        ) {
           reasons.push(
             `Taux de complétion minimum requis: ${criteria.minCompletionRate}%`,
           );

@@ -69,7 +69,8 @@ export class DeliverOrderDto {
   @ApiProperty({
     type: String,
     description: 'Message optionnel accompagnant la livraison',
-    example: 'Voici la vidéo UGC demandée. J\'ai mis en avant les 3 fonctionnalités principales.',
+    example:
+      "Voici la vidéo UGC demandée. J'ai mis en avant les 3 fonctionnalités principales.",
     maxLength: 1000,
     required: false,
   })

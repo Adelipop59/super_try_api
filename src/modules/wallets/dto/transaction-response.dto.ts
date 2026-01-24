@@ -1,8 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  TransactionType,
-  TransactionStatus,
-} from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 /**
@@ -23,7 +20,8 @@ export class TransactionResponseDto {
   walletId?: string;
 
   @ApiProperty({
-    description: 'ID de la campagne liée (optionnel, pour les paiements vendeur)',
+    description:
+      'ID de la campagne liée (optionnel, pour les paiements vendeur)',
     example: '550e8400-e29b-41d4-a716-446655440005',
     required: false,
   })
@@ -38,7 +36,7 @@ export class TransactionResponseDto {
 
   @ApiProperty({
     description: 'Montant de la transaction',
-    example: 25.50,
+    example: 25.5,
     type: Number,
   })
   amount: number | Decimal;
@@ -78,7 +76,7 @@ export class TransactionResponseDto {
   status: TransactionStatus;
 
   @ApiProperty({
-    description: 'Raison de l\'échec (si FAILED)',
+    description: "Raison de l'échec (si FAILED)",
     example: 'Insufficient funds',
     required: false,
   })

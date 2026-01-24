@@ -67,7 +67,8 @@ export class CriteriaTemplatesController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Liste de mes templates de critères',
-    description: 'Récupère tous les templates de critères du vendeur connecté avec pagination',
+    description:
+      'Récupère tous les templates de critères du vendeur connecté avec pagination',
   })
   @ApiQuery({
     name: 'page',

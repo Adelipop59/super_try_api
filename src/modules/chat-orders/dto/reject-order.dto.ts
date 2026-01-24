@@ -5,7 +5,8 @@ export class RejectOrderDto {
   @ApiProperty({
     type: String,
     description: 'Raison du refus de la commande',
-    example: 'Je ne peux pas réaliser cette prestation dans les délais demandés',
+    example:
+      'Je ne peux pas réaliser cette prestation dans les délais demandés',
     maxLength: 500,
   })
   @IsString()

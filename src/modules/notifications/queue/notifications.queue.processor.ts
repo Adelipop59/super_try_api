@@ -1,4 +1,9 @@
-import { Processor, Process, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
+import {
+  Processor,
+  Process,
+  OnQueueCompleted,
+  OnQueueFailed,
+} from '@nestjs/bull';
 import type { Job } from 'bull';
 import { Logger } from '@nestjs/common';
 import { NotificationChannel } from '@prisma/client';
@@ -28,9 +33,20 @@ export class NotificationsQueueProcessor {
    */
   @Process('send-notification')
   async handleSendNotification(job: Job<NotificationJob>) {
-    const { notificationId, channel, to, title, message, data, template, templateVars } = job.data;
+    const {
+      notificationId,
+      channel,
+      to,
+      title,
+      message,
+      data,
+      template,
+      templateVars,
+    } = job.data;
 
-    this.logger.log(`Processing notification ${notificationId} via ${channel} to ${to}`);
+    this.logger.log(
+      `Processing notification ${notificationId} via ${channel} to ${to}`,
+    );
 
     try {
       let success = false;
@@ -78,7 +94,10 @@ export class NotificationsQueueProcessor {
         throw new Error('Provider returned false');
       }
     } catch (error) {
-      this.logger.error(`❌ Failed to send notification ${notificationId}:`, error);
+      this.logger.error(
+        `❌ Failed to send notification ${notificationId}:`,
+        error,
+      );
 
       // Mise à jour en BDD: erreur
       await this.prismaService.notification.update({
@@ -99,7 +118,9 @@ export class NotificationsQueueProcessor {
    */
   @OnQueueCompleted()
   onCompleted(job: Job<NotificationJob>) {
-    this.logger.debug(`Job ${job.id} completed for notification ${job.data.notificationId}`);
+    this.logger.debug(
+      `Job ${job.id} completed for notification ${job.data.notificationId}`,
+    );
   }
 
   /**

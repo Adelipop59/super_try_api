@@ -19,9 +19,15 @@ export class EmailProvider implements INotificationProvider {
     private configService: ConfigService,
     private templateService: TemplateService,
   ) {
-    const apiKey = this.configService.get<string>('notifications.sendgrid.apiKey');
-    this.fromEmail = this.configService.get<string>('notifications.sendgrid.fromEmail') || 'noreply@supertry.com';
-    this.fromName = this.configService.get<string>('notifications.sendgrid.fromName') || 'Super Try';
+    const apiKey = this.configService.get<string>(
+      'notifications.sendgrid.apiKey',
+    );
+    this.fromEmail =
+      this.configService.get<string>('notifications.sendgrid.fromEmail') ||
+      'noreply@supertry.com';
+    this.fromName =
+      this.configService.get<string>('notifications.sendgrid.fromName') ||
+      'Super Try';
 
     if (apiKey && apiKey !== 'SG.your_sendgrid_api_key') {
       sgMail.setApiKey(apiKey);
@@ -29,7 +35,9 @@ export class EmailProvider implements INotificationProvider {
       this.logger.log('✅ SendGrid Email Provider initialized');
     } else {
       this.isConfigured = false;
-      this.logger.warn('⚠️  SendGrid API key not configured - emails will only be logged');
+      this.logger.warn(
+        '⚠️  SendGrid API key not configured - emails will only be logged',
+      );
     }
   }
 
@@ -38,7 +46,12 @@ export class EmailProvider implements INotificationProvider {
    * Si data.template est fourni, utilise un template Handlebars
    * Sinon, envoie le message brut en HTML
    */
-  async send(to: string, title: string, message: string, data?: any): Promise<boolean> {
+  async send(
+    to: string,
+    title: string,
+    message: string,
+    data?: any,
+  ): Promise<boolean> {
     try {
       let emailContent: { subject: string; html: string; text: string };
 
@@ -84,7 +97,9 @@ export class EmailProvider implements INotificationProvider {
         this.logger.log(`✅ Email sent successfully to ${to}`);
         return true;
       } else {
-        this.logger.error(`❌ Email send failed with status: ${result[0]?.statusCode}`);
+        this.logger.error(
+          `❌ Email send failed with status: ${result[0]?.statusCode}`,
+        );
         return false;
       }
     } catch (error) {
@@ -92,7 +107,10 @@ export class EmailProvider implements INotificationProvider {
 
       // Log l'erreur SendGrid si disponible
       if (error.response?.body?.errors) {
-        this.logger.error('SendGrid error details:', JSON.stringify(error.response.body.errors));
+        this.logger.error(
+          'SendGrid error details:',
+          JSON.stringify(error.response.body.errors),
+        );
       }
 
       return false;

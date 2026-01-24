@@ -42,7 +42,7 @@ export class WalletsController {
   @ApiOperation({
     summary: 'Récupérer mon wallet',
     description:
-      'Récupère le wallet de l\'utilisateur authentifié. Crée le wallet s\'il n\'existe pas.',
+      "Récupère le wallet de l'utilisateur authentifié. Crée le wallet s'il n'existe pas.",
   })
   @ApiResponse({
     status: 200,
@@ -66,7 +66,7 @@ export class WalletsController {
   @Get('me/balance')
   @ApiOperation({
     summary: 'Récupérer mon solde',
-    description: 'Récupère uniquement le solde du wallet de l\'utilisateur.',
+    description: "Récupère uniquement le solde du wallet de l'utilisateur.",
   })
   @ApiResponse({
     status: 200,
@@ -76,7 +76,7 @@ export class WalletsController {
       properties: {
         balance: {
           type: 'number',
-          example: 125.50,
+          example: 125.5,
         },
         currency: {
           type: 'string',
@@ -105,9 +105,9 @@ export class WalletsController {
 
   @Get('me/transactions')
   @ApiOperation({
-    summary: 'Récupérer l\'historique de mes transactions',
+    summary: "Récupérer l'historique de mes transactions",
     description:
-      'Récupère la liste paginée des transactions du wallet de l\'utilisateur.',
+      "Récupère la liste paginée des transactions du wallet de l'utilisateur.",
   })
   @ApiQuery({
     name: 'limit',
@@ -166,7 +166,7 @@ export class WalletsController {
   @Get('me/transactions/:transactionId')
   @ApiOperation({
     summary: 'Récupérer une transaction spécifique',
-    description: 'Récupère les détails d\'une transaction par son ID.',
+    description: "Récupère les détails d'une transaction par son ID.",
   })
   @ApiParam({
     name: 'transactionId',
@@ -224,7 +224,7 @@ export class WalletsController {
 
   @Get('me/withdrawals')
   @ApiOperation({
-    summary: 'Récupérer l\'historique de mes retraits',
+    summary: "Récupérer l'historique de mes retraits",
     description: 'Récupère la liste paginée des demandes de retrait.',
   })
   @ApiQuery({
@@ -284,7 +284,7 @@ export class WalletsController {
   @Get('me/withdrawals/:withdrawalId')
   @ApiOperation({
     summary: 'Récupérer une demande de retrait spécifique',
-    description: 'Récupère les détails d\'une demande de retrait par son ID.',
+    description: "Récupère les détails d'une demande de retrait par son ID.",
   })
   @ApiParam({
     name: 'withdrawalId',
@@ -328,7 +328,7 @@ export class WalletsController {
       properties: {
         reason: {
           type: 'string',
-          example: 'Je n\'ai plus besoin de retirer cet argent',
+          example: "Je n'ai plus besoin de retirer cet argent",
         },
       },
       required: ['reason'],
@@ -356,10 +356,6 @@ export class WalletsController {
     @Param('withdrawalId') withdrawalId: string,
     @Body('reason') reason: string,
   ): Promise<WithdrawalResponseDto> {
-    return this.walletsService.cancelWithdrawal(
-      user.id,
-      withdrawalId,
-      reason,
-    );
+    return this.walletsService.cancelWithdrawal(user.id, withdrawalId, reason);
   }
 }

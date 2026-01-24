@@ -43,7 +43,7 @@ export class CampaignCriteriaController {
   @ApiOperation({
     summary: 'Créer ou mettre à jour des critères pour une campagne',
     description:
-      'Ajoute ou met à jour les critères d\'éligibilité d\'une campagne (vendeur uniquement). Si des critères existent déjà, ils seront mis à jour.',
+      "Ajoute ou met à jour les critères d'éligibilité d'une campagne (vendeur uniquement). Si des critères existent déjà, ils seront mis à jour.",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({
@@ -82,8 +82,8 @@ export class CampaignCriteriaController {
   @Public()
   @Get(':campaignId/criteria')
   @ApiOperation({
-    summary: 'Obtenir les critères d\'une campagne',
-    description: 'Récupère les critères d\'éligibilité d\'une campagne (public)',
+    summary: "Obtenir les critères d'une campagne",
+    description: "Récupère les critères d'éligibilité d'une campagne (public)",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({
@@ -102,9 +102,9 @@ export class CampaignCriteriaController {
   @Patch(':campaignId/criteria')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Modifier les critères d\'une campagne',
+    summary: "Modifier les critères d'une campagne",
     description:
-      'Met à jour les critères d\'éligibilité d\'une campagne (vendeur uniquement)',
+      "Met à jour les critères d'éligibilité d'une campagne (vendeur uniquement)",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({
@@ -144,9 +144,9 @@ export class CampaignCriteriaController {
   @Delete(':campaignId/criteria')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Supprimer les critères d\'une campagne',
+    summary: "Supprimer les critères d'une campagne",
     description:
-      'Supprime les critères d\'éligibilité d\'une campagne (vendeur uniquement)',
+      "Supprime les critères d'éligibilité d'une campagne (vendeur uniquement)",
   })
   @ApiParam({ name: 'campaignId', description: 'ID de la campagne' })
   @ApiResponse({ status: 200, description: 'Critères supprimés avec succès' })
@@ -177,4 +177,3 @@ export class CampaignCriteriaController {
     return { message: 'Campaign criteria deleted successfully' };
   }
 }
-

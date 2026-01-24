@@ -194,7 +194,7 @@ export class ProductsService {
     ]);
 
     const data = await Promise.all(
-      products.map((product) => this.formatProductResponse(product))
+      products.map((product) => this.formatProductResponse(product)),
     );
 
     return createPaginatedResponse(data, total, page, limit);
@@ -273,7 +273,7 @@ export class ProductsService {
     ]);
 
     const data = await Promise.all(
-      products.map((product) => this.formatProductResponse(product))
+      products.map((product) => this.formatProductResponse(product)),
     );
 
     return createPaginatedResponse(data, total, page, limit);
@@ -542,7 +542,8 @@ export class ProductsService {
     );
 
     // Get existing images
-    const existingImages = (productResponse.images as ProductImageDto[] | null) || [];
+    const existingImages =
+      (productResponse.images as ProductImageDto[] | null) || [];
     const maxOrder = existingImages.reduce(
       (max, img) => Math.max(max, img.order),
       -1,
@@ -602,7 +603,8 @@ export class ProductsService {
     await this.uploadService.deleteImage(imageUrl);
 
     // Remove from database
-    const existingImages = (productResponse.images as ProductImageDto[] | null) || [];
+    const existingImages =
+      (productResponse.images as ProductImageDto[] | null) || [];
     const updatedImages = existingImages.filter((img) => img.url !== imageUrl);
 
     // Update product

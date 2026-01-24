@@ -49,7 +49,7 @@ export class SessionStepProgressService {
     // ✅ NOUVEAU: Skip si mode AMAZON_DIRECT_LINK
     if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
       this.logger.log(
-        `Session ${sessionId}: Campaign in AMAZON_DIRECT_LINK mode, skipping step initialization`
+        `Session ${sessionId}: Campaign in AMAZON_DIRECT_LINK mode, skipping step initialization`,
       );
       return; // Pas de SessionStepProgress à créer
     }
@@ -58,7 +58,9 @@ export class SessionStepProgressService {
     const procedures = session.campaign.procedures;
 
     if (!procedures || procedures.length === 0) {
-      this.logger.warn(`No procedures found for campaign ${session.campaignId}`);
+      this.logger.warn(
+        `No procedures found for campaign ${session.campaignId}`,
+      );
       return;
     }
 
@@ -121,10 +123,15 @@ export class SessionStepProgressService {
     }
 
     if (session.testerId !== testerId) {
-      throw new ForbiddenException('You can only complete steps in your own sessions');
+      throw new ForbiddenException(
+        'You can only complete steps in your own sessions',
+      );
     }
 
-    if (session.status !== SessionStatus.ACCEPTED && session.status !== SessionStatus.IN_PROGRESS) {
+    if (
+      session.status !== SessionStatus.ACCEPTED &&
+      session.status !== SessionStatus.IN_PROGRESS
+    ) {
       throw new BadRequestException(
         'You can only complete steps when session is ACCEPTED or IN_PROGRESS',
       );
@@ -139,9 +146,12 @@ export class SessionStepProgressService {
       throw new NotFoundException(`Step ${stepId} not found`);
     }
 
-
     // Vérifier que tous les steps précédents sont complétés
-    await this.checkPreviousStepsCompleted(sessionId, step.order, step.procedureId);
+    await this.checkPreviousStepsCompleted(
+      sessionId,
+      step.order,
+      step.procedureId,
+    );
 
     // Mettre à jour le progress
     const progress = await this.prismaService.sessionStepProgress.update({
@@ -175,7 +185,6 @@ export class SessionStepProgressService {
 
     return this.formatProgressResponse(progress);
   }
-
 
   /**
    * Get overall progress percentage
@@ -211,16 +220,14 @@ export class SessionStepProgressService {
 
     // Vérifier que tous ces steps sont complétés
     for (const step of previousSteps) {
-      const progress = await this.prismaService.sessionStepProgress.findUnique(
-        {
-          where: {
-            sessionId_stepId: {
-              sessionId,
-              stepId: step.id,
-            },
+      const progress = await this.prismaService.sessionStepProgress.findUnique({
+        where: {
+          sessionId_stepId: {
+            sessionId,
+            stepId: step.id,
           },
         },
-      );
+      });
 
       if (!progress || !progress.isCompleted) {
         throw new BadRequestException(
@@ -233,7 +240,9 @@ export class SessionStepProgressService {
   /**
    * Format progress response
    */
-  private formatProgressResponse(progress: any): SessionStepProgressResponseDto {
+  private formatProgressResponse(
+    progress: any,
+  ): SessionStepProgressResponseDto {
     const stepInfo: StepInfoDto = {
       id: progress.step.id,
       title: progress.step.title,

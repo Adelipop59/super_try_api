@@ -13,10 +13,12 @@ export class DashboardKPIsDto {
   @ApiProperty({ description: 'Nombre de tests terminés' })
   testsDone!: number;
 
-  @ApiProperty({ description: 'Montant total dépensé dans les campagnes (en centimes)' })
+  @ApiProperty({
+    description: 'Montant total dépensé dans les campagnes (en centimes)',
+  })
   totalSpent!: number;
 
-  @ApiProperty({ description: 'Nombre total d\'utilisateurs' })
+  @ApiProperty({ description: "Nombre total d'utilisateurs" })
   totalUsers!: number;
 
   @ApiProperty({ description: 'Nombre de vendeurs PRO' })
@@ -27,10 +29,14 @@ export class DashboardKPIsDto {
 }
 
 export class RevenueChartDataDto {
-  @ApiProperty({ description: 'Label de la période (ex: "Jan 2025", "Semaine 1")' })
+  @ApiProperty({
+    description: 'Label de la période (ex: "Jan 2025", "Semaine 1")',
+  })
   label!: string;
 
-  @ApiProperty({ description: 'Montant des revenus pour cette période (en centimes)' })
+  @ApiProperty({
+    description: 'Montant des revenus pour cette période (en centimes)',
+  })
   amount!: number;
 
   @ApiProperty({ description: 'Nombre de transactions pour cette période' })

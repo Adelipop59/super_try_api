@@ -205,9 +205,7 @@ export class ProductsController {
 
     // Sellers can only view their own products unless they're admin
     if (user.role !== 'ADMIN' && product.sellerId !== user.id) {
-      throw new ForbiddenException(
-        'You can only view your own products',
-      );
+      throw new ForbiddenException('You can only view your own products');
     }
 
     return product;
@@ -367,8 +365,8 @@ export class ProductsController {
   @Delete(':id/images')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Supprimer une image d\'un produit',
-    description: 'Supprime une image spécifique d\'un produit (par URL)',
+    summary: "Supprimer une image d'un produit",
+    description: "Supprime une image spécifique d'un produit (par URL)",
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
   @ApiBody({
@@ -377,7 +375,7 @@ export class ProductsController {
       properties: {
         imageUrl: {
           type: 'string',
-          description: 'URL de l\'image à supprimer',
+          description: "URL de l'image à supprimer",
         },
       },
       required: ['imageUrl'],
@@ -403,16 +401,19 @@ export class ProductsController {
     if (!imageUrl) {
       throw new BadRequestException('imageUrl est requis');
     }
-    return this.productsService.removeProductImage(productId, imageUrl, user.id);
+    return this.productsService.removeProductImage(
+      productId,
+      imageUrl,
+      user.id,
+    );
   }
 
   @Roles('PRO', 'ADMIN')
   @Patch(':id/images')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Mettre à jour l\'ordre des images',
-    description:
-      'Met à jour l\'ordre des images ou définit l\'image principale',
+    summary: "Mettre à jour l'ordre des images",
+    description: "Met à jour l'ordre des images ou définit l'image principale",
   })
   @ApiParam({ name: 'id', description: 'ID du produit' })
   @ApiBody({

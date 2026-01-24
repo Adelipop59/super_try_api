@@ -99,9 +99,7 @@ export class UploadService {
       return `${this.baseUrl}/${s3Key}`;
     } catch (error) {
       console.error('S3 upload error:', error);
-      throw new InternalServerErrorException(
-        'Failed to upload image to S3',
-      );
+      throw new InternalServerErrorException('Failed to upload image to S3');
     }
   }
 
@@ -180,9 +178,7 @@ export class UploadService {
       await this.s3Client.send(command);
     } catch (error) {
       console.error('S3 delete error:', error);
-      throw new InternalServerErrorException(
-        'Failed to delete image from S3',
-      );
+      throw new InternalServerErrorException('Failed to delete image from S3');
     }
   }
 
@@ -291,9 +287,7 @@ export class UploadService {
       return signedUrl;
     } catch (error) {
       console.error('S3 getSignedUrl error:', error);
-      throw new InternalServerErrorException(
-        'Failed to generate signed URL',
-      );
+      throw new InternalServerErrorException('Failed to generate signed URL');
     }
   }
 

@@ -12,10 +12,16 @@ export class PushProvider implements INotificationProvider {
   private readonly isConfigured: boolean;
 
   constructor(private configService: ConfigService) {
-    const firebaseConfigString = this.configService.get<string>('notifications.firebase.config');
+    const firebaseConfigString = this.configService.get<string>(
+      'notifications.firebase.config',
+    );
 
     try {
-      if (firebaseConfigString && firebaseConfigString !== '{}' && !firebaseConfigString.includes('your-project-id')) {
+      if (
+        firebaseConfigString &&
+        firebaseConfigString !== '{}' &&
+        !firebaseConfigString.includes('your-project-id')
+      ) {
         const firebaseConfig = JSON.parse(firebaseConfigString);
 
         // Initialiser Firebase Admin SDK (singleton)
@@ -29,7 +35,9 @@ export class PushProvider implements INotificationProvider {
         this.logger.log('✅ Firebase Cloud Messaging Provider initialized');
       } else {
         this.isConfigured = false;
-        this.logger.warn('⚠️  Firebase config not set - Push notifications will only be logged');
+        this.logger.warn(
+          '⚠️  Firebase config not set - Push notifications will only be logged',
+        );
       }
     } catch (error) {
       this.isConfigured = false;
@@ -45,7 +53,12 @@ export class PushProvider implements INotificationProvider {
    * @param message Corps de la notification
    * @param data Données additionnelles (optionnel)
    */
-  async send(to: string, title: string, message: string, data?: any): Promise<boolean> {
+  async send(
+    to: string,
+    title: string,
+    message: string,
+    data?: any,
+  ): Promise<boolean> {
     try {
       // Valider le device token
       if (!to || to.length < 10) {
@@ -73,11 +86,17 @@ export class PushProvider implements INotificationProvider {
         },
         // Données personnalisées (accessible dans l'app)
         data: data
-          ? Object.keys(data).reduce((acc, key) => {
-              // FCM requiert que toutes les valeurs soient des strings
-              acc[key] = typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]);
-              return acc;
-            }, {} as Record<string, string>)
+          ? Object.keys(data).reduce(
+              (acc, key) => {
+                // FCM requiert que toutes les valeurs soient des strings
+                acc[key] =
+                  typeof data[key] === 'string'
+                    ? data[key]
+                    : JSON.stringify(data[key]);
+                return acc;
+              },
+              {} as Record<string, string>,
+            )
           : undefined,
         // Options Android
         android: {
@@ -100,10 +119,15 @@ export class PushProvider implements INotificationProvider {
 
       const result = await admin.messaging().send(payload);
 
-      this.logger.log(`✅ Push notification sent successfully (MessageID: ${result})`);
+      this.logger.log(
+        `✅ Push notification sent successfully (MessageID: ${result})`,
+      );
       return true;
     } catch (error) {
-      this.logger.error(`❌ Failed to send push notification to ${to}:`, error.message);
+      this.logger.error(
+        `❌ Failed to send push notification to ${to}:`,
+        error.message,
+      );
 
       // Log erreur FCM spécifique
       if (error.code) {
@@ -132,7 +156,9 @@ export class PushProvider implements INotificationProvider {
     data?: any,
   ): Promise<{ successCount: number; failureCount: number }> {
     if (!this.isConfigured) {
-      this.logger.warn(`🔔 [MOCK] Multicast push would be sent to ${tokens.length} devices`);
+      this.logger.warn(
+        `🔔 [MOCK] Multicast push would be sent to ${tokens.length} devices`,
+      );
       return { successCount: tokens.length, failureCount: 0 };
     }
 
@@ -144,10 +170,16 @@ export class PushProvider implements INotificationProvider {
           body: message,
         },
         data: data
-          ? Object.keys(data).reduce((acc, key) => {
-              acc[key] = typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]);
-              return acc;
-            }, {} as Record<string, string>)
+          ? Object.keys(data).reduce(
+              (acc, key) => {
+                acc[key] =
+                  typeof data[key] === 'string'
+                    ? data[key]
+                    : JSON.stringify(data[key]);
+                return acc;
+              },
+              {} as Record<string, string>,
+            )
           : undefined,
       };
 
@@ -161,7 +193,9 @@ export class PushProvider implements INotificationProvider {
       if (result.failureCount > 0) {
         result.responses.forEach((resp, idx) => {
           if (!resp.success) {
-            this.logger.warn(`Failed to send to token ${idx}: ${resp.error?.message}`);
+            this.logger.warn(
+              `Failed to send to token ${idx}: ${resp.error?.message}`,
+            );
           }
         });
       }

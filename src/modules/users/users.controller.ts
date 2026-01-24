@@ -25,7 +25,10 @@ import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { CurrentUser, CurrentProfile } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentProfile,
+} from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import type { Profile } from '@prisma/client';
 import { ProfileResponseDto } from './dto/profile.dto';
@@ -45,7 +48,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Liste des profils (Admin)',
-    description: 'Récupère tous les profils avec filtres optionnels et pagination',
+    description:
+      'Récupère tous les profils avec filtres optionnels et pagination',
   })
   @ApiQuery({
     name: 'role',
@@ -129,7 +133,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Dashboard statistiques unifiées',
-    description: 'Récupère toutes les statistiques du dashboard en une seule requête (optimisé)',
+    description:
+      'Récupère toutes les statistiques du dashboard en une seule requête (optimisé)',
   })
   @ApiResponse({
     status: 200,
@@ -137,7 +142,9 @@ export class UsersController {
     type: DashboardStatsDto,
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  async getDashboardStats(@CurrentUser() user: AuthenticatedUser): Promise<DashboardStatsDto> {
+  async getDashboardStats(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DashboardStatsDto> {
     return this.usersService.getDashboardStats(user.id);
   }
 
@@ -147,7 +154,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Initier vérification KYC (Testeurs uniquement)',
-    description: "Démarre le processus de vérification d'identité via Stripe Identity",
+    description:
+      "Démarre le processus de vérification d'identité via Stripe Identity",
   })
   @ApiResponse({
     status: 200,
@@ -219,7 +227,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Réessayer vérification KYC',
-    description: 'Réinitialise et relance le processus de vérification après un échec',
+    description:
+      'Réinitialise et relance le processus de vérification après un échec',
   })
   @ApiResponse({
     status: 200,
@@ -253,7 +262,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Overview PRO',
-    description: 'Récupère les KPIs et statistiques pour un vendeur PRO (dashboard)',
+    description:
+      'Récupère les KPIs et statistiques pour un vendeur PRO (dashboard)',
   })
   @ApiResponse({
     status: 200,
@@ -262,7 +272,9 @@ export class UsersController {
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Réservé aux utilisateurs PRO' })
-  async getProOverview(@CurrentUser() user: AuthenticatedUser): Promise<ProOverviewDto> {
+  async getProOverview(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ProOverviewDto> {
     return this.usersService.getProOverview(user.id);
   }
 
@@ -333,7 +345,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Enregistrer mon device token (push notifications)',
-    description: 'Enregistre ou met à jour le device token FCM pour les notifications push',
+    description:
+      'Enregistre ou met à jour le device token FCM pour les notifications push',
   })
   @ApiBody({
     schema: {
@@ -355,7 +368,10 @@ export class UsersController {
       type: 'object',
       properties: {
         success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Device token updated successfully' },
+        message: {
+          type: 'string',
+          example: 'Device token updated successfully',
+        },
       },
     },
   })
@@ -376,7 +392,8 @@ export class UsersController {
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
     summary: 'Supprimer mon device token',
-    description: 'Supprime le device token (désinscription des push notifications)',
+    description:
+      'Supprime le device token (désinscription des push notifications)',
   })
   @ApiResponse({
     status: 200,
@@ -385,7 +402,10 @@ export class UsersController {
       type: 'object',
       properties: {
         success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Device token removed successfully' },
+        message: {
+          type: 'string',
+          example: 'Device token removed successfully',
+        },
       },
     },
   })
@@ -491,7 +511,8 @@ export class UsersController {
   @Get('available-countries')
   @ApiOperation({
     summary: 'Liste des pays disponibles',
-    description: 'Récupère la liste des pays avec leur statut de disponibilité (actif ou "Coming Soon")',
+    description:
+      'Récupère la liste des pays avec leur statut de disponibilité (actif ou "Coming Soon")',
   })
   @ApiQuery({
     name: 'locale',
@@ -507,7 +528,9 @@ export class UsersController {
   async getAvailableCountries(
     @Query('locale') locale?: string,
   ): Promise<AvailableCountriesResponseDto> {
-    const countries = await this.usersService.getAvailableCountries(locale || 'fr');
+    const countries = await this.usersService.getAvailableCountries(
+      locale || 'fr',
+    );
     return { countries };
   }
 
@@ -536,7 +559,10 @@ export class UsersController {
     @Param('id') id: string,
     @Query('locale') locale?: string,
   ): Promise<AvailableCountriesResponseDto> {
-    const countries = await this.usersService.getProfileCountries(id, locale || 'fr');
+    const countries = await this.usersService.getProfileCountries(
+      id,
+      locale || 'fr',
+    );
     return { countries };
   }
 }

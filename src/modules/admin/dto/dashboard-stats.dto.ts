@@ -135,7 +135,8 @@ export class DashboardStatsDto {
   totalCampaignSpending: number;
 
   @ApiProperty({
-    description: 'Données pour le graphique des revenus par jour (derniers 30 jours)',
+    description:
+      'Données pour le graphique des revenus par jour (derniers 30 jours)',
     example: [
       { date: '2025-01-01', amount: 15000, campaignCount: 5 },
       { date: '2025-01-02', amount: 22000, campaignCount: 8 },

@@ -15,9 +15,14 @@ export class SmsProvider implements INotificationProvider {
   private readonly fromNumber: string;
 
   constructor(private configService: ConfigService) {
-    const accountSid = this.configService.get<string>('notifications.twilio.accountSid');
-    const authToken = this.configService.get<string>('notifications.twilio.authToken');
-    this.fromNumber = this.configService.get<string>('notifications.twilio.phoneNumber') || '';
+    const accountSid = this.configService.get<string>(
+      'notifications.twilio.accountSid',
+    );
+    const authToken = this.configService.get<string>(
+      'notifications.twilio.authToken',
+    );
+    this.fromNumber =
+      this.configService.get<string>('notifications.twilio.phoneNumber') || '';
 
     if (
       accountSid &&
@@ -30,7 +35,9 @@ export class SmsProvider implements INotificationProvider {
       this.logger.log('✅ Twilio SMS Provider initialized');
     } else {
       this.isConfigured = false;
-      this.logger.warn('⚠️  Twilio credentials not configured - SMS will only be logged');
+      this.logger.warn(
+        '⚠️  Twilio credentials not configured - SMS will only be logged',
+      );
     }
   }
 
@@ -38,11 +45,18 @@ export class SmsProvider implements INotificationProvider {
    * Envoie un SMS
    * Format du numéro: E.164 (+33612345678)
    */
-  async send(to: string, title: string, message: string, data?: any): Promise<boolean> {
+  async send(
+    to: string,
+    title: string,
+    message: string,
+    data?: any,
+  ): Promise<boolean> {
     try {
       // Valider le format du numéro
       if (!to.startsWith('+')) {
-        this.logger.error(`Invalid phone number format: ${to}. Must be E.164 format (+33...)`);
+        this.logger.error(
+          `Invalid phone number format: ${to}. Must be E.164 format (+33...)`,
+        );
         return false;
       }
 
@@ -65,7 +79,9 @@ export class SmsProvider implements INotificationProvider {
       });
 
       if (result.sid) {
-        this.logger.log(`✅ SMS sent successfully to ${to} (SID: ${result.sid})`);
+        this.logger.log(
+          `✅ SMS sent successfully to ${to} (SID: ${result.sid})`,
+        );
         return true;
       } else {
         this.logger.error(`❌ SMS send failed - no SID returned`);
@@ -102,7 +118,11 @@ export class SmsProvider implements INotificationProvider {
    * Envoie un message WhatsApp via Twilio
    * (méthode helper pour faciliter l'usage)
    */
-  async sendWhatsApp(to: string, title: string, message: string): Promise<boolean> {
+  async sendWhatsApp(
+    to: string,
+    title: string,
+    message: string,
+  ): Promise<boolean> {
     try {
       if (!this.isConfigured) {
         this.logger.warn('📱 [MOCK] WhatsApp would be sent:');
@@ -118,7 +138,9 @@ export class SmsProvider implements INotificationProvider {
       });
 
       if (result.sid) {
-        this.logger.log(`✅ WhatsApp sent successfully to ${to} (SID: ${result.sid})`);
+        this.logger.log(
+          `✅ WhatsApp sent successfully to ${to} (SID: ${result.sid})`,
+        );
         return true;
       }
 

@@ -92,7 +92,9 @@ export class StripeTransactionHelper {
         data: { stripeCustomerId },
       });
 
-      this.logger.log(`✅ Stripe Customer ID ${stripeCustomerId} saved for user ${userId}`);
+      this.logger.log(
+        `✅ Stripe Customer ID ${stripeCustomerId} saved for user ${userId}`,
+      );
 
       return updated;
     });
@@ -136,7 +138,9 @@ export class StripeTransactionHelper {
         data: { stripeAccountId },
       });
 
-      this.logger.log(`✅ Stripe Account ID ${stripeAccountId} saved for seller ${userId}`);
+      this.logger.log(
+        `✅ Stripe Account ID ${stripeAccountId} saved for seller ${userId}`,
+      );
 
       return updated;
     });
@@ -221,7 +225,9 @@ export class StripeTransactionHelper {
         );
       }
 
-      this.logger.log(`✅ Transaction ${transactionId} status updated to ${status}`);
+      this.logger.log(
+        `✅ Transaction ${transactionId} status updated to ${status}`,
+      );
 
       return transaction;
     });
@@ -301,7 +307,9 @@ export class StripeTransactionHelper {
       });
 
       if (!transaction) {
-        this.logger.warn(`No transaction found for expired session ${stripeSessionId}`);
+        this.logger.warn(
+          `No transaction found for expired session ${stripeSessionId}`,
+        );
         return null;
       }
 
@@ -319,7 +327,10 @@ export class StripeTransactionHelper {
       });
 
       // Si la campagne est en PENDING_PAYMENT, la remettre en DRAFT
-      if (transaction.campaign && transaction.campaign.status === 'PENDING_PAYMENT') {
+      if (
+        transaction.campaign &&
+        transaction.campaign.status === 'PENDING_PAYMENT'
+      ) {
         await prisma.campaign.update({
           where: { id: transaction.campaign.id },
           data: { status: 'DRAFT' },

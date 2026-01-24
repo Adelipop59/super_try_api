@@ -43,9 +43,7 @@ export class UsersService {
       })
       .catch(() => null);
 
-    const balance = walletBalance?.balance
-      ? Number(walletBalance.balance)
-      : 0;
+    const balance = walletBalance?.balance ? Number(walletBalance.balance) : 0;
     const currency = walletBalance?.currency || 'EUR';
 
     if (profile.role === UserRole.PRO || profile.role === UserRole.ADMIN) {
@@ -56,7 +54,9 @@ export class UsersService {
       });
       const campaignIds = campaigns.map((c) => c.id);
 
-      console.log(`[getDashboardStats] User ${userId} has ${campaignIds.length} campaigns`);
+      console.log(
+        `[getDashboardStats] User ${userId} has ${campaignIds.length} campaigns`,
+      );
       console.log('[getDashboardStats] Campaign IDs:', campaignIds);
 
       // PRO/ADMIN: Get comprehensive stats including campaigns and products
@@ -119,7 +119,10 @@ export class UsersService {
       });
 
       // Group by day
-      const spendingByDay = new Map<string, { amount: number; count: number }>();
+      const spendingByDay = new Map<
+        string,
+        { amount: number; count: number }
+      >();
       dailyTransactions.forEach((transaction) => {
         const dateKey = transaction.createdAt.toISOString().split('T')[0];
         const existing = spendingByDay.get(dateKey) || { amount: 0, count: 0 };
@@ -326,7 +329,10 @@ export class UsersService {
   /**
    * Update device token for push notifications
    */
-  async updateDeviceToken(id: string, deviceToken: string | null): Promise<Profile> {
+  async updateDeviceToken(
+    id: string,
+    deviceToken: string | null,
+  ): Promise<Profile> {
     const profile = await this.getProfileById(id);
 
     if (!profile) {
@@ -401,7 +407,9 @@ export class UsersService {
     // Vérifier que l'utilisateur est PRO
     const profile = await this.getProfileById(sellerId);
     if (profile.role !== UserRole.PRO) {
-      throw new BadRequestException('This endpoint is only available for PRO users');
+      throw new BadRequestException(
+        'This endpoint is only available for PRO users',
+      );
     }
 
     // Compter les produits
@@ -544,10 +552,9 @@ export class UsersService {
     ) {
       // Vérifier le statut de la session Stripe existante
       try {
-        const existingSession =
-          await this.stripeService.getVerificationSession(
-            profileWithVerification.stripeVerificationSessionId,
-          );
+        const existingSession = await this.stripeService.getVerificationSession(
+          profileWithVerification.stripeVerificationSessionId,
+        );
 
         // Si la session est encore active (non expirée), retourner l'URL existante
         if (existingSession.status === 'requires_input') {
@@ -714,17 +721,23 @@ export class UsersService {
    */
   async getAvailableCountries(locale: string = 'fr'): Promise<any[]> {
     // Get priority countries from env
-    const priorityCountriesEnv = this.configService.get<string>('PRIORITY_COUNTRIES', 'FR');
-    const priorityCountries = priorityCountriesEnv.split(',').map(c => c.trim());
+    const priorityCountriesEnv = this.configService.get<string>(
+      'PRIORITY_COUNTRIES',
+      'FR',
+    );
+    const priorityCountries = priorityCountriesEnv
+      .split(',')
+      .map((c) => c.trim());
 
     // Get minimum testers threshold from env
-    const minTestersPerCountry = this.configService.get<number>('MIN_TESTERS_PER_COUNTRY', 10);
+    const minTestersPerCountry = this.configService.get<number>(
+      'MIN_TESTERS_PER_COUNTRY',
+      10,
+    );
 
     // Get all countries
     const countries = await this.prismaService.country.findMany({
-      orderBy: [
-        { name: 'asc' },
-      ],
+      orderBy: [{ name: 'asc' }],
     });
 
     // Count testers per country
@@ -741,14 +754,14 @@ export class UsersService {
 
     // Create a map of country code -> tester count
     const testerCountMap = new Map<string, number>();
-    testerCounts.forEach(item => {
+    testerCounts.forEach((item) => {
       if (item.country) {
         testerCountMap.set(item.country, item._count.country);
       }
     });
 
     // Calculate dynamic availability for each country
-    const countriesWithAvailability = countries.map(c => {
+    const countriesWithAvailability = countries.map((c) => {
       const isPriority = priorityCountries.includes(c.code);
       const testerCount = testerCountMap.get(c.code) || 0;
       const isActive = isPriority || testerCount >= minTestersPerCountry;
@@ -778,12 +791,17 @@ export class UsersService {
    * @param locale - Language for country names (en or fr)
    * @returns List of countries selected by the PRO
    */
-  async getProfileCountries(profileId: string, locale: string = 'fr'): Promise<any[]> {
+  async getProfileCountries(
+    profileId: string,
+    locale: string = 'fr',
+  ): Promise<any[]> {
     const profile = await this.getProfileById(profileId);
 
     // Check if profile is PRO
     if (profile.role !== 'PRO') {
-      throw new BadRequestException('This endpoint is only available for PRO users');
+      throw new BadRequestException(
+        'This endpoint is only available for PRO users',
+      );
     }
 
     // Get profile countries with country details
@@ -799,7 +817,7 @@ export class UsersService {
       },
     });
 
-    return profileCountries.map(pc => ({
+    return profileCountries.map((pc) => ({
       code: pc.country.code,
       name: locale === 'fr' ? pc.country.nameFr : pc.country.nameEn,
       nameEn: pc.country.nameEn,

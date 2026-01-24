@@ -16,10 +16,10 @@ export class MessageAttachmentResponseDto {
   @ApiProperty({ description: 'Type MIME' })
   type!: string;
 
-  @ApiProperty({ description: 'Date d\'upload' })
+  @ApiProperty({ description: "Date d'upload" })
   uploadedAt!: string;
 
-  @ApiProperty({ description: 'Ordre d\'affichage', required: false })
+  @ApiProperty({ description: "Ordre d'affichage", required: false })
   order?: number;
 }
 
@@ -62,7 +62,7 @@ export class ChatMessageResponseDto {
   readAt?: Date | null;
 
   @ApiProperty({
-    description: 'ID de l\'utilisateur qui a lu le message',
+    description: "ID de l'utilisateur qui a lu le message",
     required: false,
   })
   readBy?: string | null;

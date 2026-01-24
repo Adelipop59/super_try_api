@@ -183,10 +183,11 @@ export class DistributionsService {
     // Construire le DTO complet pour validation
     const dtoForValidation: CreateDistributionDto = {
       type: updateDistributionDto.type ?? distribution.type,
-      dayOfWeek: updateDistributionDto.dayOfWeek ?? distribution.dayOfWeek ?? undefined,
+      dayOfWeek:
+        updateDistributionDto.dayOfWeek ?? distribution.dayOfWeek ?? undefined,
       specificDate: updateDistributionDto.specificDate
         ? new Date(updateDistributionDto.specificDate)
-        : distribution.specificDate ?? undefined,
+        : (distribution.specificDate ?? undefined),
       maxUnits: updateDistributionDto.maxUnits ?? distribution.maxUnits,
       isActive: updateDistributionDto.isActive ?? distribution.isActive,
     };
@@ -308,7 +309,10 @@ export class DistributionsService {
         specificDate.setHours(0, 0, 0, 0);
 
         // Règle 1: Date pas dans le passé (skip en mode test)
-        if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
+        if (
+          process.env.DISABLE_DATE_VALIDATION !== 'true' &&
+          specificDate < today
+        ) {
           throw new BadRequestException(
             `Distribution ${i + 1}: La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
           );
@@ -355,9 +359,7 @@ export class DistributionsService {
             campaignId,
             type: dto.type,
             dayOfWeek: dto.dayOfWeek ?? 0,
-            specificDate: dto.specificDate
-              ? new Date(dto.specificDate)
-              : null,
+            specificDate: dto.specificDate ? new Date(dto.specificDate) : null,
             maxUnits: dto.maxUnits,
             isActive: dto.isActive ?? true,
           },
@@ -403,7 +405,11 @@ export class DistributionsService {
         );
       }
       // dayOfWeek ne doit pas être fourni (sauf 0 qui est la valeur par défaut)
-      if (dto.dayOfWeek !== undefined && dto.dayOfWeek !== null && dto.dayOfWeek !== 0) {
+      if (
+        dto.dayOfWeek !== undefined &&
+        dto.dayOfWeek !== null &&
+        dto.dayOfWeek !== 0
+      ) {
         throw new BadRequestException(
           'dayOfWeek should not be provided for SPECIFIC_DATE distributions',
         );
@@ -442,7 +448,11 @@ export class DistributionsService {
   async validateDistributions(
     request: ValidateDistributionsRequestDto,
   ): Promise<ValidateDistributionsResponseDto> {
-    const { campaignId, distributions, includeExistingDistributions = true } = request;
+    const {
+      campaignId,
+      distributions,
+      includeExistingDistributions = true,
+    } = request;
 
     // Récupérer la campagne
     const campaign = await this.prismaService.campaign.findUnique({
@@ -498,7 +508,10 @@ export class DistributionsService {
         specificDate.setHours(0, 0, 0, 0);
 
         // Règle 1: Date pas dans le passé (skip en mode test)
-        if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
+        if (
+          process.env.DISABLE_DATE_VALIDATION !== 'true' &&
+          specificDate < today
+        ) {
           errors.push({
             index: i,
             field: 'specificDate',
@@ -562,7 +575,8 @@ export class DistributionsService {
       });
     }
 
-    const hasErrors = results.some((r) => !r.isValid) || globalErrors.length > 0;
+    const hasErrors =
+      results.some((r) => !r.isValid) || globalErrors.length > 0;
 
     return {
       isValid: !hasErrors,
@@ -597,7 +611,10 @@ export class DistributionsService {
       specificDate.setHours(0, 0, 0, 0);
 
       // Règle 1: Date pas dans le passé (skip en mode test)
-      if (process.env.DISABLE_DATE_VALIDATION !== 'true' && specificDate < today) {
+      if (
+        process.env.DISABLE_DATE_VALIDATION !== 'true' &&
+        specificDate < today
+      ) {
         throw new BadRequestException(
           `La date ${specificDate.toLocaleDateString('fr-FR')} est dans le passé. La date doit être aujourd'hui ou dans le futur.`,
         );

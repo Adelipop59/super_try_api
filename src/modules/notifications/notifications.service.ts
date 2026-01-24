@@ -138,9 +138,13 @@ export class NotificationsService {
         templateVars: data?.templateVars,
       });
 
-      this.logger.log(`✅ Notification ${notificationId} added to queue (${channel})`);
+      this.logger.log(
+        `✅ Notification ${notificationId} added to queue (${channel})`,
+      );
     } catch (error) {
-      this.logger.error(`❌ Failed to add notification to queue: ${error.message}`);
+      this.logger.error(
+        `❌ Failed to add notification to queue: ${error.message}`,
+      );
 
       await this.prisma.notification.update({
         where: { id: notificationId },

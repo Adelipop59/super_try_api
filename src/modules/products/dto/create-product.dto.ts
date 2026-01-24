@@ -1,4 +1,17 @@
-import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength, IsUrl, IsNumber, Min, IsUUID, IsBoolean, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  IsUrl,
+  IsNumber,
+  Min,
+  IsUUID,
+  IsBoolean,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ProductImageDto } from './product-image.dto';
@@ -71,7 +84,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Prix de référence du produit',
     example: 1299.99,
-    minimum: 0
+    minimum: 0,
   })
   @IsNumber()
   @IsNotEmpty()
@@ -82,7 +95,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Frais de livraison de référence',
     example: 9.99,
-    minimum: 0
+    minimum: 0,
   })
   @IsNumber()
   @IsNotEmpty()
@@ -94,7 +107,7 @@ export class CreateProductDto {
     description: 'Produit actif ou non',
     example: true,
     required: false,
-    default: true
+    default: true,
   })
   @IsBoolean()
   @IsOptional()

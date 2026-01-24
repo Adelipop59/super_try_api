@@ -47,7 +47,7 @@ export class CreateDistributionDto {
   specificDate?: Date;
 
   @ApiProperty({
-    description: 'Nombre maximum d\'unités à distribuer pour ce jour',
+    description: "Nombre maximum d'unités à distribuer pour ce jour",
     example: 10,
     minimum: 1,
   })

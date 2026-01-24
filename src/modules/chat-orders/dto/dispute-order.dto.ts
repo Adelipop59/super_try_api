@@ -5,7 +5,8 @@ export class DisputeOrderDto {
   @ApiProperty({
     type: String,
     description: 'Raison du litige concernant cette commande',
-    example: 'Le contenu livré ne correspond pas à ce qui était demandé dans la description',
+    example:
+      'Le contenu livré ne correspond pas à ce qui était demandé dans la description',
     maxLength: 1000,
   })
   @IsString()

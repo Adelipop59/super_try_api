@@ -13,7 +13,12 @@ import { StripeService } from './stripe.service';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LogsService } from '../logs/logs.service';
-import { CampaignStatus, TransactionStatus, NotificationType, NotificationChannel } from '@prisma/client';
+import {
+  CampaignStatus,
+  TransactionStatus,
+  NotificationType,
+  NotificationChannel,
+} from '@prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import Stripe from 'stripe';
 
@@ -47,7 +52,10 @@ export class StripeWebhookController {
     }
 
     try {
-      const event = this.stripeService.constructWebhookEvent(payload, signature);
+      const event = this.stripeService.constructWebhookEvent(
+        payload,
+        signature,
+      );
       this.logger.log(`Received webhook event: ${event.type}`);
 
       // Gérer les différents types d'événements
@@ -64,88 +72,70 @@ export class StripeWebhookController {
     switch (event.type) {
       // Événements de Checkout Session
       case 'checkout.session.completed':
-        await this.handleCheckoutSessionCompleted(
-          event.data.object as Stripe.Checkout.Session,
-        );
+        await this.handleCheckoutSessionCompleted(event.data.object);
         break;
 
       case 'checkout.session.expired':
-        await this.handleCheckoutSessionExpired(
-          event.data.object as Stripe.Checkout.Session,
-        );
+        await this.handleCheckoutSessionExpired(event.data.object);
         break;
 
       // Événements de paiement
       case 'payment_intent.succeeded':
-        await this.handlePaymentIntentSucceeded(
-          event.data.object as Stripe.PaymentIntent,
-        );
+        await this.handlePaymentIntentSucceeded(event.data.object);
         break;
 
       case 'payment_intent.payment_failed':
-        await this.handlePaymentIntentFailed(
-          event.data.object as Stripe.PaymentIntent,
-        );
+        await this.handlePaymentIntentFailed(event.data.object);
         break;
 
       // Événements de remboursement
       case 'charge.refunded':
-        await this.handleChargeRefunded(event.data.object as Stripe.Charge);
+        await this.handleChargeRefunded(event.data.object);
         break;
 
       // Événements de payout
       case 'payout.created':
-        await this.handlePayoutCreated(event.data.object as Stripe.Payout);
+        await this.handlePayoutCreated(event.data.object);
         break;
 
       case 'payout.paid':
-        await this.handlePayoutPaid(event.data.object as Stripe.Payout);
+        await this.handlePayoutPaid(event.data.object);
         break;
 
       case 'payout.failed':
-        await this.handlePayoutFailed(event.data.object as Stripe.Payout);
+        await this.handlePayoutFailed(event.data.object);
         break;
 
       // Événements de compte connecté
       case 'account.updated':
-        await this.handleAccountUpdated(event.data.object as Stripe.Account);
+        await this.handleAccountUpdated(event.data.object);
         break;
 
       // Événements de transfert
       case 'transfer.created':
-        await this.handleTransferCreated(event.data.object as Stripe.Transfer);
+        await this.handleTransferCreated(event.data.object);
         break;
 
       // Événements de méthode de paiement
       case 'payment_method.attached':
-        await this.handlePaymentMethodAttached(
-          event.data.object as Stripe.PaymentMethod,
-        );
+        await this.handlePaymentMethodAttached(event.data.object);
         break;
 
       // Événements Stripe Identity
       case 'identity.verification_session.verified':
-        await this.handleVerificationVerified(
-          event.data.object as Stripe.Identity.VerificationSession,
-        );
+        await this.handleVerificationVerified(event.data.object);
         break;
 
       case 'identity.verification_session.requires_input':
-        await this.handleVerificationRequiresInput(
-          event.data.object as Stripe.Identity.VerificationSession,
-        );
+        await this.handleVerificationRequiresInput(event.data.object);
         break;
 
       case 'identity.verification_session.processing':
-        await this.handleVerificationProcessing(
-          event.data.object as Stripe.Identity.VerificationSession,
-        );
+        await this.handleVerificationProcessing(event.data.object);
         break;
 
       case 'identity.verification_session.canceled':
-        await this.handleVerificationCanceled(
-          event.data.object as Stripe.Identity.VerificationSession,
-        );
+        await this.handleVerificationCanceled(event.data.object);
         break;
 
       default:
@@ -203,13 +193,17 @@ export class StripeWebhookController {
         });
 
         if (!transaction) {
-          this.logger.error(`Transaction not found for checkout session ${session.id}`);
+          this.logger.error(
+            `Transaction not found for checkout session ${session.id}`,
+          );
           return;
         }
 
         // Vérification d'idempotence - éviter le traitement en double
         if (transaction.status === TransactionStatus.COMPLETED) {
-          this.logger.warn(`Transaction already completed for checkout session ${session.id}, skipping`);
+          this.logger.warn(
+            `Transaction already completed for checkout session ${session.id}, skipping`,
+          );
           return;
         }
 
@@ -218,11 +212,12 @@ export class StripeWebhookController {
           where: { id: transaction.id },
           data: {
             status: TransactionStatus.COMPLETED,
-            stripePaymentIntentId: typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id || null,
+            stripePaymentIntentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id || null,
             metadata: {
-              ...(transaction.metadata as object || {}),
+              ...((transaction.metadata as object) || {}),
               completedAt: new Date().toISOString(),
             },
           },
@@ -272,7 +267,9 @@ export class StripeWebhookController {
           });
         } catch (notifError) {
           // Ne pas bloquer le flow si la notification échoue
-          this.logger.error(`Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+          this.logger.error(
+            `Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`,
+          );
         }
       });
     } catch (error) {
@@ -304,7 +301,7 @@ export class StripeWebhookController {
           status: TransactionStatus.FAILED,
           failureReason: 'Checkout session expired',
           metadata: {
-            ...(transaction.metadata as object || {}),
+            ...((transaction.metadata as object) || {}),
             expiredAt: new Date().toISOString(),
           },
         },
@@ -349,7 +346,9 @@ export class StripeWebhookController {
     const { campaignId } = paymentIntent.metadata;
 
     if (!campaignId) {
-      this.logger.error('Campaign payment succeeded but no campaignId in metadata');
+      this.logger.error(
+        'Campaign payment succeeded but no campaignId in metadata',
+      );
       return;
     }
 
@@ -364,13 +363,17 @@ export class StripeWebhookController {
         });
 
         if (!transaction) {
-          this.logger.error(`Transaction not found for payment intent ${paymentIntent.id}`);
+          this.logger.error(
+            `Transaction not found for payment intent ${paymentIntent.id}`,
+          );
           return;
         }
 
         // Vérification d'idempotence - éviter le traitement en double
         if (transaction.status === TransactionStatus.COMPLETED) {
-          this.logger.warn(`Transaction already completed for payment intent ${paymentIntent.id}, skipping`);
+          this.logger.warn(
+            `Transaction already completed for payment intent ${paymentIntent.id}, skipping`,
+          );
           return;
         }
 
@@ -380,11 +383,12 @@ export class StripeWebhookController {
           data: {
             status: TransactionStatus.COMPLETED,
             metadata: {
-              ...(transaction.metadata as object || {}),
+              ...((transaction.metadata as object) || {}),
               completedAt: new Date().toISOString(),
-              stripeChargeId: typeof paymentIntent.latest_charge === 'string'
-                ? paymentIntent.latest_charge
-                : paymentIntent.latest_charge?.id || null,
+              stripeChargeId:
+                typeof paymentIntent.latest_charge === 'string'
+                  ? paymentIntent.latest_charge
+                  : paymentIntent.latest_charge?.id || null,
             },
           },
         });
@@ -433,7 +437,9 @@ export class StripeWebhookController {
           });
         } catch (notifError) {
           // Ne pas bloquer le flow si la notification échoue
-          this.logger.error(`Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+          this.logger.error(
+            `Failed to send notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`,
+          );
         }
       });
     } catch (error) {
@@ -452,12 +458,16 @@ export class StripeWebhookController {
     const { sessionId, userId } = paymentIntent.metadata;
 
     if (!sessionId || !userId) {
-      this.logger.error('Session payment succeeded but missing sessionId or userId in metadata');
+      this.logger.error(
+        'Session payment succeeded but missing sessionId or userId in metadata',
+      );
       return;
     }
 
     // TODO: Implémenter la logique de crédit wallet pour les sessions
-    this.logger.log(`Session payment for session ${sessionId} by user ${userId} - TODO: credit wallet`);
+    this.logger.log(
+      `Session payment for session ${sessionId} by user ${userId} - TODO: credit wallet`,
+    );
   }
 
   /**
@@ -482,9 +492,10 @@ export class StripeWebhookController {
         where: { id: transaction.id },
         data: {
           status: TransactionStatus.FAILED,
-          failureReason: paymentIntent.last_payment_error?.message || 'Payment failed',
+          failureReason:
+            paymentIntent.last_payment_error?.message || 'Payment failed',
           metadata: {
-            ...(transaction.metadata as object || {}),
+            ...((transaction.metadata as object) || {}),
             failedAt: new Date().toISOString(),
             errorCode: paymentIntent.last_payment_error?.code,
           },
@@ -499,7 +510,9 @@ export class StripeWebhookController {
    * Remboursement effectué
    */
   private async handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
-    this.logger.log(`Charge refunded: ${charge.id}, amount: ${charge.amount_refunded}`);
+    this.logger.log(
+      `Charge refunded: ${charge.id}, amount: ${charge.amount_refunded}`,
+    );
 
     // TODO: Mettre à jour la transaction de remboursement
   }
@@ -556,7 +569,10 @@ export class StripeWebhookController {
       }
 
       // Mettre à jour le statut du profil selon les capabilities Stripe
-      const isFullyOnboarded = account.charges_enabled && account.payouts_enabled && account.details_submitted;
+      const isFullyOnboarded =
+        account.charges_enabled &&
+        account.payouts_enabled &&
+        account.details_submitted;
 
       await this.prismaService.profile.update({
         where: { id: profile.id },
@@ -595,7 +611,9 @@ export class StripeWebhookController {
   /**
    * Transfert créé (paiement testeur)
    */
-  private async handleTransferCreated(transfer: Stripe.Transfer): Promise<void> {
+  private async handleTransferCreated(
+    transfer: Stripe.Transfer,
+  ): Promise<void> {
     this.logger.log(
       `Transfer created: ${transfer.id}, amount: ${transfer.amount / 100}€, destination: ${transfer.destination}`,
     );
@@ -605,7 +623,9 @@ export class StripeWebhookController {
       const sessionId = metadata?.sessionId;
 
       if (!sessionId) {
-        this.logger.warn(`Transfer ${transfer.id} has no sessionId in metadata`);
+        this.logger.warn(
+          `Transfer ${transfer.id} has no sessionId in metadata`,
+        );
         return;
       }
 
@@ -624,17 +644,20 @@ export class StripeWebhookController {
       }
 
       // Vérifier si une transaction existe déjà pour ce transfer
-      const existingTransaction = await this.prismaService.transaction.findFirst({
-        where: {
-          metadata: {
-            path: ['stripeTransferId'],
-            equals: transfer.id,
+      const existingTransaction =
+        await this.prismaService.transaction.findFirst({
+          where: {
+            metadata: {
+              path: ['stripeTransferId'],
+              equals: transfer.id,
+            },
           },
-        },
-      });
+        });
 
       if (existingTransaction) {
-        this.logger.log(`Transaction already exists for transfer ${transfer.id}`);
+        this.logger.log(
+          `Transaction already exists for transfer ${transfer.id}`,
+        );
         return;
       }
 
@@ -688,7 +711,9 @@ export class StripeWebhookController {
     const userId = session.metadata?.userId || session.metadata?.profileId;
 
     if (!userId) {
-      this.logger.warn(`Verification session ${session.id} has no userId in metadata`);
+      this.logger.warn(
+        `Verification session ${session.id} has no userId in metadata`,
+      );
       return;
     }
 
@@ -696,7 +721,9 @@ export class StripeWebhookController {
       // Récupérer les données vérifiées
       const verifiedData = session.verified_outputs;
 
-      this.logger.log(`Verified data received: ${JSON.stringify(verifiedData)}`);
+      this.logger.log(
+        `Verified data received: ${JSON.stringify(verifiedData)}`,
+      );
 
       // Préparer les données à mettre à jour
       const updateData: any = {
@@ -707,7 +734,11 @@ export class StripeWebhookController {
       };
 
       // Extraire la date de naissance
-      if (verifiedData?.dob?.year && verifiedData.dob.month && verifiedData.dob.day) {
+      if (
+        verifiedData?.dob?.year &&
+        verifiedData.dob.month &&
+        verifiedData.dob.day
+      ) {
         updateData.birthDate = new Date(
           verifiedData.dob.year,
           verifiedData.dob.month - 1,
@@ -728,10 +759,7 @@ export class StripeWebhookController {
         const addr = verifiedData.address;
 
         // Composer l'adresse complète (ville, pays)
-        const addressParts = [
-          addr.city,
-          addr.country,
-        ].filter(Boolean);
+        const addressParts = [addr.city, addr.country].filter(Boolean);
 
         if (addressParts.length > 0) {
           updateData.location = addressParts.join(', ');
@@ -770,22 +798,27 @@ export class StripeWebhookController {
             userId,
             type: NotificationType.SYSTEM_ALERT,
             channel: NotificationChannel.EMAIL,
-            title: '✅ Vérification d\'identité réussie',
+            title: "✅ Vérification d'identité réussie",
             message: `Votre identité a été vérifiée avec succès ! Vous pouvez maintenant candidater à toutes les campagnes de test.`,
             data: {
               template: 'user/verification-completed',
               templateVars: {
                 userName: profile.firstName || profile.email,
-                frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+                frontendUrl:
+                  process.env.FRONTEND_URL || 'http://localhost:3000',
               },
             },
           });
         } catch (notifError) {
-          this.logger.error(`Failed to send verification success notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`);
+          this.logger.error(
+            `Failed to send verification success notification: ${notifError instanceof Error ? notifError.message : 'Unknown error'}`,
+          );
         }
       }
 
-      this.logger.log(`User ${userId} successfully verified via Stripe Identity`);
+      this.logger.log(
+        `User ${userId} successfully verified via Stripe Identity`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to process verification success: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -813,8 +846,9 @@ export class StripeWebhookController {
         userId,
         type: NotificationType.SYSTEM_ALERT,
         channel: NotificationChannel.IN_APP,
-        title: 'Vérification d\'identité incomplète',
-        message: 'Veuillez compléter la vérification de votre identité pour accéder aux campagnes.',
+        title: "Vérification d'identité incomplète",
+        message:
+          'Veuillez compléter la vérification de votre identité pour accéder aux campagnes.',
         data: {
           verificationSessionId: session.id,
           action: 'complete_verification',

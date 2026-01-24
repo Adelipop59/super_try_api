@@ -8,7 +8,8 @@ import { ApiProperty } from '@nestjs/swagger';
 export class DeclareDisputeDto {
   @ApiProperty({
     description: 'Raison du litige',
-    example: 'Le produit reçu ne correspond pas à la description de la campagne',
+    example:
+      'Le produit reçu ne correspond pas à la description de la campagne',
     maxLength: 1000,
   })
   @IsString()

@@ -5,11 +5,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import {
-  TransactionType,
-  TransactionStatus,
-  Prisma,
-} from '@prisma/client';
+import { TransactionType, TransactionStatus, Prisma } from '@prisma/client';
 import { WalletResponseDto } from './dto/wallet-response.dto';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { WithdrawalResponseDto } from './dto/withdrawal-response.dto';
@@ -309,9 +305,7 @@ export class WalletsService {
   ): Promise<WithdrawalResponseDto> {
     // Vérifier que le montant minimum est respecté
     if (dto.amount < 10) {
-      throw new BadRequestException(
-        'Le montant minimum de retrait est de 10€',
-      );
+      throw new BadRequestException('Le montant minimum de retrait est de 10€');
     }
 
     // Vérifier que le solde est suffisant

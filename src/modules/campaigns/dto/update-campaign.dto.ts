@@ -8,7 +8,7 @@ import { Allow } from 'class-validator';
  * Note: La validation des products et criteria est gérée dans le service
  */
 export class UpdateCampaignDto extends PartialType(
-  OmitType(CreateCampaignDto, ['products', 'criteria'] as const)
+  OmitType(CreateCampaignDto, ['products', 'criteria'] as const),
 ) {
   @Allow()
   products?: any; // Validation faite dans le service

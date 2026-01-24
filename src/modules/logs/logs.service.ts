@@ -475,7 +475,6 @@ export class LogsService {
     return result.count;
   }
 
-
   /**
    * Nettoyer les logs avant une date donnée
    * @param beforeDate - Date limite

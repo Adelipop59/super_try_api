@@ -16,7 +16,8 @@ import { ChatOrderType } from '@prisma/client';
 export class CreateChatOrderDto {
   @ApiProperty({
     enum: ChatOrderType,
-    description: 'Type de commande : UGC (contenu), PHOTO (photos supplémentaires), ou TIP (pourboire)',
+    description:
+      'Type de commande : UGC (contenu), PHOTO (photos supplémentaires), ou TIP (pourboire)',
     example: 'UGC_REQUEST',
   })
   @IsEnum(ChatOrderType)
@@ -38,7 +39,8 @@ export class CreateChatOrderDto {
   @ApiProperty({
     type: String,
     description: 'Description détaillée de la commande',
-    example: 'Je souhaite une vidéo UGC de 30 secondes mettant en avant les fonctionnalités principales du produit',
+    example:
+      'Je souhaite une vidéo UGC de 30 secondes mettant en avant les fonctionnalités principales du produit',
     maxLength: 2000,
   })
   @IsString()

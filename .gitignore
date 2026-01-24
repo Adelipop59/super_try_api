@@ -1,60 +1,50 @@
-# compiled output
-/dist
+# Dependencies
 /node_modules
+/.pnp
+.pnp.js
+.pnpm-debug.log*
+
+# Build outputs
+/dist
 /build
 
-# Logs (ignore log files and log directories, but not src/modules/logs)
-/logs
+# Environment variables
+.env
+.env*.local
+
+# Logs
 *.log
 npm-debug.log*
-pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
 
-# Tests
+# Testing
 /coverage
-/.nyc_output
+/test-results
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# TypeScript
+*.tsbuildinfo
 
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# Prisma
+prisma/generated/
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-.env.*
-*.env
+# Temporary files
+*.tmp
+*.temp
 
-# temp directory
-.temp
-.tmp
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-/generated/prisma
+# Uploads
+/uploads

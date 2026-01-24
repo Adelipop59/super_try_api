@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -68,7 +61,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Accepter une commande (USER)',
     description:
-      'Permet au testeur d\'accepter une commande de prestation. Le testeur s\'engage à livrer la prestation.',
+      "Permet au testeur d'accepter une commande de prestation. Le testeur s'engage à livrer la prestation.",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -93,7 +86,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Rejeter une commande (USER)',
     description:
-      'Permet au testeur de rejeter une commande. L\'argent en escrow est remboursé au vendeur.',
+      "Permet au testeur de rejeter une commande. L'argent en escrow est remboursé au vendeur.",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -110,11 +103,7 @@ export class ChatOrdersController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() rejectOrderDto: RejectOrderDto,
   ) {
-    return this.chatOrdersService.rejectOrder(
-      orderId,
-      user.id,
-      rejectOrderDto,
-    );
+    return this.chatOrdersService.rejectOrder(orderId, user.id, rejectOrderDto);
   }
 
   @Post('orders/:orderId/cancel')
@@ -123,7 +112,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Annuler une commande (PRO)',
     description:
-      'Permet au vendeur d\'annuler une commande avant acceptation. L\'argent en escrow est remboursé.',
+      "Permet au vendeur d'annuler une commande avant acceptation. L'argent en escrow est remboursé.",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -178,7 +167,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Valider la livraison UGC (PRO)',
     description:
-      'Permet au vendeur de valider la livraison UGC. Le Payment Intent Stripe est capturé (prélèvement carte bleue) et l\'argent est transféré au testeur (avec déduction des fees).',
+      "Permet au vendeur de valider la livraison UGC. Le Payment Intent Stripe est capturé (prélèvement carte bleue) et l'argent est transféré au testeur (avec déduction des fees).",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -186,7 +175,10 @@ export class ChatOrdersController {
     description: 'Livraison validée, paiement capturé et transféré',
     type: ChatOrderResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Statut invalide ou Payment Intent manquant' })
+  @ApiResponse({
+    status: 400,
+    description: 'Statut invalide ou Payment Intent manquant',
+  })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Accès refusé' })
   @ApiResponse({ status: 404, description: 'Commande non trouvée' })
@@ -203,7 +195,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Déclarer un litige (PRO/USER)',
     description:
-      'Permet au vendeur ou au testeur de déclarer un litige sur une commande. L\'argent reste en escrow jusqu\'à résolution.',
+      "Permet au vendeur ou au testeur de déclarer un litige sur une commande. L'argent reste en escrow jusqu'à résolution.",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -233,7 +225,7 @@ export class ChatOrdersController {
   @ApiOperation({
     summary: 'Résoudre un litige (ADMIN)',
     description:
-      'Permet à l\'admin de résoudre un litige en choisissant de rembourser le vendeur (REFUND_BUYER) ou payer le testeur (PAY_SELLER).',
+      "Permet à l'admin de résoudre un litige en choisissant de rembourser le vendeur (REFUND_BUYER) ou payer le testeur (PAY_SELLER).",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -261,7 +253,7 @@ export class ChatOrdersController {
   @Roles('PRO', 'USER')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Liste des commandes d\'une session',
+    summary: "Liste des commandes d'une session",
     description:
       'Récupère toutes les commandes de prestations pour une session donnée.',
   })
@@ -285,9 +277,9 @@ export class ChatOrdersController {
   @Roles('PRO', 'USER', 'ADMIN')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Détails d\'une commande',
+    summary: "Détails d'une commande",
     description:
-      'Récupère les détails complets d\'une commande avec toutes les relations.',
+      "Récupère les détails complets d'une commande avec toutes les relations.",
   })
   @ApiParam({ name: 'orderId', description: 'ID de la commande' })
   @ApiResponse({
@@ -302,10 +294,6 @@ export class ChatOrdersController {
     @Param('orderId') orderId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.chatOrdersService.getOrderDetails(
-      orderId,
-      user.id,
-      user.role,
-    );
+    return this.chatOrdersService.getOrderDetails(orderId, user.id, user.role);
   }
 }

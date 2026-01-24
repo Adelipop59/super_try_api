@@ -6,7 +6,7 @@ import { ApiProperty } from '@nestjs/swagger';
  */
 export class RequestAdminHelpDto {
   @ApiProperty({
-    description: 'Raison de la demande d\'aide admin',
+    description: "Raison de la demande d'aide admin",
     example: 'Le vendeur ne répond plus aux messages depuis 3 jours',
     maxLength: 500,
   })

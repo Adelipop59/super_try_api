@@ -20,26 +20,48 @@ export class DashboardStatsDto {
   @ApiProperty({ description: 'Wallet balance in cents', required: false })
   balance!: number;
 
-  @ApiProperty({ description: 'Currency code', example: 'EUR', required: false })
+  @ApiProperty({
+    description: 'Currency code',
+    example: 'EUR',
+    required: false,
+  })
   currency?: string;
 
   // PRO-specific fields
-  @ApiProperty({ description: 'Total number of campaigns (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Total number of campaigns (PRO only)',
+    required: false,
+  })
   totalCampaigns?: number;
 
-  @ApiProperty({ description: 'Number of active campaigns (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Number of active campaigns (PRO only)',
+    required: false,
+  })
   activeCampaigns?: number;
 
-  @ApiProperty({ description: 'Total number of products (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Total number of products (PRO only)',
+    required: false,
+  })
   totalProducts?: number;
 
-  @ApiProperty({ description: 'Number of tests in progress (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Number of tests in progress (PRO only)',
+    required: false,
+  })
   testsInProgress?: number;
 
-  @ApiProperty({ description: 'Number of tests completed (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Number of tests completed (PRO only)',
+    required: false,
+  })
   testsDone?: number;
 
-  @ApiProperty({ description: 'Total amount spent in cents (PRO only)', required: false })
+  @ApiProperty({
+    description: 'Total amount spent in cents (PRO only)',
+    required: false,
+  })
   totalSpent?: number;
 
   @ApiProperty({

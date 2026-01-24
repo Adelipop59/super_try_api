@@ -14,7 +14,7 @@ export class UpdateKycStatusDto {
   status: 'unverified' | 'pending' | 'verified' | 'failed';
 
   @ApiProperty({
-    description: 'Raison de l\'échec (obligatoire si status = failed)',
+    description: "Raison de l'échec (obligatoire si status = failed)",
     required: false,
     example: 'Document expiré',
   })
@@ -28,13 +28,13 @@ export class UpdateKycStatusDto {
  */
 export class KycStatusResponseDto {
   @ApiProperty({
-    description: 'ID de l\'utilisateur',
+    description: "ID de l'utilisateur",
     example: 'uuid-123',
   })
   userId: string;
 
   @ApiProperty({
-    description: 'Email de l\'utilisateur',
+    description: "Email de l'utilisateur",
     example: 'testeur@example.com',
   })
   email: string;
@@ -54,7 +54,7 @@ export class KycStatusResponseDto {
   verifiedAt: Date | null;
 
   @ApiProperty({
-    description: 'Raison de l\'échec (si failed)',
+    description: "Raison de l'échec (si failed)",
     required: false,
     example: 'Document expiré',
   })

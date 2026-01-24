@@ -57,7 +57,11 @@ export class UploadController {
       throw new BadRequestException('entityType is required');
     }
 
-    const url = await this.uploadService.uploadImage(file, entityType, entityId);
+    const url = await this.uploadService.uploadImage(
+      file,
+      entityType,
+      entityId,
+    );
 
     return {
       url,

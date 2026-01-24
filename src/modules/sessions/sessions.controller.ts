@@ -72,7 +72,10 @@ export class SessionsController {
     description: 'Campagne non active ou déjà postulé',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'KYC non vérifié ou rôle USER requis' })
+  @ApiResponse({
+    status: 403,
+    description: 'KYC non vérifié ou rôle USER requis',
+  })
   @ApiResponse({ status: 404, description: 'Campagne non trouvée' })
   async applyToCampaign(
     @CurrentUser() user: AuthenticatedUser,
@@ -184,7 +187,7 @@ export class SessionsController {
     return this.sessionsService.validateProductPrice(
       id,
       user.id,
-      validatePriceDto.productPrice,
+      validatePriceDto,
     );
   }
 
@@ -296,7 +299,7 @@ export class SessionsController {
   @ApiOperation({
     summary: 'Noter un testeur (PRO/ADMIN)',
     description:
-      'Permet au vendeur de noter un testeur quand la campagne est terminée, même si la session n\'est pas encore COMPLETED.',
+      "Permet au vendeur de noter un testeur quand la campagne est terminée, même si la session n'est pas encore COMPLETED.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -327,9 +330,9 @@ export class SessionsController {
   @Roles('PRO', 'ADMIN')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Modifier la notation d\'un testeur (PRO/ADMIN)',
+    summary: "Modifier la notation d'un testeur (PRO/ADMIN)",
     description:
-      'Permet au vendeur de modifier la note d\'un testeur déjà noté.',
+      "Permet au vendeur de modifier la note d'un testeur déjà noté.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -434,7 +437,7 @@ export class SessionsController {
       'Permet au testeur de compléter une étape spécifique du test. La progression est sauvegardée automatiquement. Quand toutes les étapes obligatoires sont complétées, la session passe automatiquement à PROCEDURES_COMPLETED.',
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
-  @ApiParam({ name: 'stepId', description: 'ID de l\'étape à compléter' })
+  @ApiParam({ name: 'stepId', description: "ID de l'étape à compléter" })
   @ApiResponse({
     status: 201,
     description: 'Étape complétée avec succès',
@@ -443,7 +446,7 @@ export class SessionsController {
       properties: {
         stepProgress: {
           type: 'object',
-          description: 'Enregistrement de progression de l\'étape',
+          description: "Enregistrement de progression de l'étape",
         },
         allRequiredStepsCompleted: {
           type: 'boolean',
@@ -459,10 +462,13 @@ export class SessionsController {
   @ApiResponse({
     status: 400,
     description:
-      'Statut invalide, étape non trouvée ou réponse invalide pour le type d\'étape',
+      "Statut invalide, étape non trouvée ou réponse invalide pour le type d'étape",
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'KYC non vérifié ou pas le testeur' })
+  @ApiResponse({
+    status: 403,
+    description: 'KYC non vérifié ou pas le testeur',
+  })
   @ApiResponse({ status: 404, description: 'Session ou étape non trouvée' })
   async completeStep(
     @Param('id') sessionId: string,
@@ -470,12 +476,7 @@ export class SessionsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CompleteStepDto,
   ): Promise<any> {
-    return this.sessionsService.completeStep(
-      sessionId,
-      stepId,
-      user.id,
-      dto,
-    );
+    return this.sessionsService.completeStep(sessionId, stepId, user.id, dto);
   }
 
   /**
@@ -534,9 +535,9 @@ export class SessionsController {
   @Roles('PRO', 'ADMIN')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Valider l\'achat soumis par le testeur (PRO)',
+    summary: "Valider l'achat soumis par le testeur (PRO)",
     description:
-      'Permet au vendeur de valider l\'achat après soumission du numéro de commande. Passe la session de PURCHASE_SUBMITTED à PURCHASE_VALIDATED pour que le testeur puisse soumettre son test.',
+      "Permet au vendeur de valider l'achat après soumission du numéro de commande. Passe la session de PURCHASE_SUBMITTED à PURCHASE_VALIDATED pour que le testeur puisse soumettre son test.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({
@@ -566,9 +567,9 @@ export class SessionsController {
   @Roles('PRO', 'ADMIN')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Rejeter l\'achat soumis par le testeur (PRO)',
+    summary: "Rejeter l'achat soumis par le testeur (PRO)",
     description:
-      'Permet au vendeur de rejeter l\'achat avec une raison obligatoire. Le testeur devra corriger et resoumettre.',
+      "Permet au vendeur de rejeter l'achat avec une raison obligatoire. Le testeur devra corriger et resoumettre.",
   })
   @ApiParam({ name: 'id', description: 'ID de la session' })
   @ApiResponse({

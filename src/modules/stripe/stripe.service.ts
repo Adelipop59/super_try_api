@@ -2,7 +2,11 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../../database/prisma.service';
-import { CampaignStatus, TransactionType, TransactionStatus } from '@prisma/client';
+import {
+  CampaignStatus,
+  TransactionType,
+  TransactionStatus,
+} from '@prisma/client';
 import { StripeTransactionHelper } from './helpers/stripe-transaction.helper';
 
 export interface CreatePaymentIntentDto {
@@ -68,30 +72,54 @@ export class StripeService {
     });
 
     this.currency = this.configService.get<string>('stripe.currency', 'eur');
-    this.testerTransferFee = this.configService.get<number>('stripe.testerTransferFee', 10);
+    this.testerTransferFee = this.configService.get<number>(
+      'stripe.testerTransferFee',
+      10,
+    );
 
     // Commissions campagne
-    this.campaignFeeType = this.configService.get<string>('stripe.campaignFeeType', 'PERCENTAGE');
-    this.campaignFeePercentage = this.configService.get<number>('stripe.campaignFeePercentage', 10);
-    this.campaignFeeFixedAmount = this.configService.get<number>('stripe.campaignFeeFixedAmount', 10);
+    this.campaignFeeType = this.configService.get<string>(
+      'stripe.campaignFeeType',
+      'PERCENTAGE',
+    );
+    this.campaignFeePercentage = this.configService.get<number>(
+      'stripe.campaignFeePercentage',
+      10,
+    );
+    this.campaignFeeFixedAmount = this.configService.get<number>(
+      'stripe.campaignFeeFixedAmount',
+      10,
+    );
 
     // Commissions UGC
-    this.ugcFeeType = this.configService.get<string>('stripe.ugcFeeType', 'PERCENTAGE');
-    this.ugcFeePercentage = this.configService.get<number>('stripe.ugcFeePercentage', 10);
-    this.ugcFeeFixedAmount = this.configService.get<number>('stripe.ugcFeeFixedAmount', 5);
+    this.ugcFeeType = this.configService.get<string>(
+      'stripe.ugcFeeType',
+      'PERCENTAGE',
+    );
+    this.ugcFeePercentage = this.configService.get<number>(
+      'stripe.ugcFeePercentage',
+      10,
+    );
+    this.ugcFeeFixedAmount = this.configService.get<number>(
+      'stripe.ugcFeeFixedAmount',
+      5,
+    );
 
     this.logger.log(
       `Stripe service initialized | ` +
-      `Campaign fee: ${this.campaignFeeType} (${this.campaignFeeType === 'PERCENTAGE' ? this.campaignFeePercentage + '%' : this.campaignFeeFixedAmount + '€/product'}) | ` +
-      `UGC fee: ${this.ugcFeeType} (${this.ugcFeeType === 'PERCENTAGE' ? this.ugcFeePercentage + '%' : this.ugcFeeFixedAmount + '€'}) | ` +
-      `Tester transfer fee: ${this.testerTransferFee}%`
+        `Campaign fee: ${this.campaignFeeType} (${this.campaignFeeType === 'PERCENTAGE' ? this.campaignFeePercentage + '%' : this.campaignFeeFixedAmount + '€/product'}) | ` +
+        `UGC fee: ${this.ugcFeeType} (${this.ugcFeeType === 'PERCENTAGE' ? this.ugcFeePercentage + '%' : this.ugcFeeFixedAmount + '€'}) | ` +
+        `Tester transfer fee: ${this.testerTransferFee}%`,
     );
   }
 
   /**
    * Créer un client Stripe
    */
-  async createCustomer(userId: string, data: CreateCustomerDto): Promise<Stripe.Customer> {
+  async createCustomer(
+    userId: string,
+    data: CreateCustomerDto,
+  ): Promise<Stripe.Customer> {
     try {
       // Vérifier si l'utilisateur a déjà un customer ID
       const profile = await this.prismaService.profile.findUnique({
@@ -99,8 +127,12 @@ export class StripeService {
       });
 
       if (profile?.stripeCustomerId) {
-        this.logger.warn(`User ${userId} already has a Stripe Customer: ${profile.stripeCustomerId}`);
-        return await this.stripe.customers.retrieve(profile.stripeCustomerId) as Stripe.Customer;
+        this.logger.warn(
+          `User ${userId} already has a Stripe Customer: ${profile.stripeCustomerId}`,
+        );
+        return (await this.stripe.customers.retrieve(
+          profile.stripeCustomerId,
+        )) as Stripe.Customer;
       }
 
       // Créer le customer Stripe
@@ -112,9 +144,14 @@ export class StripeService {
       });
 
       // Sauvegarder le Customer ID de manière atomique
-      await this.stripeTransactionHelper.saveStripeCustomerId(userId, customer.id);
+      await this.stripeTransactionHelper.saveStripeCustomerId(
+        userId,
+        customer.id,
+      );
 
-      this.logger.log(`✅ Customer created and saved: ${customer.id} for user ${userId}`);
+      this.logger.log(
+        `✅ Customer created and saved: ${customer.id} for user ${userId}`,
+      );
 
       return customer;
     } catch (error) {
@@ -128,7 +165,9 @@ export class StripeService {
    */
   async getCustomer(customerId: string): Promise<Stripe.Customer> {
     try {
-      return await this.stripe.customers.retrieve(customerId) as Stripe.Customer;
+      return (await this.stripe.customers.retrieve(
+        customerId,
+      )) as Stripe.Customer;
     } catch (error) {
       this.logger.error(`Failed to get customer: ${error.message}`);
       throw new BadRequestException('Customer not found');
@@ -138,7 +177,9 @@ export class StripeService {
   /**
    * Créer un Payment Intent (pour paiement par carte)
    */
-  async createPaymentIntent(data: CreatePaymentIntentDto): Promise<Stripe.PaymentIntent> {
+  async createPaymentIntent(
+    data: CreatePaymentIntentDto,
+  ): Promise<Stripe.PaymentIntent> {
     try {
       return await this.stripe.paymentIntents.create({
         amount: Math.round(data.amount), // Stripe attend des entiers
@@ -203,7 +244,9 @@ export class StripeService {
     try {
       // Calculer la commission de la plateforme
       const amountInCents = Math.round(amount * 100);
-      const commissionInCents = Math.round((amountInCents * this.testerTransferFee) / 100);
+      const commissionInCents = Math.round(
+        (amountInCents * this.testerTransferFee) / 100,
+      );
       const amountAfterCommission = amountInCents - commissionInCents;
 
       // ✅ Transfer DEPUIS le compte Connect du PRO vers le testeur
@@ -229,23 +272,25 @@ export class StripeService {
         {
           // ✅ CRITIQUE: Transfer DEPUIS le compte du PRO
           stripeAccount: sellerStripeAccountId,
-        }
+        },
       );
 
       this.logger.log(
         `✅ Transfer FROM PRO to tester ${testerAccountId}: ${transfer.id} | ` +
-        `PRO account: ${sellerStripeAccountId} | ` +
-        `Original: ${amount}€, Commission: ${(commissionInCents / 100).toFixed(2)}€ (${this.testerTransferFee}%), ` +
-        `Transferred: ${(amountAfterCommission / 100).toFixed(2)}€`
+          `PRO account: ${sellerStripeAccountId} | ` +
+          `Original: ${amount}€, Commission: ${(commissionInCents / 100).toFixed(2)}€ (${this.testerTransferFee}%), ` +
+          `Transferred: ${(amountAfterCommission / 100).toFixed(2)}€`,
       );
 
       return transfer;
     } catch (error) {
-      this.logger.error(`Failed to create tester transfer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to create tester transfer: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new BadRequestException(
         `Failed to create transfer to tester. ` +
-        `Possible causes: PRO account doesn't have sufficient funds, or account not properly configured. ` +
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Possible causes: PRO account doesn't have sufficient funds, or account not properly configured. ` +
+          `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -281,7 +326,9 @@ export class StripeService {
       });
 
       if (profile?.stripeAccountId) {
-        this.logger.warn(`User ${userId} already has a Stripe Account: ${profile.stripeAccountId}`);
+        this.logger.warn(
+          `User ${userId} already has a Stripe Account: ${profile.stripeAccountId}`,
+        );
         return await this.stripe.accounts.retrieve(profile.stripeAccountId);
       }
 
@@ -299,9 +346,14 @@ export class StripeService {
       });
 
       // Sauvegarder l'Account ID de manière atomique
-      await this.stripeTransactionHelper.saveStripeAccountId(userId, account.id);
+      await this.stripeTransactionHelper.saveStripeAccountId(
+        userId,
+        account.id,
+      );
 
-      this.logger.log(`✅ Connected account created and saved: ${account.id} for user ${userId}`);
+      this.logger.log(
+        `✅ Connected account created and saved: ${account.id} for user ${userId}`,
+      );
 
       return account;
     } catch (error) {
@@ -368,7 +420,9 @@ export class StripeService {
         expiresAt: accountLink.expires_at,
       };
     } catch (error) {
-      this.logger.error(`Failed to create tester onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to create tester onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new BadRequestException('Failed to create onboarding link');
     }
   }
@@ -376,9 +430,7 @@ export class StripeService {
   /**
    * Récupérer le statut du compte Connect d'un testeur
    */
-  async getTesterConnectStatus(
-    userId: string,
-  ): Promise<{
+  async getTesterConnectStatus(userId: string): Promise<{
     accountId: string | null;
     isOnboarded: boolean;
     payoutsEnabled: boolean;
@@ -415,7 +467,9 @@ export class StripeService {
         email: account.email || null,
       };
     } catch (error) {
-      this.logger.error(`Failed to get tester connect status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to get tester connect status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new BadRequestException('Failed to get account status');
     }
   }
@@ -503,7 +557,9 @@ export class StripeService {
         expiresAt: accountLink.expires_at,
       };
     } catch (error) {
-      this.logger.error(`Failed to create seller onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to create seller onboarding link: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new BadRequestException('Failed to create seller onboarding link');
     }
   }
@@ -511,9 +567,7 @@ export class StripeService {
   /**
    * Récupérer le statut du compte Connect d'un vendeur (PRO)
    */
-  async getSellerConnectStatus(
-    userId: string,
-  ): Promise<{
+  async getSellerConnectStatus(userId: string): Promise<{
     accountId: string | null;
     isOnboarded: boolean;
     chargesEnabled: boolean;
@@ -553,7 +607,9 @@ export class StripeService {
         email: account.email || null,
       };
     } catch (error) {
-      this.logger.error(`Failed to get seller connect status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to get seller connect status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new BadRequestException('Failed to get seller account status');
     }
   }
@@ -595,9 +651,9 @@ export class StripeService {
     bankAccountToken: string,
   ): Promise<Stripe.BankAccount> {
     try {
-      return await this.stripe.accounts.createExternalAccount(accountId, {
+      return (await this.stripe.accounts.createExternalAccount(accountId, {
         external_account: bankAccountToken,
-      }) as Stripe.BankAccount;
+      })) as Stripe.BankAccount;
     } catch (error) {
       this.logger.error(`Failed to create bank account: ${error.message}`);
       throw new BadRequestException('Failed to create bank account');
@@ -658,19 +714,24 @@ export class StripeService {
   /**
    * Vérifier et construire un événement webhook
    */
-  constructWebhookEvent(
-    payload: Buffer,
-    signature: string,
-  ): Stripe.Event {
-    const webhookSecret = this.configService.get<string>('stripe.webhookSecret');
+  constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
+    const webhookSecret = this.configService.get<string>(
+      'stripe.webhookSecret',
+    );
     if (!webhookSecret) {
       throw new BadRequestException('Webhook secret not configured');
     }
 
     try {
-      return this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      return this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        webhookSecret,
+      );
     } catch (error) {
-      this.logger.error(`Webhook signature verification failed: ${error.message}`);
+      this.logger.error(
+        `Webhook signature verification failed: ${error.message}`,
+      );
       throw new BadRequestException('Invalid webhook signature');
     }
   }
@@ -699,7 +760,7 @@ export class StripeService {
     let totalAmount = 0;
     let productCount = 0;
 
-    campaign.offers.forEach(offer => {
+    campaign.offers.forEach((offer) => {
       const productPrice = offer.reimbursedPrice
         ? Number(offer.product?.price || offer.expectedPrice)
         : Number(offer.expectedPrice);
@@ -708,7 +769,8 @@ export class StripeService {
         ? Number(offer.product?.shippingCost || offer.shippingCost)
         : Number(offer.shippingCost);
 
-      const offerTotal = (productPrice + shippingCost + Number(offer.bonus)) * offer.quantity;
+      const offerTotal =
+        (productPrice + shippingCost + Number(offer.bonus)) * offer.quantity;
       totalAmount += offerTotal;
       productCount += offer.quantity;
     });
@@ -725,7 +787,7 @@ export class StripeService {
 
     return {
       totalAmount: Math.round(totalAmount * 100), // centimes
-      commission: Math.round(commission * 100),   // centimes
+      commission: Math.round(commission * 100), // centimes
       amountAfterCommission: Math.round((totalAmount - commission) * 100),
       feeType: this.campaignFeeType,
     };
@@ -802,7 +864,9 @@ export class StripeService {
 
       return paymentIntent;
     } catch (error) {
-      this.logger.error(`Failed to create chat order payment intent: ${error.message}`);
+      this.logger.error(
+        `Failed to create chat order payment intent: ${error.message}`,
+      );
       throw new BadRequestException('Failed to create payment intent');
     }
   }
@@ -815,13 +879,16 @@ export class StripeService {
     paymentIntentId: string,
   ): Promise<Stripe.PaymentIntent> {
     try {
-      const paymentIntent = await this.stripe.paymentIntents.capture(paymentIntentId);
+      const paymentIntent =
+        await this.stripe.paymentIntents.capture(paymentIntentId);
 
       this.logger.log(`Payment Intent captured: ${paymentIntentId}`);
 
       return paymentIntent;
     } catch (error) {
-      this.logger.error(`Failed to capture payment intent ${paymentIntentId}: ${error.message}`);
+      this.logger.error(
+        `Failed to capture payment intent ${paymentIntentId}: ${error.message}`,
+      );
       throw new BadRequestException('Failed to capture payment intent');
     }
   }
@@ -834,13 +901,16 @@ export class StripeService {
     paymentIntentId: string,
   ): Promise<Stripe.PaymentIntent> {
     try {
-      const paymentIntent = await this.stripe.paymentIntents.cancel(paymentIntentId);
+      const paymentIntent =
+        await this.stripe.paymentIntents.cancel(paymentIntentId);
 
       this.logger.log(`Payment Intent cancelled: ${paymentIntentId}`);
 
       return paymentIntent;
     } catch (error) {
-      this.logger.error(`Failed to cancel payment intent ${paymentIntentId}: ${error.message}`);
+      this.logger.error(
+        `Failed to cancel payment intent ${paymentIntentId}: ${error.message}`,
+      );
       throw new BadRequestException('Failed to cancel payment intent');
     }
   }
@@ -899,7 +969,9 @@ export class StripeService {
   /**
    * Récupérer les détails d'un paiement
    */
-  async getPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+  async getPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<Stripe.PaymentIntent> {
     try {
       return await this.stripe.paymentIntents.retrieve(paymentIntentId);
     } catch (error) {
@@ -950,7 +1022,7 @@ export class StripeService {
     const { campaign, totalAmountCents } = validatedData;
 
     // Vérifier s'il y a une transaction PENDING existante pour cette campagne
-    let existingTransaction = await this.prismaService.transaction.findFirst({
+    const existingTransaction = await this.prismaService.transaction.findFirst({
       where: {
         campaignId: campaign.id,
         type: TransactionType.CAMPAIGN_PAYMENT,
@@ -994,7 +1066,9 @@ export class StripeService {
         }
       } catch (error) {
         // Session expirée ou invalide, on va créer une nouvelle session
-        this.logger.warn(`Previous checkout session expired or invalid: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        this.logger.warn(
+          `Previous checkout session expired or invalid: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
       }
     }
 
@@ -1004,10 +1078,13 @@ export class StripeService {
       select: { stripeAccountId: true },
     });
 
-    if (process.env.DISABLE_STRIPE_CONNECT_CHECK !== 'true' && !sellerProfile?.stripeAccountId) {
+    if (
+      process.env.DISABLE_STRIPE_CONNECT_CHECK !== 'true' &&
+      !sellerProfile?.stripeAccountId
+    ) {
       throw new BadRequestException(
         'Vous devez configurer votre compte Stripe Connect avant de pouvoir activer une campagne. ' +
-        'Rendez-vous dans les paramètres pour compléter votre onboarding Stripe.'
+          'Rendez-vous dans les paramètres pour compléter votre onboarding Stripe.',
       );
     }
 
@@ -1024,8 +1101,8 @@ export class StripeService {
 
     // ✅ ÉTAPE 3 : Créer les line items (SANS la commission en line item)
     // La commission sera prélevée via application_fee_amount
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = campaign.offers.map(
-      (offer: any) => {
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+      campaign.offers.map((offer: any) => {
         const productPrice = offer.reimbursedPrice
           ? Number(offer.product.price)
           : Number(offer.expectedPrice);
@@ -1047,15 +1124,14 @@ export class StripeService {
           },
           quantity: offer.quantity,
         };
-      },
-    );
+      });
 
     this.logger.log(
       `💰 Campaign payment (${commissionCalc.feeType}) | ` +
-      `Products: ${(totalProductsAmount / 100).toFixed(2)}€ | ` +
-      `Commission: ${(platformCommission / 100).toFixed(2)}€ | ` +
-      `Total: ${(totalAmountWithCommission / 100).toFixed(2)}€ | ` +
-      `→ ${(commissionCalc.amountAfterCommission / 100).toFixed(2)}€ vers PRO`
+        `Products: ${(totalProductsAmount / 100).toFixed(2)}€ | ` +
+        `Commission: ${(platformCommission / 100).toFixed(2)}€ | ` +
+        `Total: ${(totalAmountWithCommission / 100).toFixed(2)}€ | ` +
+        `→ ${(commissionCalc.amountAfterCommission / 100).toFixed(2)}€ vers PRO`,
     );
 
     // ✅ ÉTAPE 4 : Créer la Checkout Session avec application_fee_amount
@@ -1110,7 +1186,10 @@ export class StripeService {
           metadata: {
             campaignTitle: campaign.title,
             offersCount: campaign.offers.length,
-            totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+            totalQuantity: campaign.offers.reduce(
+              (sum: number, o: any) => sum + o.quantity,
+              0,
+            ),
             updatedAt: new Date().toISOString(),
             previousSessionId: existingTransaction.stripeSessionId,
             // ✅ Détails de la commission
@@ -1125,7 +1204,9 @@ export class StripeService {
           },
         },
       });
-      this.logger.log(`Updated existing transaction ${transaction.id} with new checkout session`);
+      this.logger.log(
+        `Updated existing transaction ${transaction.id} with new checkout session`,
+      );
     } else {
       // CREATE une nouvelle transaction
       transaction = await this.prismaService.transaction.create({
@@ -1139,7 +1220,10 @@ export class StripeService {
           metadata: {
             campaignTitle: campaign.title,
             offersCount: campaign.offers.length,
-            totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+            totalQuantity: campaign.offers.reduce(
+              (sum: number, o: any) => sum + o.quantity,
+              0,
+            ),
             // ✅ Détails de la commission
             productsAmount: totalProductsAmount / 100,
             platformCommission: platformCommission / 100,
@@ -1176,7 +1260,9 @@ export class StripeService {
   /**
    * Récupérer une Checkout Session
    */
-  async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+  async getCheckoutSession(
+    sessionId: string,
+  ): Promise<Stripe.Checkout.Session> {
     try {
       return await this.stripe.checkout.sessions.retrieve(sessionId);
     } catch (error) {
@@ -1213,16 +1299,17 @@ export class StripeService {
 
     // Si la campagne est déjà en PENDING_PAYMENT, récupérer le Payment Intent existant
     if (campaign.status === CampaignStatus.PENDING_PAYMENT) {
-      const existingTransaction = await this.prismaService.transaction.findFirst({
-        where: {
-          campaignId: campaign.id,
-          type: TransactionType.CAMPAIGN_PAYMENT,
-          status: TransactionStatus.PENDING,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      const existingTransaction =
+        await this.prismaService.transaction.findFirst({
+          where: {
+            campaignId: campaign.id,
+            type: TransactionType.CAMPAIGN_PAYMENT,
+            status: TransactionStatus.PENDING,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
 
       if (existingTransaction && existingTransaction.stripePaymentIntentId) {
         // Récupérer le Payment Intent existant depuis Stripe
@@ -1268,7 +1355,10 @@ export class StripeService {
         metadata: {
           campaignTitle: campaign.title,
           offersCount: campaign.offers.length,
-          totalQuantity: campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0),
+          totalQuantity: campaign.offers.reduce(
+            (sum: number, o: any) => sum + o.quantity,
+            0,
+          ),
         },
       },
     });
@@ -1309,7 +1399,9 @@ export class StripeService {
         return_url: params.return_url,
       });
     } catch (error) {
-      this.logger.error(`Failed to create verification session: ${error.message}`);
+      this.logger.error(
+        `Failed to create verification session: ${error.message}`,
+      );
       throw new BadRequestException('Failed to create verification session');
     }
   }
@@ -1321,7 +1413,9 @@ export class StripeService {
     sessionId: string,
   ): Promise<Stripe.Identity.VerificationSession> {
     try {
-      return await this.stripe.identity.verificationSessions.retrieve(sessionId);
+      return await this.stripe.identity.verificationSessions.retrieve(
+        sessionId,
+      );
     } catch (error) {
       this.logger.error(`Failed to get verification session: ${error.message}`);
       throw new BadRequestException('Verification session not found');

@@ -61,7 +61,7 @@ export class StepsService {
       false,
     );
     const isRequired = allowOptionalSteps
-      ? createStepDto.isRequired ?? true // Si autorisé, utiliser la valeur du DTO (défaut true)
+      ? (createStepDto.isRequired ?? true) // Si autorisé, utiliser la valeur du DTO (défaut true)
       : true; // Sinon, forcer à true
 
     const step = await this.prismaService.step.create({

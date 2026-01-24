@@ -9,7 +9,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { LogsService } from '../logs/logs.service';
 import { WalletsService } from '../wallets/wallets.service';
 import { StripeService } from '../stripe/stripe.service';
-import { LogCategory, SessionStatus, Prisma, TransactionType, TransactionStatus, StepType } from '@prisma/client';
+import {
+  LogCategory,
+  SessionStatus,
+  Prisma,
+  TransactionType,
+  TransactionStatus,
+  StepType,
+} from '@prisma/client';
 import { CampaignCriteriaService } from '../campaigns/campaign-criteria.service';
 import { SessionStepProgressService } from './session-step-progress.service';
 import { ApplySessionDto } from './dto/apply-session.dto';
@@ -89,10 +96,11 @@ export class SessionsService {
     }
 
     // Vérifier l'éligibilité du testeur selon les critères de la campagne
-    const eligibility = await this.campaignCriteriaService.checkTesterEligibility(
-      dto.campaignId,
-      userId,
-    );
+    const eligibility =
+      await this.campaignCriteriaService.checkTesterEligibility(
+        dto.campaignId,
+        userId,
+      );
 
     if (!eligibility.eligible) {
       throw new BadRequestException(
@@ -324,16 +332,18 @@ export class SessionsService {
       }),
     ]);
 
-    // ✅ NOUVEAU: Initialiser les steps selon le mode
+    // ✅ Initialiser les steps selon le mode
     if (updatedSession.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
       this.logger.log(
-        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, skipping step initialization`
+        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, skipping step initialization`,
       );
-      // Le testeur peut directement valider le prix et acheter
-      // Pas besoin d'initialiser les steps
+      // Mode Amazon: Pas d'initialisation des steps
+      // Le testeur peut directement acheter via le lien Amazon
+      // Statut reste ACCEPTED → le testeur peut passer directement à PURCHASE_SUBMITTED
     } else {
-      // Mode PROCEDURES classique - initialiser les steps
+      // Mode PROCEDURES: Initialiser les steps
       await this.sessionStepProgressService.initializeStepProgress(sessionId);
+      // Statut reste ACCEPTED → le testeur doit compléter les procédures → PROCEDURES_COMPLETED → PRICE_VALIDATED
     }
 
     await this.logsService.logSuccess(
@@ -413,8 +423,9 @@ export class SessionsService {
   async validateProductPrice(
     sessionId: string,
     userId: string,
-    productPrice: number,
+    dto: ValidateProductPriceDto,
   ): Promise<PrismaSessionResponse> {
+    const productPrice = dto.productPrice;
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
@@ -437,6 +448,13 @@ export class SessionsService {
     // Vérifier que c'est bien le testeur
     if (session.testerId !== userId) {
       throw new ForbiddenException('Access denied');
+    }
+
+    // ❌ Refuser si mode AMAZON_DIRECT_LINK
+    if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      throw new BadRequestException(
+        'Price validation is not required in AMAZON_DIRECT_LINK mode',
+      );
     }
 
     // Vérifier que la session est PROCEDURES_COMPLETED
@@ -464,46 +482,110 @@ export class SessionsService {
     const maxPrice = Number(offer.priceRangeMax);
     const expectedPrice = Number(offer.expectedPrice);
 
+    // Récupérer le nombre de tentatives actuel
+    const currentAttempts = session.priceValidationAttempts || 0;
+
     // Vérifier d'abord que le prix est dans la tranche (pour guider le testeur)
     if (productPrice < minPrice || productPrice > maxPrice) {
+      // Incrémenter le compteur de tentatives
+      const newAttempts = currentAttempts + 1;
+
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: { priceValidationAttempts: newAttempts },
+      });
+
       await this.logsService.logWarning(
         LogCategory.SESSION,
-        `❌ Prix hors fourchette pour session ${sessionId}: ${productPrice}€ (fourchette: ${minPrice}€ - ${maxPrice}€)`,
+        `❌ Prix hors fourchette pour session ${sessionId}: ${productPrice}€ (fourchette: ${minPrice}€ - ${maxPrice}€) - Tentative ${newAttempts}/2`,
         {
           sessionId,
           enteredPrice: productPrice,
           expectedRange: { min: minPrice, max: maxPrice },
+          attempt: newAttempts,
         },
       );
 
       throw new BadRequestException(
-        `Prix incorrect. Le prix du produit doit être entre ${minPrice.toFixed(2)}€ et ${maxPrice.toFixed(2)}€`,
+        `Prix incorrect. Le prix du produit doit être entre ${minPrice.toFixed(2)}€ et ${maxPrice.toFixed(2)}€. Tentative ${newAttempts}/2.`,
       );
     }
 
     // Vérifier que le prix saisi est EXACTEMENT le prix attendu
     if (productPrice !== expectedPrice) {
+      // Incrémenter le compteur de tentatives
+      const newAttempts = currentAttempts + 1;
+
+      // Si c'est la 2ème tentative ou plus ET que le testeur a fourni un titre
+      if (newAttempts >= 2 && dto.productTitle) {
+        // Stocker le titre du produit et marquer la validation comme "avec aide"
+        const updatedSession = await this.prisma.session.update({
+          where: { id: sessionId },
+          data: {
+            validatedProductPrice: productPrice,
+            priceValidatedAt: new Date(),
+            priceValidationAttempts: newAttempts,
+            productTitleSubmitted: dto.productTitle.trim(),
+            productTitleSubmittedAt: new Date(),
+            status: SessionStatus.PRICE_VALIDATED,
+          },
+          include: {
+            campaign: true,
+            tester: true,
+          },
+        });
+
+        await this.logsService.logSuccess(
+          LogCategory.SESSION,
+          `✅ Prix validé avec titre après ${newAttempts} tentatives pour session ${sessionId}: ${productPrice}€`,
+          {
+            sessionId,
+            validatedPrice: productPrice,
+            productTitle: dto.productTitle,
+            attempt: newAttempts,
+            message: 'Prix validé après échecs avec titre du produit soumis',
+          },
+        );
+
+        return updatedSession;
+      }
+
+      // Sinon, incrémenter et renvoyer une erreur
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: { priceValidationAttempts: newAttempts },
+      });
+
       await this.logsService.logWarning(
         LogCategory.SESSION,
-        `❌ Prix inexact pour session ${sessionId}: ${productPrice}€ (attendu exactement: ${expectedPrice}€)`,
+        `❌ Prix inexact pour session ${sessionId}: ${productPrice}€ (attendu exactement: ${expectedPrice}€) - Tentative ${newAttempts}/2`,
         {
           sessionId,
           enteredPrice: productPrice,
           expectedPrice: expectedPrice,
+          attempt: newAttempts,
         },
       );
 
-      throw new BadRequestException(
-        `Prix incorrect. Vérifiez que vous êtes bien sur le bon produit, ou contactez le vendeur pour plus d'aide.`,
-      );
+      // Message différent selon le nombre de tentatives
+      if (newAttempts >= 2) {
+        throw new BadRequestException(
+          `Le prix ne correspond pas exactement. Vous avez épuisé vos 2 tentatives. Veuillez saisir le titre complet du produit trouvé pour continuer.`,
+        );
+      } else {
+        throw new BadRequestException(
+          `Prix incorrect. Vérifiez que vous êtes bien sur le bon produit. Tentative ${newAttempts}/2.`,
+        );
+      }
     }
 
-    // Valider et stocker le prix + transition vers PRICE_VALIDATED
+    // Prix exact → Validation réussie
     const updatedSession = await this.prisma.session.update({
       where: { id: sessionId },
       data: {
         validatedProductPrice: productPrice,
         priceValidatedAt: new Date(),
+        priceValidationAttempts: currentAttempts + 1,
         status: SessionStatus.PRICE_VALIDATED,
       },
       include: {
@@ -519,6 +601,7 @@ export class SessionsService {
         sessionId,
         validatedPrice: productPrice,
         priceRange: { min: minPrice, max: maxPrice },
+        attempt: currentAttempts + 1,
       },
     );
 
@@ -547,18 +630,26 @@ export class SessionsService {
       throw new ForbiddenException('Access denied');
     }
 
-    // Vérifier que la session est PRICE_VALIDATED
-    if (session.status !== SessionStatus.PRICE_VALIDATED) {
-      throw new BadRequestException(
-        'You must validate the product price before submitting purchase',
-      );
-    }
+    // ✅ Validation conditionnelle du statut selon le mode
+    if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
+      // Mode Amazon: Accepter ACCEPTED (pas de validation de prix requise)
+      if (session.status !== SessionStatus.ACCEPTED) {
+        throw new BadRequestException(
+          'Session must be ACCEPTED to submit purchase proof in AMAZON_DIRECT_LINK mode',
+        );
+      }
+    } else {
+      // Mode PROCEDURES: Accepter PRICE_VALIDATED uniquement
+      if (session.status !== SessionStatus.PRICE_VALIDATED) {
+        throw new BadRequestException(
+          'You must validate the product price before submitting purchase in PROCEDURES mode',
+        );
+      }
 
-    // Vérifier que le prix du produit a été validé
-    if (!session.validatedProductPrice) {
-      throw new BadRequestException(
-        'Product price must be validated',
-      );
+      // Vérifier que le prix a été validé
+      if (!session.validatedProductPrice) {
+        throw new BadRequestException('Product price must be validated first');
+      }
     }
 
     // Vérifier que l'achat est fait au bon jour (si scheduledPurchaseDate est défini)
@@ -584,7 +675,9 @@ export class SessionsService {
       // Vérifier que c'est le bon jour
       if (!isValidPurchaseDate(session.scheduledPurchaseDate)) {
         const formattedDate = formatDate(session.scheduledPurchaseDate);
-        const timeRemaining = getTimeUntilDeadline(session.scheduledPurchaseDate);
+        const timeRemaining = getTimeUntilDeadline(
+          session.scheduledPurchaseDate,
+        );
 
         if (timeRemaining) {
           throw new BadRequestException(
@@ -671,17 +764,17 @@ export class SessionsService {
     if (session.campaign.marketplaceMode === 'AMAZON_DIRECT_LINK') {
       // Mode Amazon Direct Link - pas besoin de steps complétés
       this.logger.log(
-        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, submission allowed without steps`
+        `Session ${sessionId}: AMAZON_DIRECT_LINK mode, submission allowed without steps`,
       );
     } else {
       // Mode PROCEDURES - vérifier que tous les steps requis sont complétés
       const incompleteRequiredSteps = session.stepProgress.filter(
-        (progress) => !progress.isCompleted && progress.step.isRequired
+        (progress) => !progress.isCompleted && progress.step.isRequired,
       );
 
       if (incompleteRequiredSteps.length > 0) {
         throw new BadRequestException(
-          `All required steps must be completed before submitting. ${incompleteRequiredSteps.length} step(s) remaining.`
+          `All required steps must be completed before submitting. ${incompleteRequiredSteps.length} step(s) remaining.`,
         );
       }
     }
@@ -821,7 +914,7 @@ export class SessionsService {
           if (!sellerProfile?.stripeAccountId) {
             throw new BadRequestException(
               `Le vendeur n'a pas de compte Stripe Connect configuré. ` +
-              `Impossible de transférer les fonds au testeur.`
+                `Impossible de transférer les fonds au testeur.`,
             );
           }
 
@@ -1260,7 +1353,7 @@ export class SessionsService {
     });
 
     // Enrichir avec seller au niveau racine pour compatibilité frontend
-    const enrichedSessions = sessions.map(session => ({
+    const enrichedSessions = sessions.map((session) => ({
       ...session,
       seller: session.campaign.seller,
     }));
@@ -1345,7 +1438,9 @@ export class SessionsService {
         if (procedure.steps) {
           for (const step of procedure.steps) {
             // Find the progress for this step
-            const progress = session.stepProgress.find(p => p.stepId === step.id);
+            const progress = session.stepProgress.find(
+              (p) => p.stepId === step.id,
+            );
             // Add progress to step
             (step as any).progress = progress || null;
           }
@@ -1411,7 +1506,9 @@ export class SessionsService {
 
     // Vérifier que c'est bien le vendeur de la campagne
     if (session.campaign.sellerId !== userId) {
-      throw new ForbiddenException('Only the campaign seller can validate purchases');
+      throw new ForbiddenException(
+        'Only the campaign seller can validate purchases',
+      );
     }
 
     // Vérifier le statut actuel
@@ -1507,7 +1604,9 @@ export class SessionsService {
 
     // Vérifier que c'est bien le vendeur de la campagne
     if (session.campaign.sellerId !== userId) {
-      throw new ForbiddenException('Only the campaign seller can reject purchases');
+      throw new ForbiddenException(
+        'Only the campaign seller can reject purchases',
+      );
     }
 
     // Vérifier le statut actuel
@@ -2144,7 +2243,9 @@ export class SessionsService {
 
     // Vérifier que c'est bien le vendeur de la campagne
     if (session.campaign.sellerId !== userId) {
-      throw new ForbiddenException('Only the campaign seller can close sessions');
+      throw new ForbiddenException(
+        'Only the campaign seller can close sessions',
+      );
     }
 
     // Vérifier le statut actuel
@@ -2205,7 +2306,7 @@ export class SessionsService {
           if (!sellerProfile?.stripeAccountId) {
             throw new BadRequestException(
               `Le vendeur n'a pas de compte Stripe Connect configuré. ` +
-              `Impossible de transférer le bonus UGC au testeur.`,
+                `Impossible de transférer le bonus UGC au testeur.`,
             );
           }
 
@@ -2230,7 +2331,9 @@ export class SessionsService {
                 stripeTransferId: transfer.id,
                 campaignId: session.campaignId,
                 campaignTitle: session.campaign.title,
-                ugcCount: session.ugcSubmissions ? (session.ugcSubmissions as any).length : 0,
+                ugcCount: session.ugcSubmissions
+                  ? (session.ugcSubmissions as any).length
+                  : 0,
                 testerStripeAccountId: testerProfile.stripeAccountId,
               },
             },
@@ -2397,7 +2500,7 @@ export class SessionsService {
       SessionStatus.PROCEDURES_COMPLETED,
     ];
 
-    if (!validStatuses.includes(session.status as SessionStatus)) {
+    if (!validStatuses.includes(session.status)) {
       throw new BadRequestException(
         `Cannot complete steps. Session must be in ACCEPTED, IN_PROGRESS, or PROCEDURES_COMPLETED status. Current status: ${session.status}`,
       );
@@ -2418,7 +2521,7 @@ export class SessionsService {
 
     if (!step) {
       throw new NotFoundException(
-        'Step not found in this campaign\'s procedures',
+        "Step not found in this campaign's procedures",
       );
     }
 
@@ -2618,9 +2721,7 @@ export class SessionsService {
       },
     });
 
-    const completedStepIds = new Set(
-      stepProgress.map((p: any) => p.stepId),
-    );
+    const completedStepIds = new Set(stepProgress.map((p: any) => p.stepId));
 
     // Compter les étapes requises et complétées
     let totalRequiredSteps = 0;

@@ -1,4 +1,12 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
@@ -105,7 +113,7 @@ export class CreateProfileDto {
   authProvider?: string;
 
   @ApiProperty({
-    description: 'Indique si l\'utilisateur a complété son onboarding (OAuth)',
+    description: "Indique si l'utilisateur a complété son onboarding (OAuth)",
     example: true,
     default: true,
     required: false,

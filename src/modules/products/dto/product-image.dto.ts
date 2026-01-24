@@ -3,15 +3,16 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ProductImageDto {
   @ApiProperty({
-    description: 'URL de l\'image',
-    example: 'https://super-try-images.s3.eu-west-3.amazonaws.com/products/123/image.jpg',
+    description: "URL de l'image",
+    example:
+      'https://super-try-images.s3.eu-west-3.amazonaws.com/products/123/image.jpg',
   })
   @IsUrl()
   @IsNotEmpty()
   url!: string;
 
   @ApiProperty({
-    description: 'Ordre d\'affichage de l\'image',
+    description: "Ordre d'affichage de l'image",
     example: 0,
     minimum: 0,
   })

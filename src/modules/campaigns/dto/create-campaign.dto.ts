@@ -34,6 +34,19 @@ export class CampaignProductDto {
   productId!: string;
 
   @ApiProperty({
+    description:
+      'Nom exact du produit à chercher (ex: iPhone 15 Pro Max 256GB Titane Naturel)',
+    example: 'iPhone 15 Pro Max 256GB Titane Naturel',
+    minLength: 3,
+    maxLength: 500,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(500)
+  productName!: string;
+
+  @ApiProperty({
     description: 'Quantité du produit dans la campagne',
     example: 10,
     minimum: 1,
@@ -182,7 +195,13 @@ export class CreateCampaignDto {
     description: 'Produit à inclure dans la campagne (maximum 1)',
     type: [CampaignProductDto],
     example: [
-      { productId: '123e4567-e89b-12d3-a456-426614174000', quantity: 50, expectedPrice: 100, shippingCost: 5.99, bonus: 10 },
+      {
+        productId: '123e4567-e89b-12d3-a456-426614174000',
+        quantity: 50,
+        expectedPrice: 100,
+        shippingCost: 5.99,
+        bonus: 10,
+      },
     ],
     required: false,
   })
@@ -193,7 +212,8 @@ export class CreateCampaignDto {
   products?: CampaignProductDto[];
 
   @ApiProperty({
-    description: 'Critères d\'éligibilité pour les testeurs (tous les champs sont optionnels, null = non considéré)',
+    description:
+      "Critères d'éligibilité pour les testeurs (tous les champs sont optionnels, null = non considéré)",
     type: CreateCampaignCriteriaDto,
     required: false,
   })
@@ -213,9 +233,11 @@ export class CreateCampaignDto {
   marketplaceMode?: CampaignMarketplaceMode;
 
   @ApiProperty({
-    description: 'Code pays de la marketplace Amazon ciblée',
+    description:
+      'Code pays de la marketplace ciblée (obligatoire avant paiement)',
     example: 'FR',
-    required: false,
+    enum: ['FR', 'DE', 'UK', 'US', 'ES', 'IT'],
+    required: false, // Optionnel à la création (DRAFT), mais obligatoire avant paiement
   })
   @IsOptional()
   @IsString()
@@ -223,7 +245,8 @@ export class CreateCampaignDto {
   marketplace?: string;
 
   @ApiProperty({
-    description: 'URL du produit Amazon (requis si marketplaceMode = AMAZON_DIRECT_LINK)',
+    description:
+      'URL du produit Amazon (requis si marketplaceMode = AMAZON_DIRECT_LINK)',
     example: 'https://www.amazon.fr/dp/B08N5WRWNW',
     required: false,
   })
@@ -231,4 +254,15 @@ export class CreateCampaignDto {
   @IsUrl()
   @MaxLength(2000)
   amazonLink?: string;
+
+  @ApiProperty({
+    description: 'Mots-clés pour la recherche et le référencement',
+    example: ['smartphone', 'high-tech', 'gaming'],
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  keywords?: string[];
 }

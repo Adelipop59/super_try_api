@@ -1,10 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsUUID,
-  ValidateNested,
-  IsOptional,
-} from 'class-validator';
+import { IsArray, IsUUID, ValidateNested, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateDistributionDto } from './create-distribution.dto';
 
@@ -29,7 +24,8 @@ export class ValidateDistributionsRequestDto {
   distributions!: CreateDistributionDto[];
 
   @ApiProperty({
-    description: 'Inclure les distributions existantes dans le calcul du total maxUnits (utile pour les mises à jour partielles)',
+    description:
+      'Inclure les distributions existantes dans le calcul du total maxUnits (utile pour les mises à jour partielles)',
     example: true,
     default: true,
     required: false,
@@ -49,20 +45,25 @@ export class DistributionValidationError {
   index!: number;
 
   @ApiProperty({
-    description: 'Champ concerné par l\'erreur',
+    description: "Champ concerné par l'erreur",
     example: 'specificDate',
   })
   field!: string;
 
   @ApiProperty({
-    description: 'Code d\'erreur',
+    description: "Code d'erreur",
     example: 'DATE_IN_PAST',
-    enum: ['DATE_IN_PAST', 'DATE_OUT_OF_CAMPAIGN_PERIOD', 'MAX_UNITS_EXCEEDED', 'INVALID_TYPE'],
+    enum: [
+      'DATE_IN_PAST',
+      'DATE_OUT_OF_CAMPAIGN_PERIOD',
+      'MAX_UNITS_EXCEEDED',
+      'INVALID_TYPE',
+    ],
   })
   code!: string;
 
   @ApiProperty({
-    description: 'Message d\'erreur détaillé',
+    description: "Message d'erreur détaillé",
     example: 'La date spécifiée est dans le passé',
   })
   message!: string;
@@ -133,7 +134,8 @@ export class ValidateDistributionsResponseDto {
   campaignTotalSlots!: number;
 
   @ApiProperty({
-    description: 'Somme des maxUnits des distributions existantes (non incluses dans la requête)',
+    description:
+      'Somme des maxUnits des distributions existantes (non incluses dans la requête)',
     example: 20,
   })
   existingDistributionsMaxUnits!: number;

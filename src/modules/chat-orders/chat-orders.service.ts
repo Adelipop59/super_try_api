@@ -56,11 +56,11 @@ export class ChatOrdersService {
                 stripeCustomerId: true,
                 firstName: true,
                 email: true,
-              }
-            }
-          }
+              },
+            },
+          },
         },
-        tester: true
+        tester: true,
       },
     });
 
@@ -74,7 +74,9 @@ export class ChatOrdersService {
 
     // Validation: prix minimum 10€
     if (dto.amount < 10) {
-      throw new BadRequestException('Le prix minimum pour une commande UGC est de 10€');
+      throw new BadRequestException(
+        'Le prix minimum pour une commande UGC est de 10€',
+      );
     }
 
     // Vérifier que le PRO a un Stripe Customer ID
@@ -103,15 +105,16 @@ export class ChatOrdersService {
     let order: ChatOrder;
     try {
       // Créer Payment Intent Stripe (argent bloqué sur carte bleue)
-      const paymentIntent = await this.stripeService.createChatOrderPaymentIntent(
-        Number(dto.amount),
-        session.campaign.seller.stripeCustomerId,
-        {
-          orderId: tempOrder.id,
-          sessionId,
-          description: dto.description,
-        },
-      );
+      const paymentIntent =
+        await this.stripeService.createChatOrderPaymentIntent(
+          Number(dto.amount),
+          session.campaign.seller.stripeCustomerId,
+          {
+            orderId: tempOrder.id,
+            sessionId,
+            description: dto.description,
+          },
+        );
 
       // Mettre à jour avec le Payment Intent ID
       order = await this.prisma.chatOrder.update({
@@ -280,8 +283,12 @@ export class ChatOrdersService {
     const orderWithRelations = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
       include: {
-        buyer: { select: { id: true, firstName: true, lastName: true, email: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
+        buyer: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        seller: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         session: { include: { campaign: { select: { title: true } } } },
       },
     });
@@ -351,8 +358,12 @@ export class ChatOrdersService {
     const orderWithRelations = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
       include: {
-        buyer: { select: { id: true, firstName: true, lastName: true, email: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
+        buyer: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        seller: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         session: { include: { campaign: { select: { title: true } } } },
       },
     });
@@ -477,12 +488,15 @@ export class ChatOrdersService {
     }
 
     // 1. Capturer le Payment Intent (prélever l'argent sur carte bleue du PRO)
-    const paymentIntent = await this.stripeService.captureChatOrderPaymentIntent(
-      orderAny.stripePaymentIntentId,
-    );
+    const paymentIntent =
+      await this.stripeService.captureChatOrderPaymentIntent(
+        orderAny.stripePaymentIntentId,
+      );
 
     // 2. Calculer les fees
-    const commissionCalc = this.stripeService.calculateUGCCommission(Number(order.amount));
+    const commissionCalc = this.stripeService.calculateUGCCommission(
+      Number(order.amount),
+    );
     const amountAfterCommission = commissionCalc.amountAfterCommission / 100;
 
     // 3. Créer Transfer vers testeur (depuis compte plateforme vers Stripe Connect testeur)
@@ -616,7 +630,9 @@ export class ChatOrdersService {
     if (orderFull) {
       // Determine who to notify (the other party)
       const isDisputedByBuyer = userId === orderFull.buyerId;
-      const recipientId = isDisputedByBuyer ? orderFull.sellerId : orderFull.buyerId;
+      const recipientId = isDisputedByBuyer
+        ? orderFull.sellerId
+        : orderFull.buyerId;
       const recipientName = isDisputedByBuyer
         ? orderFull.seller.firstName || orderFull.seller.email
         : orderFull.buyer.firstName || orderFull.buyer.email;
@@ -684,9 +700,13 @@ export class ChatOrdersService {
           await this.stripeService.cancelChatOrderPaymentIntent(
             orderAny.stripePaymentIntentId,
           );
-          this.logger.log(`Payment Intent cancelled (dispute resolved): ${orderId}`);
+          this.logger.log(
+            `Payment Intent cancelled (dispute resolved): ${orderId}`,
+          );
         } catch (error) {
-          this.logger.error(`Failed to cancel Payment Intent: ${error.message}`);
+          this.logger.error(
+            `Failed to cancel Payment Intent: ${error.message}`,
+          );
         }
       }
 
@@ -710,12 +730,15 @@ export class ChatOrdersService {
       }
 
       // Capturer Payment Intent
-      const paymentIntent = await this.stripeService.captureChatOrderPaymentIntent(
-        orderAny.stripePaymentIntentId,
-      );
+      const paymentIntent =
+        await this.stripeService.captureChatOrderPaymentIntent(
+          orderAny.stripePaymentIntentId,
+        );
 
       // Calculer fees
-      const commissionCalc = this.stripeService.calculateUGCCommission(Number(order.amount));
+      const commissionCalc = this.stripeService.calculateUGCCommission(
+        Number(order.amount),
+      );
       const amountAfterCommission = commissionCalc.amountAfterCommission / 100;
 
       // Transfer au testeur (depuis compte plateforme vers Stripe Connect testeur)
@@ -776,30 +799,37 @@ export class ChatOrdersService {
     });
 
     if (orderFull) {
-      await this.emitWebSocketAndNotify(orderId, 'chat-order:dispute-resolved', {
-        type: 'dispute-resolved',
-        params: {
-          buyerId: orderFull.buyerId,
-          buyerName: orderFull.buyer.firstName || orderFull.buyer.email,
-          sellerId: orderFull.sellerId,
-          sellerName: orderFull.seller.firstName || orderFull.seller.email,
-          campaignTitle: orderFull.session.campaign.title,
-          orderType: orderFull.type,
-          amount: Number(orderFull.amount),
-          description: orderFull.description,
-          resolution: dto.resolution,
-          adminNotes: dto.adminNotes,
-          finalStatus: updated.status,
-          sessionId: orderFull.sessionId,
-          orderId: orderFull.id,
+      await this.emitWebSocketAndNotify(
+        orderId,
+        'chat-order:dispute-resolved',
+        {
+          type: 'dispute-resolved',
+          params: {
+            buyerId: orderFull.buyerId,
+            buyerName: orderFull.buyer.firstName || orderFull.buyer.email,
+            sellerId: orderFull.sellerId,
+            sellerName: orderFull.seller.firstName || orderFull.seller.email,
+            campaignTitle: orderFull.session.campaign.title,
+            orderType: orderFull.type,
+            amount: Number(orderFull.amount),
+            description: orderFull.description,
+            resolution: dto.resolution,
+            adminNotes: dto.adminNotes,
+            finalStatus: updated.status,
+            sessionId: orderFull.sessionId,
+            orderId: orderFull.id,
+          },
         },
-      });
+      );
     }
 
     return updated;
   }
 
-  async getSessionOrders(sessionId: string, userId: string): Promise<ChatOrder[]> {
+  async getSessionOrders(
+    sessionId: string,
+    userId: string,
+  ): Promise<ChatOrder[]> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: { campaign: true },
@@ -809,10 +839,7 @@ export class ChatOrdersService {
       throw new NotFoundException('Session not found');
     }
 
-    if (
-      session.testerId !== userId &&
-      session.campaign.sellerId !== userId
-    ) {
+    if (session.testerId !== userId && session.campaign.sellerId !== userId) {
       throw new ForbiddenException('Not a participant');
     }
 
@@ -899,8 +926,12 @@ export class ChatOrdersService {
     const order = await this.prisma.chatOrder.findUnique({
       where: { id: orderId },
       include: {
-        buyer: { select: { id: true, firstName: true, lastName: true, email: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
+        buyer: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        seller: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         session: { include: { campaign: { select: { title: true } } } },
       },
     });
@@ -913,13 +944,21 @@ export class ChatOrdersService {
 
     if (this.notificationEventsHelper && notification) {
       if (notification.type === 'delivered') {
-        await this.notificationEventsHelper.chatOrderDelivered(notification.params);
+        await this.notificationEventsHelper.chatOrderDelivered(
+          notification.params,
+        );
       } else if (notification.type === 'completed') {
-        await this.notificationEventsHelper.chatOrderCompleted(notification.params);
+        await this.notificationEventsHelper.chatOrderCompleted(
+          notification.params,
+        );
       } else if (notification.type === 'disputed') {
-        await this.notificationEventsHelper.chatOrderDisputed(notification.params);
+        await this.notificationEventsHelper.chatOrderDisputed(
+          notification.params,
+        );
       } else if (notification.type === 'dispute-resolved') {
-        await this.notificationEventsHelper.chatOrderDisputeResolved(notification.params);
+        await this.notificationEventsHelper.chatOrderDisputeResolved(
+          notification.params,
+        );
       }
     }
   }
@@ -1009,7 +1048,9 @@ export class ChatOrdersService {
       }
     }
 
-    this.logger.log(`Successfully cancelled ${cancelledCount}/${expiredOrders.length} expired orders`);
+    this.logger.log(
+      `Successfully cancelled ${cancelledCount}/${expiredOrders.length} expired orders`,
+    );
 
     return cancelledCount;
   }

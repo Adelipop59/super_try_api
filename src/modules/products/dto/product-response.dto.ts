@@ -45,7 +45,11 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'ID de la catégorie', required: false })
   categoryId?: string | null;
 
-  @ApiProperty({ description: 'Informations de la catégorie', type: CategoryInfo, required: false })
+  @ApiProperty({
+    description: 'Informations de la catégorie',
+    type: CategoryInfo,
+    required: false,
+  })
   category?: CategoryInfo | null;
 
   @ApiProperty({ description: 'Nom du produit', example: 'iPhone 15 Pro Max' })
@@ -54,10 +58,16 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'Description du produit' })
   description!: string;
 
-  @ApiProperty({ description: "URL de l'image principale (legacy)", required: false })
+  @ApiProperty({
+    description: "URL de l'image principale (legacy)",
+    required: false,
+  })
   imageUrl?: string | null;
 
-  @ApiProperty({ description: 'URL du produit (Amazon, site vendeur, etc.)', required: false })
+  @ApiProperty({
+    description: 'URL du produit (Amazon, site vendeur, etc.)',
+    required: false,
+  })
   productUrl?: string | null;
 
   @ApiProperty({
