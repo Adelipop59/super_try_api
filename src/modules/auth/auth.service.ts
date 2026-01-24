@@ -586,7 +586,7 @@ export class AuthService {
     // Supabase uses 'azure' for Microsoft OAuth
     const supabaseProvider = provider === 'microsoft' ? 'azure' : provider;
 
-    // Redirect to frontend instead of backend for localhost compatibility
+    // Redirect to frontend which will handle token storage and profile creation
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
 
     const { data, error } = await this.supabaseService
@@ -613,19 +613,46 @@ export class AuthService {
 
   /**
    * Check if email exists
+   * Checks both in local database (Prisma) and Supabase Auth
    */
   async checkEmailExists(
     email: string,
   ): Promise<{ exists: boolean; email: string; role?: any }> {
+    // First check in local database
     const profile = await this.prismaService.profile.findUnique({
       where: { email },
       select: { id: true, role: true },
     });
 
+    if (profile) {
+      return {
+        exists: true,
+        email,
+        role: profile.role,
+      };
+    }
+
+    // If not found in local DB, check in Supabase Auth
+    // This covers OAuth users who may exist in Supabase but not yet in our DB
+    const { data: userData, error: userError } = await this.supabaseService
+      .getAdminClient()
+      .auth.admin.listUsers();
+
+    if (!userError && userData?.users) {
+      const supabaseUser = userData.users.find((u: any) => u.email === email);
+      if (supabaseUser) {
+        return {
+          exists: true,
+          email,
+          role: undefined, // Unknown role - user exists in Supabase but not in local DB
+        };
+      }
+    }
+
     return {
-      exists: !!profile,
+      exists: false,
       email,
-      role: profile?.role,
+      role: undefined,
     };
   }
 
@@ -644,6 +671,10 @@ export class AuthService {
       throw new BadRequestException('Code OAuth invalide');
     }
 
+    this.logger.log(
+      `OAuth callback for user: ${data.user.email}, Supabase ID: ${data.user.id}`,
+    );
+
     // Check if profile exists with this Supabase user ID
     let profile = await this.usersService.getProfileBySupabaseId(data.user.id);
 
@@ -658,26 +689,54 @@ export class AuthService {
         // Email already exists with a different authentication method
         // Link accounts by updating the existing profile with the new Supabase ID
         this.logger.log(
-          `Linking OAuth account for existing user: ${data.user.email}`,
+          `Linking OAuth account for existing user: ${data.user.email} (Profile ID: ${existingProfile.id}, Old Supabase ID: ${existingProfile.supabaseUserId}, New Supabase ID: ${data.user.id})`,
         );
 
-        await this.prismaService.profile.update({
+        // If the existing profile has a different supabaseUserId, it means there are 2 Supabase users
+        // We need to delete the old Supabase user and update the profile with the new one
+        if (
+          existingProfile.supabaseUserId &&
+          existingProfile.supabaseUserId !== data.user.id
+        ) {
+          this.logger.log(
+            `Deleting old Supabase user: ${existingProfile.supabaseUserId}`,
+          );
+          try {
+            await this.supabaseService
+              .getAdminClient()
+              .auth.admin.deleteUser(existingProfile.supabaseUserId);
+          } catch (deleteError) {
+            this.logger.warn(
+              `Failed to delete old Supabase user: ${deleteError}`,
+            );
+          }
+        }
+
+        // Update profile with new Supabase ID and auth provider
+        const updatedProfile = await this.prismaService.profile.update({
           where: { id: existingProfile.id },
           data: {
             supabaseUserId: data.user.id,
             authProvider: this.getProviderFromUserMetadata(data.user),
           },
         });
-        profile = existingProfile;
+
+        profile = updatedProfile;
+        this.logger.log(
+          `Successfully linked OAuth account for user: ${data.user.email}`,
+        );
       } else {
         // Create new profile if email doesn't exist - minimal profile for OAuth users
         // User will need to complete onboarding to fill in role, country, etc.
+        this.logger.log(
+          `Creating new profile for OAuth user: ${data.user.email}`,
+        );
         const authProvider = this.getProviderFromUserMetadata(data.user);
 
         profile = await this.usersService.createProfile({
           supabaseUserId: data.user.id,
           email: data.user.email!,
-          role: null, // No default role - user must choose during onboarding
+          role: undefined, // No default role - user must choose during onboarding
           firstName:
             data.user.user_metadata?.full_name?.split(' ')[0] || undefined,
           lastName:
@@ -887,5 +946,21 @@ export class AuthService {
       return user.identities[0].provider;
     }
     return undefined;
+  }
+
+  /**
+   * Get Supabase client instance
+   * Used by controller for session checking
+   */
+  getSupabaseClient() {
+    return this.supabaseService.getClient();
+  }
+
+  /**
+   * Get user profile by Supabase user ID
+   * Used by controller for session checking
+   */
+  async getUserProfile(supabaseUserId: string) {
+    return this.usersService.getProfileBySupabaseId(supabaseUserId);
   }
 }

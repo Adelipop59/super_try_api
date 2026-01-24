@@ -202,7 +202,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Stocker les tokens OAuth dans des cookies',
     description:
-      'Endpoint pour stocker les tokens OAuth reçus en URL fragment dans des cookies httpOnly',
+      'Endpoint pour stocker les tokens OAuth reçus en URL fragment dans des cookies httpOnly. Crée automatiquement le profil si nécessaire.',
   })
   @ApiResponse({
     status: 200,
@@ -216,6 +216,73 @@ export class AuthController {
   ): Promise<MessageResponseDto> {
     if (!body.access_token || !body.refresh_token) {
       throw new UnauthorizedException('Tokens manquants');
+    }
+
+    console.log('[Store OAuth Tokens] Storing tokens and checking for profile...');
+
+    // Verify token and get user info from Supabase
+    const { data: userData, error: userError } = await this.authService
+      .getSupabaseClient()
+      .auth.getUser(body.access_token);
+
+    if (userError || !userData.user) {
+      console.error('[Store OAuth Tokens] Invalid token:', userError);
+      throw new UnauthorizedException('Token invalide');
+    }
+
+    console.log('[Store OAuth Tokens] User from token:', userData.user.email, userData.user.id);
+
+    // Check if profile exists, create if not
+    let profile = await this.authService.getUserProfile(userData.user.id);
+
+    if (!profile) {
+      console.log('[Store OAuth Tokens] Profile not found, checking if email exists...');
+
+      // Check if email already exists with different supabaseUserId
+      const existingProfile = await this.authService['prismaService'].profile.findUnique({
+        where: { email: userData.user.email },
+      });
+
+      if (existingProfile) {
+        console.log('[Store OAuth Tokens] Email exists, linking accounts...');
+
+        // Link accounts by updating supabaseUserId
+        if (existingProfile.supabaseUserId && existingProfile.supabaseUserId !== userData.user.id) {
+          try {
+            await this.authService.getSupabaseClient().auth.admin.deleteUser(existingProfile.supabaseUserId);
+            console.log('[Store OAuth Tokens] Deleted old Supabase user');
+          } catch (err) {
+            console.warn('[Store OAuth Tokens] Failed to delete old user:', err);
+          }
+        }
+
+        profile = await this.authService['prismaService'].profile.update({
+          where: { id: existingProfile.id },
+          data: {
+            supabaseUserId: userData.user.id,
+            authProvider: userData.user.app_metadata?.provider || 'oauth',
+          },
+        });
+
+        console.log('[Store OAuth Tokens] Accounts linked successfully');
+      } else {
+        console.log('[Store OAuth Tokens] Creating new OAuth profile...');
+
+        // Create new profile for OAuth user
+        profile = await this.authService['usersService'].createProfile({
+          supabaseUserId: userData.user.id,
+          email: userData.user.email!,
+          role: undefined,
+          firstName: userData.user.user_metadata?.full_name?.split(' ')[0] || undefined,
+          lastName: userData.user.user_metadata?.full_name?.split(' ')[1] || undefined,
+          authProvider: userData.user.app_metadata?.provider || 'oauth',
+          isOnboarded: false,
+        });
+
+        console.log('[Store OAuth Tokens] Profile created:', profile.id);
+      }
+    } else {
+      console.log('[Store OAuth Tokens] Profile already exists:', profile.id);
     }
 
     const isProduction = process.env.NODE_ENV === 'production';
@@ -232,6 +299,7 @@ export class AuthController {
       getCookieOptions(isProduction, COOKIE_EXPIRY.REFRESH_TOKEN),
     );
 
+    console.log('[Store OAuth Tokens] Tokens stored successfully');
     return { message: 'Tokens OAuth stockés avec succès' };
   }
 

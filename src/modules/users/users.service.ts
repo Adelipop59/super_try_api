@@ -217,11 +217,20 @@ export class UsersService {
       throw new BadRequestException('Email already in use');
     }
 
+    // For OAuth users who haven't completed onboarding, role can be null
+    // For regular signup, role defaults to USER if not specified
+    const role =
+      createProfileDto.role !== undefined
+        ? createProfileDto.role
+        : createProfileDto.isOnboarded === false
+          ? null
+          : UserRole.USER;
+
     return this.prismaService.profile.create({
       data: {
         supabaseUserId: createProfileDto.supabaseUserId,
         email: createProfileDto.email,
-        role: createProfileDto.role || UserRole.USER,
+        role,
         firstName: createProfileDto.firstName,
         lastName: createProfileDto.lastName,
         phone: createProfileDto.phone,
