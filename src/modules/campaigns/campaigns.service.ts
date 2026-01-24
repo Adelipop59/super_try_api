@@ -199,6 +199,7 @@ export class CampaignsService {
 
         return {
           productId: p.productId,
+          productName: product.name,
           quantity: p.quantity,
           expectedPrice,
           shippingCost,
