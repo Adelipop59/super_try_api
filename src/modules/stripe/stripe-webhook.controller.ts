@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { StripeService } from './stripe.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -38,7 +37,7 @@ export class StripeWebhookController {
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Headers('stripe-signature') signature: string,
-    @Req() request: RawBodyRequest<Request>,
+    @Req() request: Request & { rawBody?: Buffer },
   ) {
     if (!signature) {
       this.logger.error('Missing stripe-signature header');
@@ -241,14 +240,90 @@ export class StripeWebhookController {
           // On continue quand même pour ne pas bloquer
         }
 
-        // Activer la campagne
+        // Créer/obtenir le wallet du PRO AVANT d'activer la campagne
+        let proWallet = await prisma.wallet.findUnique({
+          where: { userId: campaign.sellerId },
+        });
+
+        if (!proWallet) {
+          proWallet = await prisma.wallet.create({
+            data: { userId: campaign.sellerId },
+          });
+        }
+
+        // Récupérer les métadonnées de la commission depuis la transaction
+        const txMetadata = transaction.metadata as any;
+        const productsAmount = txMetadata?.productsAmount || 0;
+        const testerShare = txMetadata?.testerShare || 0;
+        const platformShare = txMetadata?.platformShare || 0;
+        const productCount = txMetadata?.totalQuantity || 0;
+        const walletAmount = txMetadata?.walletAmount || 0; // Montant payé avec wallet (en euros)
+        const paymentMethod = txMetadata?.paymentMethod || 'CARD';
+
+        // ✅ PAIEMENT HYBRIDE: Débiter wallet si utilisé
+        if (walletAmount > 0) {
+          // Vérifier qu'il n'y a pas déjà une transaction DEBIT pour ce paiement wallet
+          const existingWalletDebit = await prisma.transaction.findFirst({
+            where: {
+              campaignId: campaign.id,
+              type: 'DEBIT',
+              walletId: proWallet.id,
+            },
+          });
+
+          if (existingWalletDebit) {
+            this.logger.warn(
+              `Wallet already debited for campaign ${campaignId} (transaction ${existingWalletDebit.id}), skipping wallet debit`,
+            );
+          } else {
+            // Débiter le wallet.balance
+            await prisma.wallet.update({
+              where: { userId: campaign.sellerId },
+              data: { balance: { decrement: walletAmount } },
+            });
+
+            // Créer transaction DEBIT pour audit trail
+            await prisma.transaction.create({
+              data: {
+                walletId: proWallet.id,
+                campaignId: campaign.id,
+                type: 'DEBIT',
+                amount: walletAmount,
+                reason: `Paiement partiel campagne "${campaign.title}" (wallet)`,
+                status: 'COMPLETED',
+                stripeSessionId: session.id,
+                metadata: {
+                  paymentMethod: 'HYBRID',
+                  cardAmount: (session.amount_total || 0) / 100,
+                  productsAmount,
+                  testerShare,
+                  platformShare,
+                },
+              },
+            });
+
+            this.logger.log(
+              `Wallet debited: ${walletAmount}€ for hybrid payment (campaign ${campaignId})`,
+            );
+          }
+        }
+
+        // Total à mettre en escrow = produits + tester bonus pool
+        const totalEscrow = productsAmount + testerShare;
+
+        // Activer la campagne et incrémenter escrowAmount
         await prisma.campaign.update({
           where: { id: campaignId },
-          data: { status: CampaignStatus.ACTIVE },
+          data: {
+            status: CampaignStatus.ACTIVE,
+            escrowAmount: { increment: totalEscrow },
+          },
         });
 
         this.logger.log(
-          `Campaign ${campaignId} activated after successful checkout payment of ${(session.amount_total || 0) / 100}€`,
+          `Campaign ${campaignId} activated after successful checkout payment | ` +
+            `Card: ${(session.amount_total || 0) / 100}€, Wallet: ${walletAmount}€, ` +
+            `Escrow: ${totalEscrow}€ (Products: ${productsAmount}€, Tester pool: ${testerShare}€, Platform: ${platformShare}€)`,
         );
 
         // Envoyer une notification au vendeur

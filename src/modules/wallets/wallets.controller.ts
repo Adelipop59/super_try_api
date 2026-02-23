@@ -24,6 +24,7 @@ import { WalletResponseDto } from './dto/wallet-response.dto';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { WithdrawalResponseDto } from './dto/withdrawal-response.dto';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
+import { AvailableBalanceResponseDto } from './dto/available-balance-response.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
@@ -101,6 +102,27 @@ export class WalletsController {
           : parseFloat(result.balance.toString()),
       currency: result.currency,
     };
+  }
+
+  @Get('me/available')
+  @ApiOperation({
+    summary: 'Récupérer le solde disponible avec détails',
+    description:
+      "Récupère le solde total, l'argent bloqué en escrow, et le solde réellement disponible pour payer de nouvelles campagnes.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Solde disponible récupéré avec succès',
+    type: AvailableBalanceResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Non authentifié',
+  })
+  async getAvailableBalance(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AvailableBalanceResponseDto> {
+    return this.walletsService.getAvailableBalance(user.id);
   }
 
   @Get('me/transactions')

@@ -77,6 +77,322 @@ export class WalletsService {
   }
 
   /**
+   * Récupère le solde disponible avec détails complets
+   * Calcul: available = balance - SUM(campaign.escrowAmount WHERE status IN (ACTIVE, PENDING_PAYMENT))
+   */
+  async getAvailableBalance(userId: string): Promise<{
+    totalBalance: number;
+    escrowBlocked: number;
+    available: number;
+    currency: string;
+    escrowDetails: Array<{
+      campaignId: string;
+      campaignTitle: string;
+      escrowAmount: number;
+      status: string;
+    }>;
+    totalEarned: number;
+    totalWithdrawn: number;
+  }> {
+    // Récupérer le wallet
+    const wallet = await this.getOrCreateWallet(userId);
+
+    // Récupérer toutes les campagnes avec escrow actif
+    const campaignsWithEscrow = await this.prismaService.campaign.findMany({
+      where: {
+        sellerId: userId,
+        status: {
+          in: ['ACTIVE', 'PENDING_PAYMENT'],
+        },
+        escrowAmount: {
+          gt: 0,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        escrowAmount: true,
+        status: true,
+      },
+    });
+
+    // Récupérer toutes les commandes UGC en attente de paiement
+    const ugcOrdersWithEscrow = await this.prismaService.chatOrder.findMany({
+      where: {
+        buyerId: userId, // Le PRO qui a commandé l'UGC
+        status: 'PENDING_PAYMENT',
+      },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        description: true,
+        status: true,
+      },
+    });
+
+    // Calculer le total bloqué en escrow pour les campaigns
+    const campaignEscrow = campaignsWithEscrow.reduce(
+      (sum, campaign) => sum + Number(campaign.escrowAmount),
+      0,
+    );
+
+    // Calculer le total bloqué en escrow pour les UGC orders
+    const ugcEscrow = ugcOrdersWithEscrow.reduce(
+      (sum, order) => sum + Number(order.amount),
+      0,
+    );
+
+    // Total escrow bloqué
+    const escrowBlocked = campaignEscrow + ugcEscrow;
+
+    // Calculer le solde disponible
+    const totalBalance = Number(wallet.balance);
+    const available = totalBalance - escrowBlocked;
+
+    // Combiner les détails d'escrow
+    const escrowDetails = [
+      ...campaignsWithEscrow.map((c) => ({
+        campaignId: c.id,
+        campaignTitle: c.title,
+        escrowAmount: Number(c.escrowAmount),
+        status: c.status,
+      })),
+      ...ugcOrdersWithEscrow.map((o) => ({
+        campaignId: o.id,
+        campaignTitle: `UGC ${o.type} - ${o.description.substring(0, 50)}...`,
+        escrowAmount: Number(o.amount),
+        status: o.status,
+      })),
+    ];
+
+    return {
+      totalBalance,
+      escrowBlocked,
+      available,
+      currency: wallet.currency,
+      escrowDetails,
+      totalEarned: Number(wallet.totalEarned),
+      totalWithdrawn: Number(wallet.totalWithdrawn),
+    };
+  }
+
+  /**
+   * ========================================
+   * MÉTHODES GÉNÉRIQUES POUR PAIEMENTS HYBRIDES
+   * ========================================
+   */
+
+  /**
+   * Calcule le solde disponible et les montants pour un paiement hybride
+   * Méthode générique utilisable par campaigns, UGC, etc.
+   *
+   * @param userId - ID de l'utilisateur
+   * @param totalAmount - Montant total à payer (en euros)
+   * @param walletAmount - Montant souhaité avec wallet (optionnel)
+   * @param useMaxWallet - Utiliser le maximum du wallet (optionnel)
+   * @param resourceType - Type de ressource ('campaign', 'ugc', etc.)
+   * @param resourceId - ID de la ressource (pour exclure de l'escrow)
+   * @returns Calcul des montants wallet/carte avec validation
+   */
+  async calculateHybridPayment(
+    userId: string,
+    totalAmount: number,
+    options: {
+      walletAmount?: number;
+      useMaxWallet?: boolean;
+      resourceType?: 'campaign' | 'ugc' | 'other';
+      resourceId?: string;
+    } = {},
+  ): Promise<{
+    available: number;
+    escrowLocked: number;
+    walletToUse: number;
+    cardAmount: number;
+    needsStripe: boolean;
+    canPayFullWallet: boolean;
+  }> {
+    const STRIPE_MINIMUM = 5.0;
+
+    // Récupérer wallet
+    const wallet = await this.prismaService.wallet.findUnique({
+      where: { userId },
+    });
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    // Calculer escrow bloqué (exclure la ressource actuelle)
+    const where: any = {
+      sellerId: userId,
+      status: { in: ['ACTIVE', 'PENDING_PAYMENT'] },
+      escrowAmount: { gt: 0 },
+    };
+
+    if (options.resourceId) {
+      where.id = { not: options.resourceId };
+    }
+
+    const totalEscrow = await this.prismaService.campaign.aggregate({
+      where,
+      _sum: { escrowAmount: true },
+    });
+
+    const escrowLocked = Number(totalEscrow._sum.escrowAmount || 0);
+    const available = Number(wallet.balance) - escrowLocked;
+
+    // Calculer montant wallet à utiliser
+    let walletToUse = 0;
+    if (options.useMaxWallet) {
+      walletToUse = Math.min(available, totalAmount);
+    } else {
+      walletToUse = Math.min(options.walletAmount || 0, available);
+    }
+
+    // Vérifier minimum Stripe
+    let cardAmount = totalAmount - walletToUse;
+
+    // Auto-ajustement si useMaxWallet et carte < 5€
+    if (
+      options.useMaxWallet &&
+      cardAmount > 0 &&
+      cardAmount < STRIPE_MINIMUM
+    ) {
+      const maxWalletForStripe = totalAmount - STRIPE_MINIMUM;
+      if (maxWalletForStripe >= 0 && available >= maxWalletForStripe) {
+        walletToUse = maxWalletForStripe;
+        cardAmount = STRIPE_MINIMUM;
+      }
+    }
+
+    return {
+      available,
+      escrowLocked,
+      walletToUse,
+      cardAmount,
+      needsStripe: cardAmount > 0,
+      canPayFullWallet: available >= totalAmount,
+    };
+  }
+
+  /**
+   * Effectue un paiement 100% wallet et bloque les fonds en escrow
+   * Méthode générique utilisable par tous les modules
+   *
+   * @param tx - Transaction Prisma
+   * @param userId - ID de l'utilisateur
+   * @param walletAmount - Montant à débiter
+   * @param escrowAmount - Montant à bloquer en escrow
+   * @param resourceType - Type de ressource
+   * @param resourceId - ID de la ressource
+   * @param resourceTitle - Titre de la ressource
+   * @param metadata - Metadata additionnelle
+   */
+  async payWithWalletAndLockEscrow(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    walletAmount: number,
+    escrowAmount: number,
+    resourceType: 'campaign' | 'ugc',
+    resourceId: string,
+    resourceTitle: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    // 1. Débiter balance
+    await tx.wallet.update({
+      where: { userId },
+      data: { balance: { decrement: walletAmount } },
+    });
+
+    // 2. Bloquer en escrow (dans la ressource)
+    if (resourceType === 'campaign') {
+      await tx.campaign.update({
+        where: { id: resourceId },
+        data: {
+          escrowAmount: { increment: escrowAmount },
+          status: 'ACTIVE',
+        },
+      });
+    }
+    // TODO: Ajouter support UGC quand la table sera créée
+
+    // 3. Créer transaction DEBIT
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    await tx.transaction.create({
+      data: {
+        walletId: wallet!.id,
+        campaignId: resourceType === 'campaign' ? resourceId : undefined,
+        type: 'DEBIT',
+        amount: walletAmount,
+        reason: `Paiement ${resourceType} "${resourceTitle}" (wallet)`,
+        status: 'COMPLETED',
+        metadata: {
+          paymentMethod: 'WALLET',
+          resourceType,
+          resourceId,
+          escrowAmount,
+          ...metadata,
+        },
+      },
+    });
+  }
+
+  /**
+   * Débloque l'escrow et crédite le wallet
+   * Méthode générique pour la fin d'une ressource
+   *
+   * @param tx - Transaction Prisma
+   * @param userId - ID de l'utilisateur
+   * @param escrowAmount - Montant à débloquer
+   * @param resourceType - Type de ressource
+   * @param resourceId - ID de la ressource
+   * @param resourceTitle - Titre de la ressource
+   */
+  async unlockEscrowToBalance(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    escrowAmount: number,
+    resourceType: 'campaign' | 'ugc',
+    resourceId: string,
+    resourceTitle: string,
+  ): Promise<void> {
+    if (escrowAmount === 0) return;
+
+    // 1. Reset escrow de la ressource
+    if (resourceType === 'campaign') {
+      await tx.campaign.update({
+        where: { id: resourceId },
+        data: { escrowAmount: 0, status: 'COMPLETED' },
+      });
+    }
+
+    // 2. Créditer balance
+    await tx.wallet.update({
+      where: { userId },
+      data: { balance: { increment: escrowAmount } },
+    });
+
+    // 3. Transaction CREDIT
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    await tx.transaction.create({
+      data: {
+        walletId: wallet!.id,
+        campaignId: resourceType === 'campaign' ? resourceId : undefined,
+        type: 'CREDIT',
+        amount: escrowAmount,
+        reason: `Déblocage fonds ${resourceType} "${resourceTitle}"`,
+        status: 'COMPLETED',
+        metadata: {
+          reason: `${resourceType.toUpperCase()}_COMPLETED`,
+          resourceType,
+          resourceId,
+        },
+      },
+    });
+  }
+
+  /**
    * Crédite le wallet d'un utilisateur
    */
   async creditWallet(
@@ -465,6 +781,7 @@ export class WalletsService {
       id: wallet.id,
       userId: wallet.userId,
       balance: wallet.balance,
+      pendingBalance: wallet.pendingBalance,
       currency: wallet.currency,
       totalEarned: wallet.totalEarned,
       totalWithdrawn: wallet.totalWithdrawn,

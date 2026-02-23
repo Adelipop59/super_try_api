@@ -25,6 +25,13 @@ export class WalletResponseDto {
   balance: number | Decimal;
 
   @ApiProperty({
+    description: 'Solde bloqué (en escrow pour campagnes actives)',
+    example: 50.0,
+    type: Number,
+  })
+  pendingBalance: number | Decimal;
+
+  @ApiProperty({
     description: 'Devise',
     example: 'EUR',
   })

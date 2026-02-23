@@ -918,40 +918,91 @@ export class SessionsService {
             );
           }
 
-          // ✅ Créer un Stripe Transfer DEPUIS le compte PRO vers le testeur
-          const transfer = await this.stripeService.createTesterTransfer(
-            testerProfile.stripeAccountId,
-            rewardAmount,
+          // ✅ Vérifier le wallet PRO
+          const proWallet = await this.prisma.wallet.findUnique({
+            where: { userId: session.campaign.sellerId },
+          });
+
+          if (!proWallet) {
+            throw new BadRequestException(
+              'Wallet PRO non trouvé. Contactez le support.',
+            );
+          }
+
+          // Calculer le montant total: prix produit + bonus testeur (5€)
+          const testerBonus = this.configService.get<number>(
+            'stripe.campaignFeeTesterShare',
+            5,
+          );
+          const totalAmount = rewardAmount + testerBonus;
+
+          if (proWallet.pendingBalance < totalAmount) {
+            throw new BadRequestException(
+              `Solde insuffisant dans le wallet PRO (${proWallet.pendingBalance}€ disponible, ${totalAmount}€ requis)`,
+            );
+          }
+
+          // ✅ Créer un Transfer direct PRO → Testeur (avec bonus inclus)
+          const transfer = await this.stripeService.createDirectTransfer(
+            sellerProfile.stripeAccountId, // Source: PRO
+            testerProfile.stripeAccountId, // Destination: Testeur
+            totalAmount, // Prix produit + 5€ bonus
             sessionId,
-            session.campaign.title,
-            sellerProfile.stripeAccountId, // ✅ NOUVEAU
           );
 
-          // Créer une transaction en BDD pour traçabilité
+          // Débiter le wallet PRO du montant total
           await this.prisma.transaction.create({
             data: {
+              walletId: proWallet.id,
               sessionId,
-              type: TransactionType.CREDIT,
-              amount: rewardAmount,
-              reason: `Paiement test validé - Campagne: ${session.campaign.title}`,
+              type: TransactionType.DEBIT,
+              amount: totalAmount,
+              reason: `Paiement test validé (${rewardAmount}€) + bonus (${testerBonus}€)`,
               status: TransactionStatus.COMPLETED,
               metadata: {
                 stripeTransferId: transfer.id,
+                productAmount: rewardAmount,
+                testerBonus: testerBonus,
                 campaignId: session.campaignId,
                 campaignTitle: session.campaign.title,
                 rating: dto.rating,
-                testerStripeAccountId: testerProfile.stripeAccountId,
               },
             },
           });
 
+          await this.prisma.wallet.update({
+            where: { userId: session.campaign.sellerId },
+            data: {
+              pendingBalance: { decrement: totalAmount },
+            },
+          });
+
+          // Créditer le wallet testeur avec le montant total
+          await this.walletsService.creditWallet(
+            session.testerId,
+            totalAmount,
+            `Test validé - ${session.campaign.title} (${rewardAmount}€ + ${testerBonus}€ bonus)`,
+            sessionId,
+            undefined,
+            {
+              campaignId: session.campaignId,
+              campaignTitle: session.campaign.title,
+              productAmount: rewardAmount,
+              testerBonus: testerBonus,
+              rating: dto.rating,
+              testerStripeAccountId: testerProfile.stripeAccountId,
+            },
+          );
+
           await this.logsService.logSuccess(
             LogCategory.WALLET,
-            `💰 Stripe Transfer créé de ${rewardAmount}€ pour session ${sessionId}`,
+            `💰 Stripe Transfer créé de ${totalAmount}€ pour session ${sessionId} (${rewardAmount}€ produit + ${testerBonus}€ bonus)`,
             {
               sessionId,
               testerId: session.testerId,
-              amount: rewardAmount,
+              amount: totalAmount,
+              productAmount: rewardAmount,
+              testerBonus: testerBonus,
               stripeTransferId: transfer.id,
               stripeAccountId: testerProfile.stripeAccountId,
             },
@@ -978,11 +1029,15 @@ export class SessionsService {
 
     await this.logsService.logSuccess(
       LogCategory.SESSION,
-      `✅ Test validé et payé (session ${sessionId}) - Récompense: ${rewardAmount}€`,
+      `✅ Test validé et payé (session ${sessionId}) - Total testeur: ${rewardAmount + this.configService.get<number>('stripe.campaignFeeTesterShare', 5)}€`,
       {
         sessionId,
         rating: dto.rating,
         rewardAmount,
+        testerBonus: this.configService.get<number>(
+          'stripe.campaignFeeTesterShare',
+          5,
+        ),
       },
     );
 

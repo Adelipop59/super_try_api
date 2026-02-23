@@ -23,6 +23,7 @@ import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { CampaignFilterDto } from './dto/campaign-filter.dto';
 import { CampaignResponseDto } from './dto/campaign-response.dto';
 import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { CreateHybridPaymentDto } from './dto/create-hybrid-payment.dto';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -288,6 +289,103 @@ export class CampaignsController {
     );
   }
 
+  @Roles('PRO')
+  @Post(':id/pay')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Payer une campagne avec wallet + carte (ou 100% wallet)',
+    description:
+      'Permet de payer une campagne en utilisant le solde wallet du PRO, combiné avec une carte bancaire si nécessaire.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la campagne' })
+  @ApiResponse({
+    status: 201,
+    description: 'Paiement effectué avec succès',
+  })
+  @ApiResponse({ status: 400, description: 'Solde wallet insuffisant' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Non propriétaire de la campagne' })
+  async payCampaignHybrid(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateHybridPaymentDto,
+    @Query('successUrl') successUrl: string,
+    @Query('cancelUrl') cancelUrl: string,
+  ) {
+    // Appeler la méthode service pour vérifier et calculer les montants
+    const result = await this.campaignsService.payCampaignHybrid(
+      id,
+      user.id,
+      dto.walletAmount || 0,
+      dto.useMaxWallet || false,
+    );
+
+    // Si paiement 100% wallet, la campagne est déjà activée
+    if (result.paymentMethod === 'WALLET') {
+      return {
+        success: true,
+        paymentMethod: 'WALLET',
+        walletUsed: result.walletUsed,
+        totalAmount: result.totalAmount,
+        campaignActivated: true,
+      };
+    }
+
+    // Si paiement hybride ou carte, créer session Stripe
+    if (result.cardAmount > 0) {
+      const validatedData = await this.campaignsService.validateCampaignForPayment(
+        id,
+        user.id,
+      );
+
+      const session = await this.stripeService.createCampaignCheckoutSession(
+        validatedData,
+        user.id,
+        successUrl,
+        cancelUrl,
+        result.walletUsed, // Passer le montant wallet à Stripe
+      );
+
+      return {
+        success: true,
+        paymentMethod: result.paymentMethod,
+        walletUsed: result.walletUsed,
+        cardAmount: result.cardAmount,
+        totalAmount: result.totalAmount,
+        checkoutUrl: session.url,
+        sessionId: session.id,
+      };
+    }
+
+    return result;
+  }
+
+  @Roles('PRO', 'ADMIN')
+  @Post(':id/complete')
+  @ApiBearerAuth('supabase-auth')
+  @ApiOperation({
+    summary: 'Terminer une campagne et débloquer les fonds restants',
+    description:
+      'Marque la campagne comme terminée (COMPLETED) et transfère le montant non dépensé du escrow vers le solde disponible du wallet PRO.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la campagne' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campagne terminée et fonds débloqués',
+  })
+  @ApiResponse({ status: 400, description: 'Campagne non éligible' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async completeCampaign(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.campaignsService.completeCampaign(id, user.id);
+    return {
+      success: true,
+      message: 'Campaign completed and funds unlocked',
+    };
+  }
+
   @Roles('PRO', 'ADMIN')
   @Get('my-transactions')
   @ApiBearerAuth('supabase-auth')
@@ -457,14 +555,14 @@ export class CampaignsController {
   @Get(':id/cost')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Détail du coût de la campagne',
+    summary: 'Récapitulatif complet du coût de la campagne',
     description:
-      'Récupère le détail des coûts : prix produit, livraison, bonus, total par unité et total campagne',
+      'Récupère le détail des coûts : prix produit, livraison, bonus, commissions Super_Try (testeur + plateforme), et total final à payer',
   })
   @ApiParam({ name: 'id', description: 'ID de la campagne' })
   @ApiResponse({
     status: 200,
-    description: 'Détail des coûts de la campagne',
+    description: 'Détail complet des coûts de la campagne',
     schema: {
       type: 'object',
       properties: {
@@ -494,8 +592,13 @@ export class CampaignsController {
             },
           },
         },
-        totalCampaignCost: { type: 'number', example: 12259.8 },
+        totalCampaignCost: { type: 'number', example: 12259.8, description: 'Total produits (sans commissions)' },
         totalCampaignCostCents: { type: 'number', example: 1225980 },
+        testerCommission: { type: 'number', example: 50.0, description: 'Commission pour les testeurs (bonus pool)' },
+        platformCommission: { type: 'number', example: 50.0, description: 'Commission Super_Try' },
+        totalCommissions: { type: 'number', example: 100.0, description: 'Total des commissions' },
+        totalWithCommissions: { type: 'number', example: 12359.8, description: 'Total à payer (produits + commissions)' },
+        totalWithCommissionsCents: { type: 'number', example: 1235980 },
         currency: { type: 'string', example: 'EUR' },
       },
     },

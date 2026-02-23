@@ -6,6 +6,7 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
@@ -18,6 +19,7 @@ import {
   calculateOffset,
 } from '../../common/dto/pagination.dto';
 import { CampaignCriteriaService } from './campaign-criteria.service';
+import { WalletsService } from '../wallets/wallets.service';
 
 // Type for campaign with optimized select (only needed fields)
 type CampaignWithIncludes = Prisma.CampaignGetPayload<{
@@ -32,6 +34,7 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
     totalSlots: true;
     availableSlots: true;
     status: true;
+    keywords: true;
     createdAt: true;
     updatedAt: true;
     category: {
@@ -53,7 +56,12 @@ type CampaignWithIncludes = Prisma.CampaignGetPayload<{
       select: {
         id: true;
         productId: true;
+        productName: true;
         quantity: true;
+        expectedPrice: true;
+        shippingCost: true;
+        priceRangeMin: true;
+        priceRangeMax: true;
         reimbursedPrice: true;
         reimbursedShipping: true;
         maxReimbursedPrice: true;
@@ -90,6 +98,8 @@ export class CampaignsService {
   constructor(
     private prismaService: PrismaService,
     private campaignCriteriaService: CampaignCriteriaService,
+    private configService: ConfigService,
+    private walletsService: WalletsService,
   ) {}
 
   /**
@@ -327,6 +337,7 @@ export class CampaignsService {
           totalSlots: true,
           availableSlots: true,
           status: true,
+          keywords: true,
           createdAt: true,
           updatedAt: true,
           category: {
@@ -348,7 +359,12 @@ export class CampaignsService {
             select: {
               id: true,
               productId: true,
+              productName: true,
               quantity: true,
+              expectedPrice: true,
+              shippingCost: true,
+              priceRangeMin: true,
+              priceRangeMax: true,
               reimbursedPrice: true,
               reimbursedShipping: true,
               maxReimbursedPrice: true,
@@ -567,6 +583,7 @@ export class CampaignsService {
           totalSlots: true,
           availableSlots: true,
           status: true,
+          keywords: true,
           createdAt: true,
           updatedAt: true,
           category: {
@@ -588,7 +605,12 @@ export class CampaignsService {
             select: {
               id: true,
               productId: true,
+              productName: true,
               quantity: true,
+              expectedPrice: true,
+              shippingCost: true,
+              priceRangeMin: true,
+              priceRangeMax: true,
               reimbursedPrice: true,
               reimbursedShipping: true,
               maxReimbursedPrice: true,
@@ -768,6 +790,7 @@ export class CampaignsService {
 
           return {
             productId: p.productId,
+            productName: p.productName,
             quantity: p.quantity,
             expectedPrice,
             shippingCost,
@@ -953,8 +976,21 @@ export class CampaignsService {
     // Only DRAFT campaigns can be deleted
     // PENDING_PAYMENT, ACTIVE, COMPLETED, CANCELLED cannot be deleted
     if (campaign.status !== CampaignStatus.DRAFT) {
+      const statusMessages: Record<CampaignStatus, string> = {
+        [CampaignStatus.PENDING_PAYMENT]:
+          'Impossible de supprimer une campagne en attente de paiement. Veuillez d\'abord annuler le paiement ou attendre son expiration.',
+        [CampaignStatus.ACTIVE]:
+          'Impossible de supprimer une campagne active. Les testeurs ont déjà postulé. Vous devez d\'abord l\'annuler.',
+        [CampaignStatus.COMPLETED]:
+          'Impossible de supprimer une campagne terminée. Les données doivent être conservées pour l\'historique.',
+        [CampaignStatus.CANCELLED]:
+          'Impossible de supprimer une campagne annulée. Les données doivent être conservées pour l\'historique.',
+        [CampaignStatus.DRAFT]: '', // Ne sera jamais utilisé
+      };
+
       throw new BadRequestException(
-        `Cannot delete ${campaign.status.toLowerCase()} campaign. Only DRAFT campaigns can be deleted.`,
+        statusMessages[campaign.status] ||
+        'Seules les campagnes en brouillon (DRAFT) peuvent être supprimées.',
       );
     }
 
@@ -1269,11 +1305,226 @@ export class CampaignsService {
       totalAmountCents += Math.round(offerTotal * 100);
     }
 
+    // Calculer les commissions (testeur + plateforme)
+    const totalAmount = totalAmountCents / 100;
+    const productCount = campaign.offers.reduce((sum, o) => sum + o.quantity, 0);
+    const campaignFeeType = this.configService.get('stripe.campaignFeeType');
+    let testerCommission = 0;
+    let platformCommission = 0;
+
+    if (campaignFeeType === 'FIXED_PER_PRODUCT') {
+      const testerFeePerProduct = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+      const platformFeePerProduct = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+      testerCommission = testerFeePerProduct * productCount;
+      platformCommission = platformFeePerProduct * productCount;
+    } else {
+      // PERCENTAGE
+      const testerFeePercentage = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+      const platformFeePercentage = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+      testerCommission = (totalAmount * testerFeePercentage) / 100;
+      platformCommission = (totalAmount * platformFeePercentage) / 100;
+    }
+
+    const totalCommissions = testerCommission + platformCommission;
+    const totalWithCommissions = totalAmount + totalCommissions;
+    const totalWithCommissionsCents = Math.round(totalWithCommissions * 100);
+
     return {
       campaign,
-      totalAmountCents,
+      totalAmountCents, // Montant produits uniquement (pour legacy)
+      totalWithCommissionsCents, // Montant total à payer (produits + commissions)
+      testerCommission,
+      platformCommission,
       errors: [],
     };
+  }
+
+  /**
+   * Paiement hybride campagne: Wallet + Carte (ou 100% wallet)
+   * Utilise le système générique de WalletsService
+   */
+  async payCampaignHybrid(
+    campaignId: string,
+    userId: string,
+    walletAmount: number,
+    useMaxWallet: boolean,
+  ): Promise<{
+    paymentMethod: 'WALLET' | 'HYBRID';
+    walletUsed: number;
+    cardAmount: number;
+    totalAmount: number;
+    campaignActivated?: boolean;
+  }> {
+    // 1. Valider la campagne
+    const validatedData = await this.validateCampaignForPayment(
+      campaignId,
+      userId,
+    );
+    const totalAmount = validatedData.totalAmountCents / 100;
+
+    // 2. Utiliser la méthode générique pour calculer les montants
+    const payment = await this.walletsService.calculateHybridPayment(
+      userId,
+      totalAmount,
+      {
+        walletAmount,
+        useMaxWallet,
+        resourceType: 'campaign',
+        resourceId: campaignId,
+      },
+    );
+
+    // 3. Vérification minimum Stripe 5€
+    const STRIPE_MINIMUM = 5.0;
+    if (payment.cardAmount > 0 && payment.cardAmount < STRIPE_MINIMUM) {
+      const maxWalletForStripe = totalAmount - STRIPE_MINIMUM;
+
+      if (useMaxWallet && payment.available >= maxWalletForStripe) {
+        // Auto-ajustement
+        payment.walletToUse = maxWalletForStripe;
+        payment.cardAmount = STRIPE_MINIMUM;
+      } else if (payment.canPayFullWallet) {
+        throw new BadRequestException(
+          `Le montant minimum pour un paiement par carte est de ${STRIPE_MINIMUM}€. ` +
+            `Votre wallet peut couvrir la totalité. Utilisez useMaxWallet: true.`,
+        );
+      } else if (payment.available >= maxWalletForStripe) {
+        throw new BadRequestException(
+          `Le montant minimum Stripe est ${STRIPE_MINIMUM}€. ` +
+            `Utilisez ${maxWalletForStripe.toFixed(2)}€ wallet + ${STRIPE_MINIMUM}€ carte.`,
+        );
+      } else {
+        throw new BadRequestException(
+          `Montant carte insuffisant: ${payment.cardAmount.toFixed(2)}€ < ${STRIPE_MINIMUM}€ minimum.`,
+        );
+      }
+    }
+
+    // 4. Si 100% wallet, payer directement
+    if (!payment.needsStripe && payment.walletToUse > 0) {
+      // Calculer commissions (testeur + plateforme)
+      const campaign = validatedData.campaign;
+      const productTotal = totalAmount;
+      const campaignFeeType = this.configService.get('stripe.campaignFeeType');
+      const productCount = campaign.offers.reduce((sum, o) => sum + o.quantity, 0);
+
+      let testerShare = 0;
+      let platformShare = 0;
+
+      if (campaignFeeType === 'FIXED_PER_PRODUCT') {
+        const testerFeePerProduct = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+        const platformFeePerProduct = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+        testerShare = testerFeePerProduct * productCount;
+        platformShare = platformFeePerProduct * productCount;
+      } else {
+        // PERCENTAGE
+        const testerFeePercentage = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+        const platformFeePercentage = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+        testerShare = (productTotal * testerFeePercentage) / 100;
+        platformShare = (productTotal * platformFeePercentage) / 100;
+      }
+
+      // L'escrow contient: produits + commission testeur (le platformShare va à Super_Try immédiatement)
+      const escrowAmount = productTotal + testerShare;
+
+      return await this.prismaService.$transaction(
+        async (tx) => {
+          await this.walletsService.payWithWalletAndLockEscrow(
+            tx,
+            userId,
+            payment.walletToUse,
+            escrowAmount,
+            'campaign',
+            campaignId,
+            campaign.title,
+            {
+              productTotal,
+              testerBonusPool: testerShare,
+              platformCommission: platformShare,
+              totalCommission: testerShare + platformShare,
+            },
+          );
+
+          // La commission platformShare va immédiatement à Super_Try
+          // (dans un vrai système, on créerait une transaction vers le wallet Super_Try)
+          this.logger.log(
+            `Campaign ${campaignId} paid 100% wallet: ${payment.walletToUse}€ | ` +
+              `Products: ${productTotal}€, Tester pool: ${testerShare}€, Platform: ${platformShare}€`,
+          );
+
+          return {
+            paymentMethod: 'WALLET',
+            walletUsed: payment.walletToUse,
+            cardAmount: 0,
+            totalAmount,
+            campaignActivated: true,
+          };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 10000,
+        },
+      );
+    }
+
+    // 5. Sinon, retourner les montants pour Stripe
+    return {
+      paymentMethod: payment.walletToUse > 0 ? 'HYBRID' : 'HYBRID',
+      walletUsed: payment.walletToUse,
+      cardAmount: payment.cardAmount,
+      totalAmount,
+      campaignActivated: false,
+    };
+  }
+
+  /**
+   * Déblocage de l'escrow en fin de campagne
+   * Utilise le système générique de WalletsService
+   */
+  async completeCampaign(campaignId: string, userId: string): Promise<void> {
+    await this.prismaService.$transaction(
+      async (tx) => {
+        const campaign = await tx.campaign.findUnique({
+          where: { id: campaignId },
+        });
+
+        if (!campaign) {
+          throw new NotFoundException('Campaign not found');
+        }
+
+        // Vérifier ownership
+        if (campaign.sellerId !== userId) {
+          throw new ForbiddenException('Not the owner of this campaign');
+        }
+
+        // Vérifier statut
+        if (campaign.status !== CampaignStatus.ACTIVE) {
+          throw new BadRequestException(
+            'Campaign must be ACTIVE to be completed',
+          );
+        }
+
+        const escrowAmount = Number(campaign.escrowAmount);
+
+        // Utiliser la méthode générique pour débloquer
+        await this.walletsService.unlockEscrowToBalance(
+          tx,
+          campaign.sellerId,
+          escrowAmount,
+          'campaign',
+          campaignId,
+          campaign.title,
+        );
+
+        this.logger.log(
+          `Campaign ${campaignId} completed: ${escrowAmount}€ unlocked`,
+        );
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: 10000,
+      },
+    );
   }
 
   /**
@@ -1362,6 +1613,7 @@ export class CampaignsService {
 
   /**
    * Get campaign cost details
+   * Inclut les commissions Super_Try (testeur + plateforme)
    */
   async getCampaignCost(campaignId: string): Promise<any> {
     const campaign = await this.prismaService.campaign.findUnique({
@@ -1421,12 +1673,41 @@ export class CampaignsService {
       0,
     );
 
+    // Calculer les commissions (testeur + plateforme)
+    const productCount = campaign.offers.reduce((sum, o) => sum + o.quantity, 0);
+    const campaignFeeType = this.configService.get('stripe.campaignFeeType');
+    let testerCommission = 0;
+    let platformCommission = 0;
+
+    if (campaignFeeType === 'FIXED_PER_PRODUCT') {
+      const testerFeePerProduct = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+      const platformFeePerProduct = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+      testerCommission = testerFeePerProduct * productCount;
+      platformCommission = platformFeePerProduct * productCount;
+    } else {
+      // PERCENTAGE
+      const testerFeePercentage = this.configService.get('stripe.campaignFeeTesterShare') || 5;
+      const platformFeePercentage = this.configService.get('stripe.campaignFeePlatformShare') || 5;
+      testerCommission = (totalCampaignCost * testerFeePercentage) / 100;
+      platformCommission = (totalCampaignCost * platformFeePercentage) / 100;
+    }
+
+    const totalCommissions = testerCommission + platformCommission;
+    const totalWithCommissions = totalCampaignCost + totalCommissions;
+
     return {
       campaignId: campaign.id,
       campaignTitle: campaign.title,
       offers,
       totalCampaignCost,
       totalCampaignCostCents: Math.round(totalCampaignCost * 100),
+      // Commissions
+      testerCommission,
+      platformCommission,
+      totalCommissions,
+      // Total final à payer (produits + commissions)
+      totalWithCommissions,
+      totalWithCommissionsCents: Math.round(totalWithCommissions * 100),
       currency: 'EUR',
     };
   }
@@ -1503,7 +1784,17 @@ export class CampaignsService {
           description: offer.product.description,
           categoryId: offer.product.categoryId,
           category: offer.product.category,
-          images: offer.product.images,
+          imageUrl: (() => {
+            // Extract first image URL from images JSON
+            if (offer.product.images && typeof offer.product.images === 'object') {
+              const imagesArray = Array.isArray(offer.product.images)
+                ? offer.product.images
+                : (offer.product.images as any).images || [];
+              const firstImage = imagesArray.find((img: any) => img.isPrimary) || imagesArray[0];
+              return firstImage?.url || null;
+            }
+            return null;
+          })(),
           isActive: offer.product.isActive,
         },
       })),

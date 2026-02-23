@@ -163,6 +163,7 @@ model Profile {
   id             String    @id @default(uuid())
   supabaseUserId String    @unique @map("supabase_user_id")
   email          String    @unique
+  passwordHash   String?   @map("password_hash") // Nullable for OAuth users
   role           UserRole? // Nullable - will be set during onboarding for OAuth users
 
   firstName String? @map("first_name")
@@ -234,6 +235,10 @@ model Profile {
   procedureTemplates      ProcedureTemplate[]     @relation("SellerProcedureTemplates") // Templates de procédures (pour les vendeurs)
   criteriaTemplates       CriteriaTemplate[]      @relation("SellerCriteriaTemplates") // Templates de critères (pour les vendeurs)
   countries               ProfileCountry[] // Pays sélectionnés (pour les PRO)
+  ugcsRequested           UGC[]                   @relation("UGCRequester") // UGC demandés (en tant que PRO)
+  ugcsSubmitted           UGC[]                   @relation("UGCSubmitter") // UGC soumis (en tant que testeur)
+  sessions                Session[] // Sessions d'authentification Lucia
+  oauthAccounts           OAuthAccount[] // Comptes OAuth liés
 
   @@index([email])
   @@index([supabaseUserId])
@@ -344,6 +349,9 @@ model Campaign {
 
   // SEO and search
   keywords String[] @default([]) // Mots-clés pour la recherche et le référencement
+
+  // Escrow amount (montant bloqué dans le wallet PRO pour cette campagne)
+  escrowAmount Decimal @default(0) @map("escrow_amount") @db.Decimal(10, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -844,6 +852,91 @@ model Session {
   @@index([ugcValidated])
   @@index([purchaseValidatedAt])
   @@map("sessions")
+  // Relations
+  ugcs UGC[] // UGC créés pour cette session
+}
+
+// UGC Status enum
+enum UGCStatus {
+  REQUESTED // Demandé par le PRO
+  SUBMITTED // Soumis par le testeur
+  VALIDATED // Validé par le PRO
+  REJECTED // Rejeté par le PRO (peut être resoumis)
+  DECLINED // Refusé par le testeur
+}
+
+// UGC Type enum
+enum UGCType {
+  VIDEO
+  PHOTO
+  TEXT_REVIEW
+  EXTERNAL_REVIEW
+}
+
+// UGC table - User Generated Content (independent table)
+model UGC {
+  id String @id @default(uuid())
+
+  // Type and content
+  type        UGCType
+  contentUrl  String? @map("content_url") @db.Text // URL du fichier uploadé
+  description String  @db.Text // Description de ce qui était demandé
+  comment     String? @db.Text // Commentaire du testeur lors de la soumission
+
+  // Bonus
+  requestedBonus Decimal? @map("requested_bonus") @db.Decimal(10, 2) // Bonus promis
+  paidBonus      Decimal? @map("paid_bonus") @db.Decimal(10, 2) // Bonus réellement payé
+
+  // Deadline
+  deadline DateTime? // Date limite de soumission
+
+  // Status
+  status UGCStatus @default(REQUESTED)
+
+  // Validation
+  validatedAt       DateTime? @map("validated_at")
+  validatedBy       String?   @map("validated_by") // ID du PRO
+  validationComment String?   @map("validation_comment") @db.Text
+
+  // Rejection
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  // Decline
+  declinedAt    DateTime? @map("declined_at")
+  declineReason String?   @map("decline_reason") @db.Text
+
+  // Submission
+  submittedAt DateTime? @map("submitted_at")
+
+  // Relations (optional - can be linked to Session OR ChatOrder OR none)
+  sessionId String?  @map("session_id")
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  chatOrderId String?    @map("chat_order_id")
+  chatOrder   ChatOrder? @relation(fields: [chatOrderId], references: [id], onDelete: Cascade)
+
+  // Who requested/submitted
+  requestedBy String  @map("requested_by") // ID du PRO qui demande
+  requester   Profile @relation("UGCRequester", fields: [requestedBy], references: [id], onDelete: Restrict)
+
+  submittedBy String?  @map("submitted_by") // ID du testeur qui soumet
+  submitter   Profile? @relation("UGCSubmitter", fields: [submittedBy], references: [id], onDelete: Restrict)
+
+  // Payment relation
+  transactions Transaction[] // Transactions de bonus liées à cet UGC
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@index([chatOrderId])
+  @@index([status])
+  @@index([requestedBy])
+  @@index([submittedBy])
+  @@index([createdAt])
+  @@map("ugcs")
 }
 
 // Message table - Messagerie entre testeur et vendeur dans une session
@@ -1124,6 +1217,8 @@ model Transaction {
   chatOrderId         String?     @map("chat_order_id") // Lien vers une commande chat si applicable
   chatOrder           ChatOrder?  @relation("ChatOrderTransactions", fields: [chatOrderId], references: [id], onDelete: SetNull)
   chatOrderValidation ChatOrder?  @relation("ChatOrderValidation") // Relation inverse pour chat_orders.transaction_id
+  ugcId               String?     @map("ugc_id") // Lien vers un UGC si applicable (bonus UGC)
+  ugc                 UGC?        @relation(fields: [ugcId], references: [id], onDelete: SetNull)
 
   // Stripe payment reference
   stripePaymentIntentId String? @unique @map("stripe_payment_intent_id") // ID du PaymentIntent Stripe
@@ -1143,6 +1238,7 @@ model Transaction {
   @@index([withdrawalId])
   @@index([campaignId])
   @@index([chatOrderId])
+  @@index([ugcId])
   @@index([type])
   @@index([status])
   @@index([createdAt])
@@ -1253,6 +1349,9 @@ model ChatOrder {
   // Metadata
   metadata Json? // Données additionnelles
 
+  // Relations
+  ugcs UGC[] // UGC créés pour cette commande
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1303,4 +1402,32 @@ model ProfileCountry {
   @@index([profileId])
   @@index([countryCode])
   @@map("profile_countries")
+}
+
+// Table des sessions Lucia Auth
+model Session {
+  id        String   @id
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Table des comptes OAuth liés (Google, GitHub, Azure)
+model OAuthAccount {
+  id         String @id @default(uuid())
+  provider   String // "google", "github", "azure"
+  providerId String @map("provider_id") // ID unique chez le provider
+
+  userId String  @map("user_id")
+  user   Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }

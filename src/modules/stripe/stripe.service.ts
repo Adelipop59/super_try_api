@@ -44,12 +44,15 @@ export class StripeService {
   private readonly logger = new Logger(StripeService.name);
   private stripe: Stripe;
   private readonly currency: string;
-  private readonly testerTransferFee: number;
 
   // Configuration commissions campagne
   private readonly campaignFeeType: string;
   private readonly campaignFeePercentage: number;
   private readonly campaignFeeFixedAmount: number;
+
+  // Répartition commission campagne
+  private readonly campaignFeeTesterShare: number;
+  private readonly campaignFeePlatformShare: number;
 
   // Configuration commissions UGC
   private readonly ugcFeeType: string;
@@ -72,10 +75,6 @@ export class StripeService {
     });
 
     this.currency = this.configService.get<string>('stripe.currency', 'eur');
-    this.testerTransferFee = this.configService.get<number>(
-      'stripe.testerTransferFee',
-      10,
-    );
 
     // Commissions campagne
     this.campaignFeeType = this.configService.get<string>(
@@ -89,6 +88,14 @@ export class StripeService {
     this.campaignFeeFixedAmount = this.configService.get<number>(
       'stripe.campaignFeeFixedAmount',
       10,
+    );
+    this.campaignFeeTesterShare = this.configService.get<number>(
+      'stripe.campaignFeeTesterShare',
+      5,
+    );
+    this.campaignFeePlatformShare = this.configService.get<number>(
+      'stripe.campaignFeePlatformShare',
+      5,
     );
 
     // Commissions UGC
@@ -109,7 +116,7 @@ export class StripeService {
       `Stripe service initialized | ` +
         `Campaign fee: ${this.campaignFeeType} (${this.campaignFeeType === 'PERCENTAGE' ? this.campaignFeePercentage + '%' : this.campaignFeeFixedAmount + '€/product'}) | ` +
         `UGC fee: ${this.ugcFeeType} (${this.ugcFeeType === 'PERCENTAGE' ? this.ugcFeePercentage + '%' : this.ugcFeeFixedAmount + '€'}) | ` +
-        `Tester transfer fee: ${this.testerTransferFee}%`,
+        `Tester transfer: NO FEE (PRO pays all commissions)`,
     );
   }
 
@@ -242,28 +249,21 @@ export class StripeService {
     sellerStripeAccountId: string, // ✅ NOUVEAU: Compte Connect du PRO
   ): Promise<Stripe.Transfer> {
     try {
-      // Calculer la commission de la plateforme
+      // ✅ AUCUNE commission sur le transfert testeur (PRO a déjà payé la commission)
       const amountInCents = Math.round(amount * 100);
-      const commissionInCents = Math.round(
-        (amountInCents * this.testerTransferFee) / 100,
-      );
-      const amountAfterCommission = amountInCents - commissionInCents;
 
-      // ✅ Transfer DEPUIS le compte Connect du PRO vers le testeur
+      // ✅ Transfer DEPUIS le compte Connect du PRO vers le testeur (MONTANT COMPLET)
       // Utilisation de stripeAccount pour faire le transfer depuis le compte du PRO
       const transfer = await this.stripe.transfers.create(
         {
-          amount: amountAfterCommission,
+          amount: amountInCents, // ✅ Montant COMPLET sans commission
           currency: this.currency,
           destination: testerAccountId,
           metadata: {
             type: 'tester_payment',
             sessionId,
             campaignTitle,
-            originalAmount: String(amountInCents),
-            commission: String(commissionInCents),
-            commissionRate: `${this.testerTransferFee}%`,
-            amountAfterCommission: String(amountAfterCommission),
+            amount: String(amountInCents),
             sellerStripeAccountId: sellerStripeAccountId,
             transferFromSeller: 'true',
           },
@@ -278,8 +278,7 @@ export class StripeService {
       this.logger.log(
         `✅ Transfer FROM PRO to tester ${testerAccountId}: ${transfer.id} | ` +
           `PRO account: ${sellerStripeAccountId} | ` +
-          `Original: ${amount}€, Commission: ${(commissionInCents / 100).toFixed(2)}€ (${this.testerTransferFee}%), ` +
-          `Transferred: ${(amountAfterCommission / 100).toFixed(2)}€`,
+          `Amount: ${amount}€ (no commission on transfer)`,
       );
 
       return transfer;
@@ -293,6 +292,47 @@ export class StripeService {
           `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
+  }
+
+  /**
+   * Transfer direct entre comptes Connect SANS commission
+   * Les frais Stripe sont déduits de la commission campagne
+   *
+   * @param fromAccountId Compte Stripe Connect source (PRO)
+   * @param toAccountId Compte Stripe Connect destination (Testeur)
+   * @param amount Montant en euros
+   * @param reference Référence de la transaction (sessionId, etc.)
+   */
+  async createDirectTransfer(
+    fromAccountId: string,
+    toAccountId: string,
+    amount: number,
+    reference: string,
+  ): Promise<Stripe.Transfer> {
+    const amountInCents = Math.round(amount * 100);
+
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: amountInCents,
+        currency: this.currency,
+        destination: toAccountId,
+        metadata: {
+          type: 'direct_transfer',
+          reference,
+          fromAccount: fromAccountId,
+        },
+        description: `Paiement direct - ${reference}`,
+      },
+      {
+        stripeAccount: fromAccountId, // Transfer FROM this account
+      },
+    );
+
+    this.logger.log(
+      `✅ Direct transfer ${fromAccountId} → ${toAccountId}: ${amount}€`,
+    );
+
+    return transfer;
   }
 
   /**
@@ -794,6 +834,45 @@ export class StripeService {
   }
 
   /**
+   * Calculer la commission avec répartition testeur/plateforme
+   * Utilisé pour le nouveau système de paiement
+   */
+  calculateCampaignCommissionV2(
+    productTotal: number,
+    productCount: number,
+  ): {
+    totalCommission: number;
+    testerShare: number;
+    platformShare: number;
+    stripeFees: number;
+    netPlatformShare: number;
+    feeType: string;
+  } {
+    // Commission totale: 10€ par produit
+    const totalCommission = this.campaignFeeFixedAmount * productCount;
+
+    // Répartition de la commission (utiliser les variables config)
+    const testerShare = this.campaignFeeTesterShare * productCount; // 5€ × produits
+    const platformShare = this.campaignFeePlatformShare * productCount; // 5€ × produits
+
+    // Estimer les frais Stripe sur le paiement total
+    const totalAmount = productTotal + totalCommission;
+    const stripeFees = totalAmount * 0.015 + 0.25; // 1.5% + 0.25€
+
+    // Commission nette plateforme = Part plateforme - Frais Stripe
+    const netPlatformShare = platformShare - stripeFees;
+
+    return {
+      totalCommission: Math.round(totalCommission * 100), // 10€ × produits
+      testerShare: Math.round(testerShare * 100), // 5€ × produits
+      platformShare: Math.round(platformShare * 100), // 5€ × produits
+      stripeFees: Math.round(stripeFees * 100), // Frais Stripe
+      netPlatformShare: Math.round(netPlatformShare * 100), // Super_Try net
+      feeType: this.campaignFeeType,
+    };
+  }
+
+  /**
    * Calculer la commission UGC
    * Supporte PERCENTAGE (%) ou FIXED (€ fixe)
    */
@@ -825,7 +904,7 @@ export class StripeService {
    * Obtenir le taux de commission pour les transfers testeurs
    */
   getTesterTransferFeeRate(): number {
-    return this.testerTransferFee;
+    return 0; // Aucune commission sur transfert testeur (PRO paie tout)
   }
 
   /**
@@ -1008,18 +1087,23 @@ export class StripeService {
         offers: any[];
       };
       totalAmountCents: number;
+      totalWithCommissionsCents: number;
     },
     userId: string,
     successUrl: string,
     cancelUrl: string,
+    walletAmount = 0, // Montant payé avec le wallet (en euros)
   ): Promise<{
     checkoutUrl: string;
     sessionId: string;
     amount: number;
     currency: string;
     transactionId: string;
+    url?: string;
+    id?: string;
   }> {
-    const { campaign, totalAmountCents } = validatedData;
+    const { campaign, totalWithCommissionsCents } = validatedData;
+    const totalAmountCents = totalWithCommissionsCents; // Utiliser le montant AVEC commissions
 
     // Vérifier s'il y a une transaction PENDING existante pour cette campagne
     const existingTransaction = await this.prismaService.transaction.findFirst({
@@ -1058,11 +1142,40 @@ export class StripeService {
             };
           } else {
             this.logger.warn(
-              `Amount mismatch: existing session ${existingSession.amount_total} vs current ${totalAmountCents}. Creating new session.`,
+              `Amount mismatch: existing session ${existingSession.amount_total} vs current ${totalAmountCents}. Cancelling old session.`,
             );
-            // Expire l'ancienne session et on va en créer une nouvelle
+            // Expire l'ancienne session Stripe
             await this.stripe.checkout.sessions.expire(existingSession.id);
+
+            // Annuler l'ancienne transaction
+            await this.prismaService.transaction.update({
+              where: { id: existingTransaction.id },
+              data: {
+                status: TransactionStatus.CANCELLED,
+                metadata: {
+                  ...(existingTransaction.metadata as any),
+                  cancelledReason: 'Amount mismatch - campaign data changed',
+                  cancelledAt: new Date().toISOString(),
+                },
+              },
+            });
           }
+        } else if (existingSession.status !== 'open') {
+          // Session expirée ou payée, annuler la transaction si elle est toujours PENDING
+          this.logger.warn(
+            `Existing session ${existingSession.id} has status ${existingSession.status}. Cancelling old transaction.`,
+          );
+          await this.prismaService.transaction.update({
+            where: { id: existingTransaction.id },
+            data: {
+              status: TransactionStatus.CANCELLED,
+              metadata: {
+                ...(existingTransaction.metadata as any),
+                cancelledReason: `Session status: ${existingSession.status}`,
+                cancelledAt: new Date().toISOString(),
+              },
+            },
+          });
         }
       } catch (error) {
         // Session expirée ou invalide, on va créer une nouvelle session
@@ -1091,13 +1204,20 @@ export class StripeService {
     const sellerStripeAccountId = sellerProfile?.stripeAccountId || null;
 
     // ✅ ÉTAPE 2 : Calculer la commission avec la nouvelle méthode (support FIXED/PERCENTAGE)
-    const commissionCalc = this.calculateCampaignCommission({
+    const oldCommissionCalc = this.calculateCampaignCommission({
       offers: campaign.offers,
     });
 
-    const totalProductsAmount = commissionCalc.totalAmount;
-    const platformCommission = commissionCalc.commission;
-    const totalAmountWithCommission = totalProductsAmount + platformCommission;
+    const totalProductsAmount = oldCommissionCalc.totalAmount;
+    const productCount = campaign.offers.reduce((sum: number, o: any) => sum + o.quantity, 0);
+
+    // Utiliser la nouvelle méthode de calcul avec répartition testeur/plateforme
+    const commissionCalc = this.calculateCampaignCommissionV2(
+      totalProductsAmount / 100, // Convertir en euros
+      productCount
+    );
+
+    const totalAmountWithCommission = totalProductsAmount + commissionCalc.totalCommission;
 
     // ✅ ÉTAPE 3 : Créer les line items (SANS la commission en line item)
     // La commission sera prélevée via application_fee_amount
@@ -1126,12 +1246,59 @@ export class StripeService {
         };
       });
 
+    // ✅ AJOUTER LES COMMISSIONS comme line items séparés
+    // Commission testeur (bloquée dans escrow du wallet PRO)
+    if (commissionCalc.testerShare > 0) {
+      lineItems.push({
+        price_data: {
+          currency: this.currency,
+          product_data: {
+            name: 'Bonus testeurs',
+            description: 'Bonus qui sera distribué aux testeurs lors de la validation',
+          },
+          unit_amount: commissionCalc.testerShare, // Déjà en centimes
+        },
+        quantity: 1,
+      });
+    }
+
+    // Commission plateforme Super_Try
+    if (commissionCalc.platformShare > 0) {
+      lineItems.push({
+        price_data: {
+          currency: this.currency,
+          product_data: {
+            name: 'Commission Super_Try',
+            description: 'Frais de plateforme',
+          },
+          unit_amount: commissionCalc.platformShare, // Déjà en centimes
+        },
+        quantity: 1,
+      });
+    }
+
+    // ✅ PAIEMENT HYBRIDE: Ajouter crédit wallet si applicable
+    if (walletAmount > 0) {
+      lineItems.unshift({
+        price_data: {
+          currency: this.currency,
+          product_data: {
+            name: 'Crédit wallet appliqué',
+            description: `Paiement partiel avec votre solde wallet`,
+          },
+          unit_amount: -Math.round(walletAmount * 100), // Montant NÉGATIF
+        },
+        quantity: 1,
+      });
+    }
+
     this.logger.log(
       `💰 Campaign payment (${commissionCalc.feeType}) | ` +
         `Products: ${(totalProductsAmount / 100).toFixed(2)}€ | ` +
-        `Commission: ${(platformCommission / 100).toFixed(2)}€ | ` +
-        `Total: ${(totalAmountWithCommission / 100).toFixed(2)}€ | ` +
-        `→ ${(commissionCalc.amountAfterCommission / 100).toFixed(2)}€ vers PRO`,
+        `Commission total: ${(commissionCalc.totalCommission / 100).toFixed(2)}€ ` +
+        `(Testeur: ${(commissionCalc.testerShare / 100).toFixed(2)}€, ` +
+        `Plateforme: ${(commissionCalc.platformShare / 100).toFixed(2)}€) | ` +
+        `Total à payer: ${(totalAmountWithCommission / 100).toFixed(2)}€`,
     );
 
     // ✅ ÉTAPE 4 : Créer la Checkout Session avec application_fee_amount
@@ -1148,25 +1315,37 @@ export class StripeService {
         sellerId: userId,
         sellerStripeAccountId: sellerStripeAccountId || 'test_mode',
         productsAmount: totalProductsAmount,
-        platformCommission: platformCommission,
+        totalCommission: commissionCalc.totalCommission,
+        testerShare: commissionCalc.testerShare,
+        platformShare: commissionCalc.platformShare,
         commissionType: commissionCalc.feeType,
         totalAmount: totalAmountWithCommission,
+        walletAmount: Math.round(walletAmount * 100), // En centimes
+        paymentMethod: walletAmount > 0 ? 'HYBRID' : 'CARD',
       },
     };
 
     // Ajouter payment_intent_data uniquement si Stripe Connect est activé
     if (sellerStripeAccountId) {
+      // PRO reçoit dans son Connect: productTotal + testerShare (pool bonus testeurs)
+      const proReceivesAmount = totalProductsAmount + commissionCalc.testerShare;
+
       sessionParams.payment_intent_data = {
-        application_fee_amount: platformCommission,
+        application_fee_amount: commissionCalc.netPlatformShare, // Super_Try part - frais Stripe
         transfer_data: {
-          destination: sellerStripeAccountId,
+          destination: sellerStripeAccountId, // PRO reçoit produits + bonus pool
         },
         metadata: {
           type: 'campaign_payment',
           campaignId: campaign.id,
           sellerId: userId,
           productsAmount: totalProductsAmount,
-          platformCommission: platformCommission,
+          totalCommission: commissionCalc.totalCommission,
+          testerShare: commissionCalc.testerShare,
+          platformShare: commissionCalc.platformShare,
+          stripeFees: commissionCalc.stripeFees,
+          netPlatformShare: commissionCalc.netPlatformShare,
+          proReceivesAmount: proReceivesAmount,
           commissionType: commissionCalc.feeType,
         },
       };
@@ -1194,13 +1373,20 @@ export class StripeService {
             previousSessionId: existingTransaction.stripeSessionId,
             // ✅ Détails de la commission
             productsAmount: totalProductsAmount / 100,
-            platformCommission: platformCommission / 100,
+            totalCommission: commissionCalc.totalCommission / 100,
+            testerShare: commissionCalc.testerShare / 100,
+            platformShare: commissionCalc.platformShare / 100,
+            stripeFees: commissionCalc.stripeFees / 100,
+            netPlatformShare: commissionCalc.netPlatformShare / 100,
             commissionType: commissionCalc.feeType,
             totalAmountWithCommission: totalAmountWithCommission / 100,
             // ✅ IMPORTANT: Argent va directement au PRO via Direct Charge
             sellerStripeAccountId: sellerStripeAccountId,
             directCharge: true,
-            amountToPRO: commissionCalc.amountAfterCommission / 100,
+            amountToPRO: (totalProductsAmount + commissionCalc.testerShare) / 100,
+            // ✅ PAIEMENT HYBRIDE
+            walletAmount,
+            paymentMethod: walletAmount > 0 ? 'HYBRID' : 'CARD',
           },
         },
       });
@@ -1226,13 +1412,20 @@ export class StripeService {
             ),
             // ✅ Détails de la commission
             productsAmount: totalProductsAmount / 100,
-            platformCommission: platformCommission / 100,
+            totalCommission: commissionCalc.totalCommission / 100,
+            testerShare: commissionCalc.testerShare / 100,
+            platformShare: commissionCalc.platformShare / 100,
+            stripeFees: commissionCalc.stripeFees / 100,
+            netPlatformShare: commissionCalc.netPlatformShare / 100,
             commissionType: commissionCalc.feeType,
             totalAmountWithCommission: totalAmountWithCommission / 100,
             // ✅ IMPORTANT: Argent va directement au PRO via Direct Charge
             sellerStripeAccountId: sellerStripeAccountId,
             directCharge: true,
-            amountToPRO: commissionCalc.amountAfterCommission / 100,
+            amountToPRO: (totalProductsAmount + commissionCalc.testerShare) / 100,
+            // ✅ PAIEMENT HYBRIDE
+            walletAmount,
+            paymentMethod: walletAmount > 0 ? 'HYBRID' : 'CARD',
           },
         },
       });
@@ -1254,6 +1447,8 @@ export class StripeService {
       amount: totalAmountCents,
       currency: this.currency,
       transactionId: transaction.id,
+      url: session.url!,
+      id: session.id,
     };
   }
 
@@ -1420,5 +1615,162 @@ export class StripeService {
       this.logger.error(`Failed to get verification session: ${error.message}`);
       throw new BadRequestException('Verification session not found');
     }
+  }
+
+  /**
+   * Expirer une session Stripe Checkout
+   */
+  async expireCheckoutSession(sessionId: string): Promise<void> {
+    try {
+      await this.stripe.checkout.sessions.expire(sessionId);
+      this.logger.log(`Checkout session ${sessionId} expired`);
+    } catch (error) {
+      this.logger.error(`Failed to expire checkout session ${sessionId}: ${error.message}`);
+      throw new BadRequestException('Failed to expire checkout session');
+    }
+  }
+
+  /**
+   * Créer une Checkout Session pour le paiement d'une commande UGC
+   * Similaire au système de paiement des campagnes
+   */
+  async createUgcCheckoutSession(params: {
+    orderId: string;
+    amount: number;
+    commission: number;
+    totalWithCommission: number;
+    type: string;
+    description: string;
+    buyerId: string;
+    sellerId: string;
+    successUrl: string;
+    cancelUrl: string;
+  }): Promise<{ url: string; sessionId: string }> {
+    const {
+      orderId,
+      amount,
+      commission,
+      totalWithCommission,
+      type,
+      description,
+      buyerId,
+      sellerId,
+      successUrl,
+      cancelUrl,
+    } = params;
+
+    // Récupérer le Stripe Account ID du PRO (buyer)
+    const buyer = await this.prismaService.profile.findUnique({
+      where: { id: buyerId },
+      select: { stripeAccountId: true },
+    });
+
+    const buyerStripeAccountId = buyer?.stripeAccountId;
+
+    // Créer les line items
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: this.currency,
+          product_data: {
+            name: `Commande UGC - ${type}`,
+            description: description || 'Contenu UGC personnalisé',
+          },
+          unit_amount: Math.round(amount * 100),
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Ajouter la commission Super_Try
+    if (commission > 0) {
+      lineItems.push({
+        price_data: {
+          currency: this.currency,
+          product_data: {
+            name: 'Commission Super_Try',
+            description: 'Frais de plateforme UGC',
+          },
+          unit_amount: Math.round(commission * 100),
+        },
+        quantity: 1,
+      });
+    }
+
+    // Préparer les paramètres de session
+    const sessionParams: any = {
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        orderId,
+        type: 'ugc_order',
+        ugcType: type,
+        amount: amount.toString(),
+        commission: commission.toString(),
+        totalAmount: totalWithCommission.toString(),
+        buyerId,
+        sellerId,
+        buyerStripeAccountId: buyerStripeAccountId || 'none',
+      },
+    };
+
+    // Si le PRO a un Stripe Connect, transférer l'argent directement
+    if (buyerStripeAccountId) {
+      const amountInCents = Math.round(amount * 100);
+      const commissionInCents = Math.round(commission * 100);
+
+      // Calculer les frais Stripe (2.9% + 0.25€)
+      const totalInCents = amountInCents + commissionInCents;
+      const stripeFees = Math.round(totalInCents * 0.029 + 25);
+
+      // Commission nette pour Super_Try (commission - frais Stripe)
+      const netPlatformShare = commissionInCents - stripeFees;
+
+      sessionParams.payment_intent_data = {
+        application_fee_amount: netPlatformShare, // Super_Try reçoit commission - frais Stripe
+        transfer_data: {
+          destination: buyerStripeAccountId, // PRO reçoit le montant de l'UGC
+        },
+        metadata: {
+          type: 'ugc_order',
+          orderId,
+          buyerId,
+          sellerId,
+          amount: amountInCents,
+          commission: commissionInCents,
+          stripeFees,
+          netPlatformShare,
+          proReceivesAmount: amountInCents,
+        },
+      };
+
+      this.logger.log(
+        `UGC Payment with Stripe Connect | ` +
+          `Order: ${orderId} | ` +
+          `PRO receives: ${(amountInCents / 100).toFixed(2)}€ | ` +
+          `Commission: ${(commissionInCents / 100).toFixed(2)}€ | ` +
+          `Stripe fees: ${(stripeFees / 100).toFixed(2)}€ | ` +
+          `Platform net: ${(netPlatformShare / 100).toFixed(2)}€`,
+      );
+    } else {
+      this.logger.warn(
+        `UGC Payment WITHOUT Stripe Connect (buyer has no stripeAccountId) | Order: ${orderId}`,
+      );
+    }
+
+    // Créer la Checkout Session
+    const session = await this.stripe.checkout.sessions.create(sessionParams);
+
+    this.logger.log(
+      `UGC Checkout created for order ${orderId}: ${session.id} | Amount: ${amount}€ + Commission: ${commission}€ = Total: ${totalWithCommission}€`,
+    );
+
+    return {
+      url: session.url!,
+      sessionId: session.id,
+    };
   }
 }

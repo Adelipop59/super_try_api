@@ -89,6 +89,8 @@ export class ProductsController {
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() files?: Express.Multer.File[],
   ): Promise<ProductResponseDto> {
+    console.log('[ProductsController.create] body:', JSON.stringify(createProductDto));
+    console.log('[ProductsController.create] files:', files?.length ?? 0);
     return this.productsService.create(user.id, createProductDto, files);
   }
 

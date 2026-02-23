@@ -17,7 +17,9 @@
       "Bash(lsof:*)",
       "Bash(xargs kill -9)",
       "Bash(tree:*)",
-      "Bash(npm run start:*)"
+      "Bash(npm run start:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(PGPASSWORD=1234 psql:*)"
     ]
   }
 }

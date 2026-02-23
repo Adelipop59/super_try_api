@@ -4,16 +4,42 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
+import { json } from 'express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
-    rawBody: true, // Enable rawBody for Stripe webhooks
   });
 
   const configService = app.get(ConfigService);
+
+  // DEBUG: Log raw incoming request before any parsing
+  app.use((req: any, _res: any, next: any) => {
+    if (req.url.includes('/products') && req.method === 'POST') {
+      console.log('━━━━━━━━━━ [DEBUG MIDDLEWARE] ━━━━━━━━━━');
+      console.log('[DEBUG] Method:', req.method);
+      console.log('[DEBUG] URL:', req.url);
+      console.log('[DEBUG] Content-Type:', req.headers['content-type']);
+      console.log('[DEBUG] Content-Length:', req.headers['content-length']);
+      console.log('[DEBUG] Body keys:', Object.keys(req.body || {}));
+      console.log('[DEBUG] Body:', JSON.stringify(req.body || {}).slice(0, 500));
+      console.log('[DEBUG] req.readable (stream not consumed):', req.readable);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+    next();
+  });
+
+  // Capture raw body ONLY for Stripe webhooks (needed for signature verification)
+  app.use(
+    '/api/v1/stripe/webhooks',
+    json({
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
 
   // Enable cookie parser
   app.use(cookieParser());
@@ -44,6 +70,10 @@ async function bootstrap() {
           return `${error.property}: ${constraints}`;
         });
         logger.error(`Validation failed: ${messages.join('; ')}`);
+        // DEBUG: log the raw value that was validated
+        console.log('[DEBUG ValidationPipe] errors count:', errors.length);
+        console.log('[DEBUG ValidationPipe] target:', errors[0]?.target?.constructor?.name);
+        console.log('[DEBUG ValidationPipe] value:', JSON.stringify(errors[0]?.target || {}).slice(0, 500));
         return new (require('@nestjs/common').BadRequestException)(messages);
       },
     }),

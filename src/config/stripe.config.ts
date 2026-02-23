@@ -20,18 +20,34 @@ export default registerAs('stripe', () => ({
   campaignFeeFixedAmount: parseFloat(
     process.env.CAMPAIGN_FEE_FIXED_AMOUNT || '10',
   ),
+  // Répartition de la commission campagne
+  campaignFeeTesterShare: parseFloat(
+    process.env.CAMPAIGN_FEE_TESTER_SHARE || '5',
+  ),
+  campaignFeePlatformShare: parseFloat(
+    process.env.CAMPAIGN_FEE_PLATFORM_SHARE || '5',
+  ),
 
-  // ===== COMMISSIONS UGC =====
-  // Type: PERCENTAGE (%) ou FIXED (€ fixe)
-  ugcFeeType: process.env.UGC_FEE_TYPE || 'PERCENTAGE',
-  // Si PERCENTAGE: taux en %
+  // ===== UGC =====
+  // Prix fixes par type
+  ugcPhotoPrice: parseFloat(process.env.UGC_PHOTO_PRICE || '50'),
+  ugcVideoPrice: parseFloat(process.env.UGC_VIDEO_PRICE || '150'),
+
+  // Commission Super_Try par type
+  ugcFeeType: process.env.UGC_FEE_TYPE || 'FIXED',
+  // Si FIXED: montants par type
+  ugcPhotoFee: parseFloat(process.env.UGC_PHOTO_FEE || '10'),
+  ugcVideoFee: parseFloat(process.env.UGC_VIDEO_FEE || '20'),
+  // Si PERCENTAGE: taux global appliqué au prix
   ugcFeePercentage: parseFloat(process.env.UGC_FEE_PERCENTAGE || '10'),
-  // Si FIXED: montant fixe en €
-  ugcFeeFixedAmount: parseFloat(process.env.UGC_FEE_FIXED_AMOUNT || '5'),
 
-  // ===== COMMISSION TRANSFER TESTEUR =====
-  // Toujours en pourcentage
-  testerTransferFee: parseFloat(process.env.TESTER_TRANSFER_FEE || '10'),
+  // ===== COMMISSION TIPS =====
+  tipFeeType: process.env.TIP_FEE_TYPE || 'PERCENTAGE',
+  tipFeePercentage: parseFloat(process.env.TIP_FEE_PERCENTAGE || '10'),
+
+  // ===== FRAIS RETRAIT =====
+  // Pas de frais pour testeur (PRO paie tout)
+  withdrawalFeePercentage: parseFloat(process.env.WITHDRAWAL_FEE_PERCENTAGE || '0'),
 
   // ===== STRIPE CONNECT =====
   connectEnabled: process.env.STRIPE_CONNECT_ENABLED === 'true',

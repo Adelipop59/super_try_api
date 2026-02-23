@@ -79,63 +79,58 @@ export class ChatOrdersService {
       );
     }
 
-    // Vérifier que le PRO a un Stripe Customer ID
-    if (!session.campaign.seller.stripeCustomerId) {
-      throw new BadRequestException(
-        'Vous devez configurer votre méthode de paiement avant de créer une commande',
-      );
-    }
+    // Rediriger automatiquement vers le nouveau système Checkout
+    const successUrl = `${process.env.FRONTEND_URL}/dashboard/pro/sessions/${sessionId}?payment=success`;
+    const cancelUrl = `${process.env.FRONTEND_URL}/dashboard/pro/sessions/${sessionId}?payment=cancelled`;
 
-    // Créer d'abord l'order sans Payment Intent
-    const tempOrder = await this.prisma.chatOrder.create({
-      data: {
-        sessionId,
-        buyerId,
-        sellerId: session.testerId,
-        type: dto.type,
-        amount: dto.amount,
-        description: dto.description,
-        deliveryDeadline: dto.deliveryDeadline
-          ? new Date(dto.deliveryDeadline)
-          : null,
-        metadata: dto.metadata as any,
+    return this.createUgcCheckoutSession(
+      sessionId,
+      buyerId,
+      dto,
+      successUrl,
+      cancelUrl,
+    );
+  }
+
+  async createOrderLegacy(
+    sessionId: string,
+    buyerId: string,
+    dto: CreateChatOrderDto,
+  ): Promise<any> {
+    // Legacy code - kept for reference but not used
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: {
+          include: {
+            seller: {
+              select: {
+                id: true,
+                stripeCustomerId: true,
+                stripeAccountId: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    let order: ChatOrder;
-    try {
-      // Créer Payment Intent Stripe (argent bloqué sur carte bleue)
-      const paymentIntent =
-        await this.stripeService.createChatOrderPaymentIntent(
-          Number(dto.amount),
-          session.campaign.seller.stripeCustomerId,
-          {
-            orderId: tempOrder.id,
-            sessionId,
-            description: dto.description,
-          },
-        );
-
-      // Mettre à jour avec le Payment Intent ID
-      order = await this.prisma.chatOrder.update({
-        where: { id: tempOrder.id },
-        data: {
-          stripePaymentIntentId: paymentIntent.id,
-        } as any, // TODO: Régénérer Prisma client après migration
-      });
-    } catch (error) {
-      // Si erreur Stripe, supprimer l'order créé
-      await this.prisma.chatOrder.delete({ where: { id: tempOrder.id } });
-      throw error;
+    if (!session) {
+      throw new NotFoundException('Session not found');
     }
 
     await this.logsService.logInfo(
       'CAMPAIGN' as any,
-      `Chat order created: ${dto.type}`,
-      { orderId: order.id, amount: dto.amount },
+      `Chat order legacy redirect`,
+      { sessionId },
       buyerId,
     );
 
+    const orderWithRelations = {} as any;
+    return { legacy: true };
+  }
+
+  async createOrderDeprecated(order: any) {
     const orderWithRelations = await this.prisma.chatOrder.findUnique({
       where: { id: order.id },
       include: {
@@ -321,11 +316,18 @@ export class ChatOrdersService {
       throw new ForbiddenException('Only buyer can cancel');
     }
 
-    if (order.status !== ChatOrderStatus.PENDING) {
-      throw new BadRequestException('Can only cancel pending orders');
+    // Permettre l'annulation pour PENDING_PAYMENT et PENDING
+    if (
+      order.status !== ChatOrderStatus.PENDING &&
+      order.status !== ChatOrderStatus.PENDING_PAYMENT
+    ) {
+      throw new BadRequestException(
+        `Impossible d'annuler une commande en statut ${order.status}. ` +
+        'Seules les commandes en attente (PENDING ou PENDING_PAYMENT) peuvent être annulées.',
+      );
     }
 
-    // Annuler le Payment Intent Stripe
+    // Annuler le Payment Intent ou la Session Stripe
     const orderAny = order as any;
     if (orderAny.stripePaymentIntentId) {
       try {
@@ -335,6 +337,17 @@ export class ChatOrdersService {
         this.logger.log(`Payment Intent cancelled for order ${orderId}`);
       } catch (error) {
         this.logger.error(`Failed to cancel Payment Intent: ${error.message}`);
+        // Continue quand même
+      }
+    }
+
+    // Si la commande a une session Stripe Checkout, l'expirer
+    if (orderAny.stripeSessionId) {
+      try {
+        await this.stripeService.expireCheckoutSession(orderAny.stripeSessionId);
+        this.logger.log(`Checkout session expired for order ${orderId}`);
+      } catch (error) {
+        this.logger.error(`Failed to expire checkout session: ${error.message}`);
         // Continue quand même
       }
     }
@@ -1053,5 +1066,121 @@ export class ChatOrdersService {
     );
 
     return cancelledCount;
+  }
+
+  /**
+   * Créer un lien de paiement Stripe Checkout pour une commande UGC
+   * Similaire au système de paiement des campagnes
+   */
+  async createUgcCheckoutSession(
+    sessionId: string,
+    buyerId: string,
+    dto: CreateChatOrderDto,
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<{
+    checkoutUrl: string;
+    orderId: string;
+    totalAmount: number;
+    commission: number;
+    totalWithCommission: number;
+  }> {
+    // Vérifier la session
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        campaign: {
+          include: {
+            seller: {
+              select: {
+                id: true,
+                stripeCustomerId: true,
+                stripeAccountId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.campaign.sellerId !== buyerId) {
+      throw new ForbiddenException('Only seller can create orders');
+    }
+
+    // Validation: prix minimum 10€
+    if (dto.amount < 10) {
+      throw new BadRequestException(
+        'Le prix minimum pour une commande UGC est de 10€',
+      );
+    }
+
+    // Calculer les commissions Super_Try
+    const ugcFeeType = process.env.UGC_FEE_TYPE || 'FIXED';
+    let commission = 0;
+
+    if (ugcFeeType === 'FIXED') {
+      // Frais fixes selon le type
+      if (dto.type === ChatOrderType.PHOTO) {
+        commission = parseFloat(process.env.UGC_PHOTO_FEE || '10');
+      } else if (dto.type === ChatOrderType.VIDEO) {
+        commission = parseFloat(process.env.UGC_VIDEO_FEE || '20');
+      } else {
+        commission = 10; // Default pour OTHER
+      }
+    } else {
+      // Pourcentage
+      const feePercentage = parseFloat(process.env.UGC_FEE_PERCENTAGE || '10');
+      commission = (dto.amount * feePercentage) / 100;
+    }
+
+    const totalWithCommission = dto.amount + commission;
+
+    // Créer la commande en statut PENDING_PAYMENT
+    const order = await this.prisma.chatOrder.create({
+      data: {
+        sessionId,
+        buyerId,
+        sellerId: session.testerId,
+        type: dto.type,
+        amount: dto.amount,
+        description: dto.description,
+        deliveryDeadline: dto.deliveryDeadline
+          ? new Date(dto.deliveryDeadline)
+          : null,
+        metadata: {
+          ...(dto.metadata as any),
+          commission,
+          totalWithCommission,
+          feeType: ugcFeeType,
+        } as any,
+        status: ChatOrderStatus.PENDING_PAYMENT,
+      },
+    });
+
+    // Créer le lien de paiement Stripe Checkout
+    const checkout = await this.stripeService.createUgcCheckoutSession({
+      orderId: order.id,
+      amount: dto.amount,
+      commission,
+      totalWithCommission,
+      type: dto.type,
+      description: dto.description,
+      buyerId,
+      sellerId: session.testerId,
+      successUrl,
+      cancelUrl,
+    });
+
+    return {
+      checkoutUrl: checkout.url,
+      orderId: order.id,
+      totalAmount: dto.amount,
+      commission,
+      totalWithCommission,
+    };
   }
 }

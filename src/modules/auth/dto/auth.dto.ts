@@ -308,9 +308,16 @@ export class OAuthUrlResponseDto {
   @ApiProperty({
     description: 'Provider OAuth',
     example: 'google',
-    enum: ['google', 'github'],
+    enum: ['google', 'github', 'azure'],
   })
   provider!: string;
+
+  @ApiProperty({
+    description: 'État CSRF pour sécurité OAuth',
+    example: 'a1b2c3d4e5f6...',
+    required: false,
+  })
+  state?: string;
 }
 
 export class CheckEmailDto {

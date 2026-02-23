@@ -29,15 +29,24 @@ export class ChatOrdersController {
   @Roles('PRO')
   @ApiBearerAuth('supabase-auth')
   @ApiOperation({
-    summary: 'Créer une commande de prestation (PRO)',
+    summary: 'Créer une commande UGC avec paiement Stripe (PRO)',
     description:
-      'Permet au vendeur (PRO) de commander une prestation supplémentaire au testeur (UGC, photos, tip). Pour UGC/PHOTO: argent bloqué en escrow. Pour TIP: paiement immédiat.',
+      'Génère un lien de paiement Stripe Checkout pour une commande UGC. Inclut les commissions Super_Try. Retourne un lien de paiement sécurisé.',
   })
   @ApiParam({ name: 'sessionId', description: 'ID de la session' })
   @ApiResponse({
     status: 201,
-    description: 'Commande créée avec succès',
-    type: ChatOrderResponseDto,
+    description: 'Lien de paiement généré',
+    schema: {
+      type: 'object',
+      properties: {
+        checkoutUrl: { type: 'string', example: 'https://checkout.stripe.com/...' },
+        orderId: { type: 'string' },
+        totalAmount: { type: 'number', example: 50 },
+        commission: { type: 'number', example: 10 },
+        totalWithCommission: { type: 'number', example: 60 },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
